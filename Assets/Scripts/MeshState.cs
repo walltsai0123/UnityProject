@@ -10,6 +10,9 @@ public unsafe struct MeshState
     public readonly void* FPtr;
     public readonly void* TPtr;
 
+    public readonly float Mass;
+    public readonly float mu;
+    public readonly float lambda;
     public readonly int VSize;
     public readonly int FSize;
     public readonly int TSize;

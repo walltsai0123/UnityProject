@@ -38,10 +38,29 @@ public class BackEnd
 
     [DllImport(DllName)]
     public static extern unsafe void AddMesh(MeshState* meshState);
+
     [DllImport(DllName)]
     public static extern unsafe void DisposeMeshState(MeshState* state);
 
+    [DllImport(DllName)]
+    public static extern void CreateSoftBody();
+
+    [DllImport(DllName)]
+    public static extern void InitSoftBody();
+
+    [DllImport(DllName)]
+    public static extern void DeleteSoftBody();
+
+    [DllImport(DllName)]
+    public static extern void SimulationUpdate();
+
+    [DllImport(DllName)]
+    public static extern void MeshesUpdate();
+
     // IO.cpp
+    [DllImport(DllName)]
+    public static extern unsafe void ApplyDirty(MeshState* state, MeshDataNative data);
+
     [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
     public static extern unsafe bool ReadMESH(string path,
         out float* VPtr, out int VSize,

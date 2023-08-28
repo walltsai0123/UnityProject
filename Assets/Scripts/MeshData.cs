@@ -63,6 +63,7 @@ public class MeshData : IDisposable
                 (float*)V.GetUnsafePtr(), (float*)N.GetUnsafePtr(),
                 (float*)C.GetUnsafePtr(), (float*)UV.GetUnsafePtr(),
                 (int*)F.GetUnsafePtr(), (int*)T.GetUnsafePtr(),
+                tetMesh.mass, tetMesh.mu, tetMesh.lambda,
                 VSize, FSize, TSize
                 );
         }
@@ -81,6 +82,19 @@ public class MeshData : IDisposable
             UV.CopyFrom(mesh.uv);
         F.CopyFrom(mesh.triangles);
         T.CopyFrom(tetMesh.tets);
+    }
+    public unsafe void ApplyDirty(MeshState* state)
+    {
+        Assert.IsTrue(VSize == state->VSize && FSize == state->FSize);
+
+        BackEnd.ApplyDirty(state, _native);
+    }
+    public void ApplyDirtyToMesh(Mesh mesh)
+    {
+        mesh.SetVertices(V);
+        mesh.RecalculateBounds();
+        
+        mesh.SetNormals(N);
     }
     public MeshDataNative GetNative()
     {

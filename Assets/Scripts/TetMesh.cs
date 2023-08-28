@@ -14,14 +14,26 @@ public unsafe class TetMesh : MonoBehaviour
     public MeshData DataRowMajor { get; private set; }
     public MeshState* state;
     public int[] tets;
+    public float mass;
+    public float mu, lambda;
+    public bool meshDirty;
 
 
     private void Awake()
     {
         Initialize();
+        MeshManager.get.AddTetMesh(this);
+
+        Debug.Log("TetMesh Awake");
     }
     public void Initialize()
     {
+        mass = 1.0f;
+
+        mu = 5.0f;
+        lambda = 100.0f;
+        meshDirty = false;
+
         meshFilter = GetComponent<MeshFilter>();
         mesh = meshFilter.mesh;
         meshRenderer = GetComponent<MeshRenderer>();
@@ -31,17 +43,21 @@ public unsafe class TetMesh : MonoBehaviour
     }
     void Start()
     {
-        MeshManager.get.AddTetMesh(this);
+        Debug.Log("TetMesh Start");
     }
-
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        
+        if(meshDirty)
+        {
+            DataRowMajor.ApplyDirty(state);
+            DataRowMajor.ApplyDirtyToMesh(mesh);
+            meshDirty = false;
+        }
     }
     private void OnDestroy()
     {
-        Dispose(); 
+        Dispose();
+        Debug.Log("TetMesh Destroy");
     }
     private void Dispose()
     {
