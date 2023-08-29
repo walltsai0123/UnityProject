@@ -75,3 +75,4 @@ crashlytics-build.properties
 /[Bb]at/
 .vscode/
 /log/
+Assets/Plugins/__cpp-interface.*

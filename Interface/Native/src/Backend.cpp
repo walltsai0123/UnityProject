@@ -3,7 +3,6 @@
 #include <igl/readOBJ.h>
 #include <iostream>
 #include <fstream>
-#include <memory>
 #include <omp.h>
 
 std::unique_ptr<SoftBody> softbody(nullptr);
@@ -27,9 +26,7 @@ void Initialize(const StringCallback debugCallback, StringCallback debugWarningC
 	std::cerr.rdbuf(err.rdbuf());
 	fprintf(stderr, "Debug stdio redirect.\n");
 #endif
-	// int max_threads = omp_get_max_threads();
-	// omp_set_num_threads(std::max(1, max_threads - 2));
-	// fprintf(stderr, "OpenMP Max threads: %d\n", omp_get_max_threads());
+
 	LOG("Initialized BackEnd.")
 }
 

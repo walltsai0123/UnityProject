@@ -4,6 +4,7 @@
 #include "MeshState.h"
 #include "SoftBody.h"
 
+extern std::unique_ptr<SoftBody> softbody;
 
 extern "C"
 {
