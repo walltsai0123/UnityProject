@@ -18,7 +18,7 @@ extern "C"
     void DisposeMeshState(MeshState *state);
 
     UNITY_INTERFACE_EXPORT
-    void AddMesh(MeshState* meshState);
+    void AddMesh(MeshState *meshState, const char *path);
 
     UNITY_INTERFACE_EXPORT
     void CreateSoftBody();
@@ -37,13 +37,19 @@ extern "C"
 
     // IO.cpp
     UNITY_INTERFACE_EXPORT
-    void ApplyDirty(MeshState* state, const MeshDataNative data);
+    void ApplyDirty(MeshState *state, const MeshDataNative data);
 
     UNITY_INTERFACE_EXPORT
     bool ReadMESH(const char *path,
-                void *&VPtr, int &VSize,
-                void *&NPtr, int &NSize,
-                void *&FPtr, int &FSize,
-                void *&TPtr, int &TSize);
+                  void *&VPtr, int &VSize,
+                  void *&NPtr, int &NSize,
+                  void *&FPtr, int &FSize,
+                  void *&TPtr, int &TSize);
 
+    UNITY_INTERFACE_EXPORT
+    bool ReadPLY(const char *path,
+                 void *&VPtr, int &VSize,
+                 void *&NPtr, int &NSize,
+                 void *&FPtr, int &FSize,
+                 void *&UVPtr, int &UVSize);
 }

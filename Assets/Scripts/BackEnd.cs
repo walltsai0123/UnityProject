@@ -8,11 +8,9 @@ public class BackEnd
 
     public static readonly VertexAttributeDescriptor[] VertexBufferLayout = new[]
     {
-        new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3, 0),
-        new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3, 1),
-        new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 3, 2),
-        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2, 3), // UV
-        new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.UInt32, 1, 2) // Selection coupled with Color
+        new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
+        new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),
+        new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2), // UV
     };
 
     static BackEnd()
@@ -36,8 +34,8 @@ public class BackEnd
     [DllImport(DllName)]
     public static extern unsafe MeshState* InitMeshState(MeshDataNative data);
 
-    [DllImport(DllName)]
-    public static extern unsafe void AddMesh(MeshState* meshState);
+    [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
+    public static extern unsafe void AddMesh(MeshState* meshState, string path);
 
     [DllImport(DllName)]
     public static extern unsafe void DisposeMeshState(MeshState* state);
@@ -67,4 +65,11 @@ public class BackEnd
         out float* NPtr, out int NSize,
         out uint* FPtr, out int FSize,
         out uint* TPtr, out int TSize);
+
+    [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
+    public static extern unsafe bool ReadPLY(string path,
+        out float* VPtr, out int VSize,
+        out float* NPtr, out int NSize,
+        out uint* FPtr, out int FSize,
+        out uint* UVPtr, out int UVSize);
 }

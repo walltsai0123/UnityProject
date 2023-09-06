@@ -2,14 +2,18 @@
 #include "Util.h"
 #include <PluginAPI/IUnityInterface.h>
 #include <igl/readMESH.h>
+#include <igl/readPLY.h>
 #include <igl/per_vertex_normals.h>
 #include <map>
 #include <vector>
 #include <windows.h>
 
 using V_RowMajor = Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>;
+using UV_RowMajor = Eigen::Matrix<float, Eigen::Dynamic, 2, Eigen::RowMajor>;
+
 using T_RowMajor = Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor>;
 using F_RowMajor = Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>;
+
 using RowVector3I = Eigen::Matrix<int, 1, 3>;
 using RowVector4I = Eigen::Matrix<int, 1, 3>;
 using std::map;
@@ -103,7 +107,7 @@ namespace
     }
 }
 
-void ApplyDirty(MeshState* state, const MeshDataNative data)
+void ApplyDirty(MeshState *state, const MeshDataNative data)
 {
     MatrixToMap(state->V, data.VPtr);
     MatrixToMap(state->N, data.NPtr);
@@ -117,7 +121,7 @@ bool ReadMESH(const char *path,
     auto *V = new V_RowMajor();
     auto *T = new T_RowMajor();
     auto tempF = F_RowMajor();
-    
+
     bool success = igl::readMESH(path, *V, *T, tempF);
 
     centerToMean(*V);
@@ -137,7 +141,71 @@ bool ReadMESH(const char *path,
     NPtr = N->data();
     FPtr = F->data();
     TPtr = T->data();
-    
+
+#ifndef NODENUG
+    using namespace std;
+    ofstream logfile("log/mesh_data.log");
+    logfile << "vertics:\n";
+    logfile << *V << "\n";
+    logfile << "normals:\n";
+    logfile << *N << "\n";
+    logfile << "faces\n";
+    logfile << *F << "\n";
+    logfile << flush;
+    logfile.close();
+#endif
+
     LOG("MESH Import " << (success ? "Successful: " : "Unsuccessful: ") << path)
+    return success;
+}
+
+bool ReadPLY(const char *path,
+             void *&VPtr, int &VSize,
+             void *&NPtr, int &NSize,
+             void *&FPtr, int &FSize,
+             void *&UVPtr, int &UVSize)
+{
+    auto *V = new V_RowMajor();
+    auto *F = new F_RowMajor();
+    auto *UV = new UV_RowMajor();
+    auto *N = new V_RowMajor();
+    auto temp = Eigen::MatrixXi();
+
+    bool success = igl::readPLY(path, *V, *F, temp, *N, *UV);
+    if (!success)
+    {
+        fprintf(stderr, "Load file %s error\n", path);
+        return success;
+    }
+
+    VSize = V->rows();
+    NSize = N->rows();
+    FSize = F->rows();
+    UVSize = UV->rows();
+
+    VPtr = V->data();
+    NPtr = N->data();
+    FPtr = F->data();
+    UVPtr = UV->data();
+
+
+#ifndef NODENUG
+    using namespace std;
+    ofstream logfile("log/ply_data.log");
+    logfile << "vertices:" << V->rows() << "\n";
+    logfile << V->transpose() << "\n";
+    logfile << "normals: " << N->rows() << "\n";
+    logfile << N->transpose() << "\n";
+    logfile << "faces: " << F->rows() << "\n";
+    logfile << F->transpose() << "\n";
+    // logfile << "edges: " << E.rows() << "\n";
+    // logfile << E.transpose() << "\n";
+    logfile << "uv: " << UV->rows() << "\n";
+    logfile << UV->transpose() << "\n";
+    logfile << flush;
+    logfile.close();
+#endif
+
+    LOG("PLY Import " << (success ? "Successful: " : "Unsuccessful: ") << path)
     return success;
 }

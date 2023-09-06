@@ -11,18 +11,11 @@ struct MeshState
     // dimensions 3 * VSize
     Eigen::MatrixXf* N;
 
-    // dimensions 4 * VSize
-    Eigen::MatrixXf* C;
-
-    // dimensions 2 * VSize
-    Eigen::MatrixXf* UV;
-
     // dimensions 3 * FSize
     Eigen::MatrixXi* F;
 
-    // dimensions 4 * TSize
-    Eigen::MatrixXi* T;
-
+    Vector3 com;
+    
     float Mass{0.0f};
 
     // elastic material parameter
@@ -31,7 +24,6 @@ struct MeshState
 
     int VSize{0};
     int FSize{0};
-    int TSize{0};
 
     explicit MeshState(const MeshDataNative udata);
     ~MeshState();

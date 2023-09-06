@@ -1,8 +1,17 @@
 #include "SoftBody.h"
 #include "Debug.h"
 #include "Simulation.h"
+#include <igl/readMESH.h>
+#include <igl/AABB.h>
+#include <igl/barycentric_coordinates.h>
 #include <igl/per_vertex_normals.h>
 #include <iostream>
+#include <numeric>
+
+#ifndef NODEBUG
+using namespace std;
+ofstream logfile("./log/SoftBody.log");
+#endif
 
 SoftBody::SoftBody()
     : simulation(new Simulation())
@@ -12,10 +21,17 @@ SoftBody::SoftBody()
 SoftBody::~SoftBody()
 {
     clear();
+
+#ifndef NODEBUG
+    logfile.flush();
+    logfile.close();
+#endif
 }
 
 void SoftBody::Init()
 {
+    computeBarycentricCoord();
+
     generateParticleList();
     generateTetList();
     computeTetVolumes();
@@ -38,24 +54,87 @@ void SoftBody::Reset()
     // Update();
 }
 
-void SoftBody::AddMesh(MeshState *state)
+void SoftBody::AddMesh(MeshState *state, const char *path)
 {
-    meshes.push_back(state);
+    Eigen::MatrixXf V;
+    Eigen::MatrixXi F, T;
+    bool success = igl::readMESH(path, V, T, F);
+    if (!success)
+    {
+        fprintf(stderr, "Load file %s error\n", path);
+        return;
+    }
+
+    TetMesh *tm = new TetMesh();
+    tm->V = V.transpose();
+    tm->T = T.transpose();
+
+    meshes.push_back(new Mesh(state, tm));
+
+#ifndef NODEBUG
+    logfile << "file: " << path << "\n";
+    logfile << "V: " << tm->V.rows() << " " << tm->T.cols() << "\n";
+    logfile << tm->V << "\n";
+    logfile << "T: " << tm->T.rows() << " " << tm->T.cols() << "\n";
+    logfile << tm->T << "\n";
+
+    logfile << "meshstate:\n";
+    logfile << "V: " << state->V->rows() << " " << state->V->cols() << "\n";
+    logfile << *(state->V) << "\n";
+    logfile << "COM: " << state->com.AsEigenRow() << "\n";
+    logfile << flush;
+#endif
 }
 
 void SoftBody::UpdateMeshes()
 {
-    // current_positions to each Meshstate
-    assert(m_vertices_number == m_current_positions.size() / 3);
-    for(int i = 0; i < (int)m_vertices_number; ++i)
+    // current_positions to each tetMesh
+    for (int i = 0; i < (int)m_vertices_number; ++i)
     {
-        const auto& indexPair = vertexIndexToMeshIndex[i];
-        auto& mesh = meshes[indexPair.first];
-        
-        mesh->V->col(indexPair.second) = m_current_positions.block_vector(i);
+        const auto &indexPair = vertexIndexToMeshIndex[i];
+        auto &mesh = meshes[indexPair.first]->tetMesh;
+        const auto& index = indexPair.second;
+
+        mesh->V.col(index) = m_current_positions.block_vector(i);
     }
-    
-    UpdateNormals();
+
+    // compute center of mass and move mesh to origin
+    for (int i = 0; i < meshes.size(); ++i)
+    {
+        EigenVector3 com = EigenVector3::Zero();
+        const auto& tetV = meshes[i]->tetMesh->V;
+        for(int j = 0; j < tetV.cols(); ++j)
+        {
+            com += meshes[i]->restOneRingVolumes[j] * tetV.col(j);
+        }
+        com /= meshes[i]->volume;
+        meshes[i]->state->com = Vector3(com);
+        meshes[i]->tetMesh->V.colwise() -= com;
+    }
+
+    // tetMesh to visual mesh MeshState
+    for(auto& mesh : meshes)
+    {
+        auto& visV = mesh->state->V;
+        auto& tetV = mesh->tetMesh->V;
+        //auto& tetT = mesh->tetMesh->T;
+
+        for(int i = 0; i < visV->cols(); ++i)
+        {
+            const auto& baryCoord = mesh->barycentricCoord[i];
+            const auto& closestTet = mesh->closestTet[i];
+            EigenVector3 res = EigenVector3::Zero();
+
+            for(int j = 0; j < 4; ++j)
+            {
+                const EigenVector3 vertex = tetV.col(closestTet[j]);
+                res += baryCoord[j] * vertex;
+            }
+            visV->col(i) = res;
+        }
+    }
+
+    //UpdateNormals();
 }
 
 const EigenVector3 SoftBody::current_position(int index) const
@@ -106,6 +185,95 @@ void SoftBody::clear()
 {
     meshes.clear();
 }
+
+void SoftBody::computeBarycentricCoord()
+{
+    for (auto &mesh : meshes)
+    {
+        igl::AABB<Eigen::MatrixXf, 3> tree;
+        Eigen::MatrixXf tetV = mesh->tetMesh->V.transpose();
+        Eigen::MatrixXi tetT = mesh->tetMesh->T.transpose();
+        tree.init(tetV, tetT);
+
+        Eigen::VectorXi I;
+        Eigen::VectorXf sqrd;
+        Eigen::MatrixXf CP;
+        Eigen::MatrixXf Q = mesh->state->V->transpose();
+
+        tree.squared_distance(tetV, tetT, Q, sqrd, I, CP);
+
+        Eigen::MatrixXf A, B, C, D, L;
+        A.resize(Q.rows(), 3);
+        B.resize(Q.rows(), 3);
+        C.resize(Q.rows(), 3);
+        D.resize(Q.rows(), 3);
+
+        for (int i = 0; i < Q.rows(); ++i)
+        {
+            auto &tet = tetT.row(I[i]);
+            A.row(i) = tetV.row(tet[0]);
+            B.row(i) = tetV.row(tet[1]);
+            C.row(i) = tetV.row(tet[2]);
+            D.row(i) = tetV.row(tet[3]);
+        }
+
+        igl::barycentric_coordinates(Q, A, B, C, D, L);
+
+        mesh->barycentricCoord.clear();
+        mesh->barycentricCoord.resize(L.rows());
+        for (int i = 0; i < mesh->barycentricCoord.size(); ++i)
+        {
+            mesh->barycentricCoord[i] = L.row(i).transpose();
+        }
+
+        mesh->closestTet.clear();
+        mesh->closestTet.resize(L.rows());
+        for (int i = 0; i < mesh->closestTet.size(); ++i)
+        {
+            auto &tet = tetT.row(I[i]);
+            mesh->closestTet[i] = tet.transpose();
+        }
+
+#ifndef NODEBUG
+        // logfile << "tetV:" << tetV.rows() << "\n"
+        //         << tetV.transpose() << "\n";
+        // logfile << "tetT:" << tetT.rows() << "\n"
+        //         << tetT.transpose() << "\n";
+        // logfile << "Q:\n"
+        //         << Q.transpose() << "\n";
+        // logfile << "sqrd:\n"
+        //         << sqrd.transpose() << "\n";
+        // logfile << "sqrd size:\n"
+        //         << sqrd.size() << "\n";
+        // logfile << "I:\n"
+        //         << I.transpose() << "\n";
+        // logfile << "CP:\n"
+        //         << CP.transpose() << "\n";
+        // logfile << "L:\n"
+        //         << L.transpose() << "\n";
+        // logfile << flush;
+#endif
+    }
+
+#ifndef NODEBUG
+    for(const auto& mesh : meshes)
+    {
+        logfile << "mesh->barycentricCoord:\n";
+        for (auto &bary : mesh->barycentricCoord)
+        {
+            logfile << bary.transpose() << "\n";
+        }
+        logfile << "mesh->closestTet:\n";
+        for (auto &tet : mesh->closestTet)
+        {
+            logfile << tet.transpose() << "\n";
+        }
+    }
+    logfile << flush;
+#endif
+
+}
+
 void SoftBody::generateParticleList()
 {
     vertexIndexToMeshIndex.clear();
@@ -114,10 +282,10 @@ void SoftBody::generateParticleList()
     m_vertices_number = 0;
     for (auto &m : meshes)
     {
-        m_vertices_number += m->VSize;
+        // m->vertexOffset = m_vertices_number;
+        m_vertices_number += m->tetMesh->V.cols();
     }
     m_system_dimension = m_vertices_number * 3;
-    // ScalarType unit_mass = m_total_mass / m_system_dimension;
 
     // Assign initial position, velocity and mass to all the vertices.
     // Assign color to all the vertices.
@@ -131,13 +299,16 @@ void SoftBody::generateParticleList()
     unsigned int index = 0;
     for (int k = 0; k < meshes.size(); ++k)
     {
-        auto &m = meshes[k];
-        for (int i = 0; i < m->VSize; ++i)
+        auto &m = meshes[k]->tetMesh;
+        auto &translate = meshes[k]->state->com.AsEigen();
+        for (int i = 0; i < m->V.cols(); ++i)
         {
-            m_restpose_positions.block_vector(index) = m->V->col(i);
+            m_restpose_positions.block_vector(index) = m->V.col(i) + translate;
+
             std::pair<int, int> mesh_index_pair(k, i);
             vertexIndexToMeshIndex[index] = mesh_index_pair;
             meshIndexToVertexIndex[mesh_index_pair] = index;
+
             index++;
         }
     }
@@ -147,69 +318,62 @@ void SoftBody::generateParticleList()
     m_previous_positions = m_restpose_positions;
     m_previous_velocities = m_current_velocities;
 
-#ifndef NDEBUG
-    std::cout << "vertexIndexToMeshIndex\n";
-    for(auto& map : vertexIndexToMeshIndex)
-        std::cout << map.first << " (" << map.second.first << ", " << map.second.second << ")\n";
-    std::cout << "meshIndexToVertexIndex\n";
-    for(auto& map : meshIndexToVertexIndex)
-        std::cout << "(" << map.first.first << ", " << map.first.second << ") " << map.second << "\n";
-    std::cout << "m_restpose_positions: " << m_vertices_number << "\n";
+#ifndef NODEBUG
+    logfile << "vertexIndexToMeshIndex\n";
+    for (auto &map : vertexIndexToMeshIndex)
+        logfile << map.first << " (" << map.second.first << ", " << map.second.second << ")\n";
+    logfile << "meshIndexToVertexIndex\n";
+    for (auto &map : meshIndexToVertexIndex)
+        logfile << "(" << map.first.first << ", " << map.first.second << ") " << map.second << "\n";
+    logfile << "m_restpose_positions: " << m_vertices_number << "\n";
     for (int i = 0; i < m_restpose_positions.size(); i += 3)
     {
-        std::cout << m_restpose_positions[i + 0] << " ";
-        std::cout << m_restpose_positions[i + 1] << " ";
-        std::cout << m_restpose_positions[i + 2] << "\n";
+        logfile << m_restpose_positions[i + 0] << " ";
+        logfile << m_restpose_positions[i + 1] << " ";
+        logfile << m_restpose_positions[i + 2] << "\n";
     }
-    std::cout<< "generateParticleList() done" << std::endl;
+    logfile << flush;
+
+    fprintf(stderr, "generateParticleList() done\n");
 #endif
 }
 
 void SoftBody::generateTetList()
 {
     m_tets.clear();
-    tetsOffset.clear();
-    tetsOffset.resize(meshes.size());
 
     int tets_number = 0;
     for (int i = 0; i < meshes.size(); ++i)
     {
-        tets_number += meshes[i]->TSize;
-    }
-    // Set offset
-    tetsOffset[0] = 0;
-    for (int i = 1; i < meshes.size(); ++i)
-    {
-        tetsOffset[i] = tetsOffset[i - 1] + meshes[i - 1]->VSize;
+        tets_number += meshes[i]->tetMesh->T.cols();
     }
 
-    std::cout << "tetsOffset " << tetsOffset.size() << "\n";
-    Debug::PrintSTLVectorToLog(tetsOffset);
-    std::cout << "tets_number: " << tets_number << "\n";
-    m_tets.reserve(tets_number * 4);
+    m_tets.reserve(tets_number);
     for (int i = 0; i < meshes.size(); ++i)
     {
-        auto &m = meshes[i];
-        auto &offset = tetsOffset[i];
-        for (int j = 0; j < m->TSize; ++j)
+        auto &m = meshes[i]->tetMesh;
+        // const auto &offset = meshes[i]->vertexOffset;
+        for (int j = 0; j < m->T.cols(); ++j)
         {
-            const auto tet = m->T->col(j);
-            m_tets.push_back(tet(0) + offset);
-            m_tets.push_back(tet(1) + offset);
-            m_tets.push_back(tet(2) + offset);
-            m_tets.push_back(tet(3) + offset);
+            const auto tet = m->T.col(j);
+            EigenVector4I v;
+            for(int k = 0; k < 4; ++k)
+            {
+                std::pair<int, int> mesh_index_pair(i, tet(k));
+                v(k) = meshIndexToVertexIndex[mesh_index_pair];
+            }
+            m_tets.push_back(v);
         }
     }
-#ifndef NDEBUG
-    std::cout << "tets: " << m_tets.size() / 4 << "\n";
-    for (int i = 0; i < m_tets.size(); i += 4)
+#ifndef NODEBUG
+    logfile << "tets: " << m_tets.size() << "\n";
+    for (int i = 0; i < m_tets.size(); ++i)
     {
-        std::cout << m_tets[i + 0] << " ";
-        std::cout << m_tets[i + 1] << " ";
-        std::cout << m_tets[i + 2] << " ";
-        std::cout << m_tets[i + 3] << "\n";
+        logfile << m_tets[i].transpose() << "\n";
     }
-    std::cout<< "generateTetList() done" << std::endl;
+    logfile << flush;
+
+    fprintf(stderr, "generateTetList() done\n");
 #endif
 }
 
@@ -219,6 +383,7 @@ void SoftBody::generateMassMatrix()
     m_inv_mass_matrix.resize(m_system_dimension, m_system_dimension);
     m_mass_matrix_1d.resize(m_vertices_number, m_vertices_number);
     m_inv_mass_matrix_1d.resize(m_vertices_number, m_vertices_number);
+
     std::vector<ScalarType> meshVolume;
     meshVolume.resize(meshes.size());
 
@@ -229,15 +394,13 @@ void SoftBody::generateMassMatrix()
     m_triplets_1d.clear();
     for (int i = 0; i < meshes.size(); ++i)
     {
-        auto &mesh = meshes[i];
-        meshVolume[i] = 0;
-        for (int j = tetsOffset[i]; j < mesh->VSize + tetsOffset[i]; ++j)
+        const float mass = meshes[i]->state->Mass;
+        const auto &mesh = meshes[i]->tetMesh;
+        const float volume = meshes[i]->volume;
+        for (int j = 0; j < mesh->V.cols(); ++j)
         {
-            meshVolume[i] += m_restOneRingVolumes[j];
-        }
-        for (int index = tetsOffset[i]; index < mesh->VSize + tetsOffset[i]; ++index)
-        {
-            const ScalarType entry = mesh->Mass * m_restOneRingVolumes[index] / meshVolume[i];
+            int index = meshIndexToVertexIndex[std::make_pair(i, j)];
+            const ScalarType entry = mass * meshes[i]->restOneRingVolumes[j] / volume;
 
             m_triplets_1d.push_back(SparseMatrixTriplet(index, index, entry));
 
@@ -291,91 +454,166 @@ void SoftBody::generateMassMatrix()
     m_inv_mass_matrix.setFromTriplets(m_inv_triplets.begin(), m_inv_triplets.end());
     m_inv_mass_matrix_1d.setFromTriplets(m_inv_triplets_1d.begin(), m_inv_triplets_1d.end());
 
-#ifndef NDEBUG
-    std::cout << "mesh mass: " << meshes.size() << "\n";
-    for(auto& m : meshes)
-        std::cout << m->Mass << " ";
-    std::cout << "\n";
-    std::cout << "mesh volume: " << meshVolume.size() << "\n";
-    for(auto& V : meshVolume)
-        std::cout << V << " ";
-    std::cout << "\n";
-    std::cout << "mass matrix size: " << m_mass_matrix.rows() << "\n";
-    std::cout << "mass matrix 1d size: " << m_mass_matrix_1d.rows() << "\n";
+    std::vector<EigenVector3> COM;
+    for(int i = 0; i < meshes.size(); ++i)
+    {
+        EigenVector3 com = EigenVector3::Zero();
+        for(int j = 0; j < meshes[i]->tetMesh->V.cols(); ++j)
+        {
+            const int index = meshIndexToVertexIndex[std::make_pair(i, j)];
+            com += m_mass_matrix_1d.coeff(index, index) * m_restpose_positions.block_vector(index);
+        }
+        com /= meshes[i]->tetMesh->V.cols();
+        COM.push_back(com);
+    }
+
+#ifndef NODEBUG
+    logfile << "mesh mass: " << meshes.size() << "\n";
+    for (auto &m : meshes)
+        logfile << m->state->Mass << " ";
+    logfile << "\n";
+    logfile << "mass matrix size: " << m_mass_matrix.rows() << "\n";
+    logfile << "mass matrix 1d size: " << m_mass_matrix_1d.rows() << "\n";
     for (unsigned int i = 0; i != m_mass_matrix_1d.rows(); i++)
-        std::cout << m_mass_matrix_1d.coeff(i, i) << "\n";
-    std::cout << "mass inv matrix size: " << m_inv_mass_matrix.rows() << "\n";
-    std::cout << "mass inv matrix 1d size: " << m_inv_mass_matrix_1d.rows() << "\n";
+        logfile << m_mass_matrix_1d.coeff(i, i) << "\n";
+    logfile << "mass matrix sum: " << m_mass_matrix_1d.sum() << "\n";
+    logfile << "mass inv matrix size: " << m_inv_mass_matrix.rows() << "\n";
+    logfile << "mass inv matrix 1d size: " << m_inv_mass_matrix_1d.rows() << "\n";
     for (unsigned int i = 0; i != m_inv_mass_matrix_1d.rows(); i++)
-        std::cout << m_inv_mass_matrix_1d.coeff(i, i) << "\n";
-    std::cout << "generateMassMatrix() done" << std::endl;;
+        logfile << m_inv_mass_matrix_1d.coeff(i, i) << "\n";
+    logfile << "COM size: " << COM.size() << "\n";
+    for (const auto& com : COM)
+        logfile << com.transpose() << "\n";
+    logfile << flush;
+    fprintf(stderr, "generateMassMatrix() done\n");
 #endif
 }
 
 void SoftBody::computeTetVolumes()
 {
-    m_restTetVolumes.clear();
-    m_restTetVolumes.resize(m_tets.size() / 4);
-    for (unsigned int i = 0; i < m_restTetVolumes.size(); ++i)
+    // m_restTetVolumes.clear();
+    // m_restTetVolumes.resize(m_tets.size());
+    // for (unsigned int i = 0; i < m_restTetVolumes.size(); ++i)
+    // {
+    //     const auto& tet = m_tets[i];
+
+    //     EigenVector3 tetVertices[4];
+    //     for (int j = 0; j < 4; ++j)
+    //         tetVertices[j] = m_restpose_positions.block_vector(tet[j]);
+
+    //     const EigenVector3 diff1 = tetVertices[1] - tetVertices[0];
+    //     const EigenVector3 diff2 = tetVertices[2] - tetVertices[0];
+    //     const EigenVector3 diff3 = tetVertices[3] - tetVertices[0];
+    //     m_restTetVolumes[i] = diff3.dot((diff1).cross(diff2)) / 6.0f;
+
+    //     if (m_restTetVolumes[i] < 0.0f)
+    //     {
+    //         std::cerr << " ERROR: Bad rest volume found: " << m_restTetVolumes[i] << std::endl;
+    //     }
+    // }
+
+    for(auto& mesh : meshes)
     {
-        int tet[4];
-        for (int j = 0; j < 4; ++j)
-            tet[j] = m_tets[4 * i + j];
+        auto& tetVolumes = mesh->restTetVolumes;
+        tetVolumes.clear();
+        tetVolumes.resize(mesh->tetMesh->T.cols());
 
-        EigenVector3 tetVertices[4];
-        for (int j = 0; j < 4; ++j)
-            tetVertices[j] = m_restpose_positions.block_vector(tet[j]);
-
-        const EigenVector3 diff1 = tetVertices[1] - tetVertices[0];
-        const EigenVector3 diff2 = tetVertices[2] - tetVertices[0];
-        const EigenVector3 diff3 = tetVertices[3] - tetVertices[0];
-        m_restTetVolumes[i] = diff3.dot((diff1).cross(diff2)) / 6.0f;
-
-        if (m_restTetVolumes[i] < 0.0f)
+        for(int i = 0; i < tetVolumes.size(); ++i)
         {
-            std::cerr << " ERROR: Bad rest volume found: " << m_restTetVolumes[i] << std::endl;
+            const auto& tet = mesh->tetMesh->T.col(i);
+            EigenVector3 tetVertices[4];
+            for (int j = 0; j < 4; ++j)
+                tetVertices[j] = mesh->tetMesh->V.col(tet[j]);
+            
+            const EigenVector3 diff1 = tetVertices[1] - tetVertices[0];
+            const EigenVector3 diff2 = tetVertices[2] - tetVertices[0];
+            const EigenVector3 diff3 = tetVertices[3] - tetVertices[0];
+            tetVolumes[i] = diff3.dot((diff1).cross(diff2)) / 6.0f;
+            if(tetVolumes[i] <= 0.0f)
+                std::cerr << " ERROR: Bad rest volume found: " << tetVolumes[i] << std::endl;
+            logfile << "tetVolumes " << i << " " << tetVolumes[i] << "\n";
         }
-        assert(m_restTetVolumes[i] >= 0.0f);
     }
 
-#ifndef NDEBUG
-    std::cout << "m_restTetVolumes: " << m_restTetVolumes.size() << "\n";
-    Debug::PrintSTLVectorToLog(m_restTetVolumes);
-    std::cout << "computeTetVolumes() done" << std::endl;
+#ifndef NODEBUG
+    for(int i = 0; i < meshes.size(); ++i)
+    {
+        const auto& mesh = meshes[i];
+        logfile << "mesh " << i << " tetVolumes: " << mesh->restTetVolumes.size() << "\n";
+        for(const auto& V : mesh->restTetVolumes)
+            logfile << V << "\n";
+        logfile << "volumes sum: " 
+            << std::accumulate(mesh->restTetVolumes.begin(), mesh->restTetVolumes.end(), 0.0f);
+    }
+    // logfile << "m_restTetVolumes: " << m_restTetVolumes.size() << "\n";
+    // for(const auto& V : m_restTetVolumes)
+    //     logfile << V << "\n";
+    // logfile << "m_restTetVolumes sum: " 
+    //         << std::accumulate(m_restTetVolumes.begin(), m_restTetVolumes.end(), 0.0f);
+    logfile << endl;
+    fprintf(stderr, "computeTetVolumes() done\n");
 #endif
 }
 
 void SoftBody::computeOneRingVolumes()
 {
-    m_restOneRingVolumes.clear();
-    m_restOneRingVolumes.resize(m_vertices_number, 0.0f);
-    for (unsigned int x = 0; x < m_restTetVolumes.size(); ++x)
+    // m_restOneRingVolumes.clear();
+    // m_restOneRingVolumes.resize(m_vertices_number, 0.0f);
+    // for (unsigned int x = 0; x < m_restTetVolumes.size(); ++x)
+    // {
+    //     const ScalarType quarter = 0.25f * m_restTetVolumes[x];
+    //     const auto& tet = m_tets[x];
+    //     for (int y = 0; y < 4; ++y)
+    //     {
+    //         m_restOneRingVolumes[tet[y]] += quarter;
+    //     }
+    // }
+
+    for(auto& mesh : meshes)
     {
-        const ScalarType quarter = 0.25f * m_restTetVolumes[x];
-        for (int y = 0; y < 4; ++y)
+        auto& oneRingVolumes = mesh->restOneRingVolumes;
+        oneRingVolumes.clear();
+        oneRingVolumes.resize(mesh->tetMesh->V.cols());
+        for(int i = 0; i < mesh->restTetVolumes.size(); ++i)
         {
-            m_restOneRingVolumes[m_tets[4 * x + y]] += quarter;
+            const ScalarType quarter = 0.25f * mesh->restTetVolumes[i];
+            const auto& tet = mesh->tetMesh->T.col(i);
+            for (int y = 0; y < 4; ++y)
+                oneRingVolumes[tet[y]] += quarter;
         }
+        mesh->volume = std::accumulate(mesh->restOneRingVolumes.begin(), mesh->restOneRingVolumes.end(), 0.0f);
     }
 
-#ifndef NDEBUG
-    std::cout << "m_restOneRingVolumes: " << m_restOneRingVolumes.size() << "\n";
-    Debug::PrintSTLVectorToLog(m_restOneRingVolumes);
-    std::cout << "computeOneRingVolumes() done" << std::endl;
+
+#ifndef NODEBUG
+    for(int i = 0; i < meshes.size(); ++i)
+    {
+        const auto& mesh = meshes[i];
+        logfile << "mesh " << i << " restOneRingVolumes: " << mesh->restOneRingVolumes.size() << "\n";
+        for(const auto& V : mesh->restOneRingVolumes)
+            logfile << V << "\n";
+        logfile << "volumes sum: " << mesh->volume;
+    }
+    // logfile << "m_restOneRingVolumes: " << m_restOneRingVolumes.size() << "\n";
+    // for(const auto& V : m_restOneRingVolumes)
+    //     logfile << V << "\n";
+    // logfile << "m_restOneRingVolumes sum: " 
+    //         << std::accumulate(m_restOneRingVolumes.begin(), m_restOneRingVolumes.end(), 0.0f);
+    logfile << endl;
+    fprintf(stderr, "computeOneRingVolumes() done\n");
 #endif
 }
 
 void SoftBody::UpdateNormals()
 {
-    for(auto& mesh : meshes)
+    for (auto &mesh : meshes)
     {
         Eigen::MatrixXf V, N;
         Eigen::MatrixXi F;
-        V = mesh->V->transpose();
-        F = mesh->F->transpose();
+        V = mesh->state->V->transpose();
+        F = mesh->state->F->transpose();
         igl::per_vertex_normals(V, F, N);
 
-        *(mesh->N) = N.transpose();
+        *(mesh->state->N) = N.transpose();
     }
 }
-

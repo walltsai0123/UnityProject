@@ -145,10 +145,10 @@ void Simulation::SetMaterialProperty(std::vector<Constraint *> &constraints)
     for (int i = 0; i < constraints.size(); ++i)
     {
         auto &c = constraints[i];
-        auto vertexIndex = m_softbody->m_tets[4 * i];
+        auto vertexIndex = (m_softbody->m_tets[i])[0];
         auto meshIndex = m_softbody->vertexIndexToMeshIndex[vertexIndex].first;
-        ScalarType mu = m_softbody->meshes[meshIndex]->mu;
-        ScalarType lambda = m_softbody->meshes[meshIndex]->lambda;
+        ScalarType mu = m_softbody->meshes[meshIndex]->state->mu;
+        ScalarType lambda = m_softbody->meshes[meshIndex]->state->lambda;
         
         switch (c->Type())
         {
@@ -193,9 +193,10 @@ void Simulation::setupConstraints()
     VectorX &x = m_softbody->m_current_positions;
     
     auto& tets = m_softbody->m_tets;
-    for (unsigned int i = 0; i < tets.size(); i+=4)
+    for (unsigned int i = 0; i < tets.size(); ++i)
     {
-        TetConstraint *c = new TetConstraint(tets[0], tets[1], tets[2], tets[3], x);
+        const auto& tet = tets[i];
+        TetConstraint *c = new TetConstraint(tet[0], tet[1], tet[2], tet[3], x);
         m_constraints.push_back(c);
     }
 }

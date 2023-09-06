@@ -13,9 +13,9 @@ public unsafe class TetMesh : MonoBehaviour
     public MeshRenderer meshRenderer { get; private set; }
     public MeshData DataRowMajor { get; private set; }
     public MeshState* state;
-    public int[] tets;
-    public float mass;
-    public float mu, lambda;
+
+    public string tetFileName;
+    public float mass, mu, lambda;
     public bool meshDirty;
 
 
@@ -29,9 +29,9 @@ public unsafe class TetMesh : MonoBehaviour
     public void Initialize()
     {
         mass = 1.0f;
-
         mu = 5.0f;
         lambda = 100.0f;
+
         meshDirty = false;
 
         meshFilter = GetComponent<MeshFilter>();
@@ -39,6 +39,7 @@ public unsafe class TetMesh : MonoBehaviour
         meshRenderer = GetComponent<MeshRenderer>();
 
         DataRowMajor = new MeshData(this);
+
         state = BackEnd.InitMeshState(DataRowMajor.GetNative());
     }
     void Start()
@@ -47,12 +48,9 @@ public unsafe class TetMesh : MonoBehaviour
     }
     private void Update()
     {
-        if(meshDirty)
-        {
-            DataRowMajor.ApplyDirty(state);
-            DataRowMajor.ApplyDirtyToMesh(mesh);
-            meshDirty = false;
-        }
+        DataRowMajor.ApplyDirty(state);
+        DataRowMajor.ApplyDirtyToMesh(mesh);
+        transform.position = DataRowMajor.com;
     }
     private void OnDestroy()
     {

@@ -11,10 +11,11 @@ std::unique_ptr<SoftBody> softbody(nullptr);
 std::ofstream out("./log/cout.log");
 std::ofstream err("./log/cerr.log");
 
+
 void Initialize(const StringCallback debugCallback, StringCallback debugWarningCallback,
                 StringCallback debugErrorCallback)
 {
-#ifndef NDEBUG
+#ifndef NODEBUG
 	DebugLog = debugCallback;
 	DebugLogWarning = debugWarningCallback;
 	DebugLogError = debugErrorCallback;
@@ -25,8 +26,9 @@ void Initialize(const StringCallback debugCallback, StringCallback debugWarningC
 	std::cout.rdbuf(out.rdbuf());
 	std::cerr.rdbuf(err.rdbuf());
 	fprintf(stderr, "Debug stdio redirect.\n");
+	fprintf(stderr, "OpenMP max threads: %d\n", omp_get_max_threads());
 #endif
-
+	Eigen::initParallel();
 	LOG("Initialized BackEnd.")
 }
 
@@ -41,9 +43,9 @@ void DisposeMeshState(MeshState *state)
 	delete state;
 }
 
-void AddMesh(MeshState *meshState)
+void AddMesh(MeshState *meshState, const char *path)
 {
-	softbody->AddMesh(meshState);
+	softbody->AddMesh(meshState, path);
 }
 
 void CreateSoftBody()

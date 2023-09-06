@@ -9,7 +9,7 @@ extern StringCallback DebugLogWarning;
 extern StringCallback DebugLogError;
 
 #define STR(message) static_cast<std::ostringstream &&>((std::ostringstream() << message)).str().data()
-#ifndef NDEBUG
+#ifndef NODEBUG
 
 #define LOG(message) if(DebugLog) { DebugLog(STR(message)); }
 

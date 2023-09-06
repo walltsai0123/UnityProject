@@ -24,5 +24,6 @@ message(STATUS "libigl include dir: ${LIBIGL_INCLUDE_DIR}")
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${NATIVE_INCLUDE_DIR} ${PHYSICS_INCLUDE_DIR} "${EXTERNAL_DIR}/Unity" ${LIBIGL_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX igl::igl_core)
+#target_compile_definitions(${PROJECT_NAME} PRIVATE NODEBUG)
 
 message(STATUS "Include directories: ${NATIVE_INCLUDE_DIR} ${PHYSICS_INCLUDE_DIR} ${EXTERNAL_DIR}/Unity ${LIBIGL_INCLUDE_DIR}") 
