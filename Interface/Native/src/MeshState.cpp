@@ -7,6 +7,7 @@ MeshState::MeshState(const MeshDataNative udata)
 	Mass = udata.Mass;
 	com = udata.com;
 	
+	materialType = udata.materialType;
 	mu = udata.mu;
 	lambda = udata.lambda;
 	
@@ -32,6 +33,8 @@ MeshState::MeshState(const MeshDataNative udata)
     logfile << *N << "\n";
 	logfile << "F\n";
     logfile << *F << "\n";
+	logfile << "materialType: " << materialType << "\n";
+    logfile << "mu, lambda: " << mu << " " << lambda << "\n";
     logfile.flush();
 	logfile.close();
 #endif

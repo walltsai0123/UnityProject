@@ -11,6 +11,8 @@ public unsafe struct MeshState
     public readonly Vector3 com;
 
     public readonly float Mass;
+
+    public readonly int materialType;
     public readonly float mu;
     public readonly float lambda;
 

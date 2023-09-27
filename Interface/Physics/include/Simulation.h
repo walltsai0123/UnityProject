@@ -1,8 +1,10 @@
 #pragma once
 #include "math_headers.h"
 #include "Constraint.h"
+#include "Contact.h"
 #include <memory>
 #include <queue>
+#include <fstream>
 
 
 typedef enum
@@ -37,10 +39,9 @@ typedef enum
     LBFGS_H0_TOTAL_NUM
 } LBFGSH0Type;
 
-class RigidBody;
+//class RigidBody;
 class SoftBody;
-class Contact;
-class CollisionDetect;
+//class CollisionDetect;
 class CollisionSolver;
 
 class Simulation
@@ -49,10 +50,10 @@ public:
     Simulation();
     ~Simulation();
 
-    const std::vector<std::unique_ptr<Contact>>& getContacts() const;
+    const std::vector<Contact*> getContacts() const;
 
     void Reset();
-    void Update();
+    void Update(float dt);
 
     // set material property for all elements
     void SetMaterialProperty();
@@ -67,10 +68,9 @@ public:
     }
     inline void SetSoftBody(SoftBody *sb) { m_softbody = sb; };
     inline SoftBody* GetSoftBody() { return m_softbody; };
-    // inline void SetRigidBody(RigidBody *rb) { m_rigidbody = rb; };
-    // inline RigidBody* GetRigidBody() { return m_rigidbody; }
     
 protected:
+    std::ofstream logfile;
     // sim constants
     ScalarType m_h; // time_step
     unsigned int m_sub_stepping; // 
@@ -101,7 +101,8 @@ protected:
 
     // Collision
     // std::unique_ptr<CollisionDetect> m_collisionDetect;
-    // std::unique_ptr<CollisionSolver> m_collisionSolver;
+    std::vector<std::unique_ptr<Contact>> m_contacts;
+    std::unique_ptr<CollisionSolver> m_collisionSolver;
     // AttachmentConstraint* m_selected_attachment_constraint;
     // collision constraints
     // std::vector<CollisionSpringConstraint> m_collision_constraints;

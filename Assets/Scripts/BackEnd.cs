@@ -38,6 +38,9 @@ public class BackEnd
     public static extern unsafe void AddMesh(MeshState* meshState, string path);
 
     [DllImport(DllName)]
+    public static extern void AddContact(Vector3 p, Vector3 n, float seperation);
+
+    [DllImport(DllName)]
     public static extern unsafe void DisposeMeshState(MeshState* state);
 
     [DllImport(DllName)]
@@ -50,7 +53,10 @@ public class BackEnd
     public static extern void DeleteSoftBody();
 
     [DllImport(DllName)]
-    public static extern void SimulationUpdate();
+    public static extern void SimulationUpdate(float dt);
+
+    [DllImport(DllName)]
+    public static extern void CollisionUpdate();
 
     [DllImport(DllName)]
     public static extern void MeshesUpdate();

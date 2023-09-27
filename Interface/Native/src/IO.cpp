@@ -123,15 +123,17 @@ bool ReadMESH(const char *path,
     auto tempF = F_RowMajor();
 
     bool success = igl::readMESH(path, *V, *T, tempF);
+    std::cerr << "readmesh" << std::endl;
 
-    centerToMean(*V);
+    centerToMean(*V);std::cerr << "mean" << std::endl;
 
     auto *F = new F_RowMajor();
     computeSurfaceTriangles(*T, *F);
-
+    std::cerr << "faces" << std::endl;
     auto *N = new V_RowMajor();
     igl::per_vertex_normals(*V, *F, *N);
-
+    std::cerr << "normals" << std::endl;
+    
     VSize = V->rows();
     NSize = N->rows();
     FSize = F->rows();
@@ -151,6 +153,8 @@ bool ReadMESH(const char *path,
     logfile << *N << "\n";
     logfile << "faces\n";
     logfile << *F << "\n";
+    logfile << "tets\n";
+    logfile << *T;
     logfile << flush;
     logfile.close();
 #endif

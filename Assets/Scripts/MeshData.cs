@@ -14,6 +14,8 @@ public class MeshData : IDisposable
     public readonly int VSize;
     public readonly int FSize;
 
+    public int materialType;
+
     private MeshDataNative _native;
     public MeshData(TetMesh tetMesh)
     {
@@ -21,9 +23,12 @@ public class MeshData : IDisposable
         VSize = mesh.vertexCount;
         FSize = mesh.triangles.Length / 3;
         com = tetMesh.transform.position;
+        materialType = ((int)tetMesh.materialType);
 
         Allocate(tetMesh);
         CopyFrom(tetMesh);
+
+        Debug.Log(materialType);
     }
 
     private void Allocate(TetMesh tetMesh)
@@ -49,8 +54,9 @@ public class MeshData : IDisposable
         {
             // NativeArrays will be fixed by default so we can get these pointers only once, not every time we use them
             _native = new MeshDataNative(
-                (float*)V.GetUnsafePtr(), (float*)N.GetUnsafePtr(), (int*)F.GetUnsafePtr(), com,
-                tetMesh.mass, tetMesh.mu, tetMesh.lambda,
+                (float*)V.GetUnsafePtr(), (float*)N.GetUnsafePtr(), (int*)F.GetUnsafePtr(),
+                com, tetMesh.mass, 
+                materialType, tetMesh.mu, tetMesh.lambda,
                 VSize, FSize
                 );
         }

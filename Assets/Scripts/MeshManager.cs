@@ -31,40 +31,32 @@ public class MeshManager : MonoBehaviour
     }
     private void FixedUpdate()
     {
-        //if (thread != null && !thread.IsAlive)
-        //    PostExecuteThread();
-
-        //if (thread == null)
-        //    ExecuteThread();
-
-        //startTime = Time.realtimeSinceStartup;
-        BackEnd.SimulationUpdate();
-        //endTime = Time.realtimeSinceStartup;
-        //Debug.Log(endTime - startTime);
+        BackEnd.SimulationUpdate(Time.fixedDeltaTime);
+        Debug.Log("SimulationUpdate");
     }
-    private void ExecuteThread()
-    {
-        Assert.IsTrue(thread == null);
+    //private void ExecuteThread()
+    //{
+    //    Assert.IsTrue(thread == null);
 
-        thread = new Thread(() => { BackEnd.SimulationUpdate(); } );
-        thread.Name = "Mesh Manager Worker";
+    //    thread = new Thread(() => { BackEnd.SimulationUpdate(Time.fixedDeltaTime); } );
+    //    thread.Name = "Mesh Manager Worker";
 
-        startTime = Time.realtimeSinceStartup;
-        thread.Start();
-    }
-    private void PostExecuteThread()
-    {
-        Assert.IsTrue(!thread.IsAlive);
+    //    startTime = Time.realtimeSinceStartup;
+    //    thread.Start();
+    //}
+    //private void PostExecuteThread()
+    //{
+    //    Assert.IsTrue(!thread.IsAlive);
 
-        thread.Join();
-        endTime = Time.realtimeSinceStartup;
-        thread = null;
+    //    thread.Join();
+    //    endTime = Time.realtimeSinceStartup;
+    //    thread = null;
 
-        Debug.Log(endTime - startTime);
-    }
+    //    Debug.Log(endTime - startTime);
+    //}
     private void Update()
     {
-        BackEnd.MeshesUpdate();
+        // BackEnd.MeshesUpdate();
         //foreach(var tm in tetMeshes)
         //{
         //    tm.meshDirty = true;

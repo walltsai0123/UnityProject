@@ -19,6 +19,7 @@ struct MeshState
     float Mass{0.0f};
 
     // elastic material parameter
+    int materialType;
     float mu;
     float lambda;
 

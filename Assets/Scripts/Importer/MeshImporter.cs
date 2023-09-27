@@ -30,6 +30,7 @@ public class MeshImporter : ScriptedImporter
         meshRenderer.material = newMaterial;
 
         var tetMesh = gameObject.AddComponent<TetMesh>();
+        tetMesh.tetFileName = ctx.assetPath;
 
         #endregion
 

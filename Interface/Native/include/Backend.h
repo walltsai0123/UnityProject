@@ -17,8 +17,12 @@ extern "C"
     UNITY_INTERFACE_EXPORT
     void DisposeMeshState(MeshState *state);
 
+    // Physics.cpp
     UNITY_INTERFACE_EXPORT
     void AddMesh(MeshState *meshState, const char *path);
+
+    UNITY_INTERFACE_EXPORT
+    void AddContact(Vector3 p, Vector3 n, float seperation);
 
     UNITY_INTERFACE_EXPORT
     void CreateSoftBody();
@@ -30,7 +34,10 @@ extern "C"
     void DeleteSoftBody();
 
     UNITY_INTERFACE_EXPORT
-    void SimulationUpdate();
+    void SimulationUpdate(float dt);
+
+    UNITY_INTERFACE_EXPORT
+    void CollisionUpdate();
 
     UNITY_INTERFACE_EXPORT
     void MeshesUpdate();

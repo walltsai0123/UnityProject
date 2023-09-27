@@ -5,8 +5,6 @@
 #include <fstream>
 #include <omp.h>
 
-std::unique_ptr<SoftBody> softbody(nullptr);
-
 // IO redirect
 std::ofstream out("./log/cout.log");
 std::ofstream err("./log/cerr.log");
@@ -28,7 +26,7 @@ void Initialize(const StringCallback debugCallback, StringCallback debugWarningC
 	fprintf(stderr, "Debug stdio redirect.\n");
 	fprintf(stderr, "OpenMP max threads: %d\n", omp_get_max_threads());
 #endif
-	Eigen::initParallel();
+	// Eigen::initParallel();
 	LOG("Initialized BackEnd.")
 }
 
@@ -43,32 +41,3 @@ void DisposeMeshState(MeshState *state)
 	delete state;
 }
 
-void AddMesh(MeshState *meshState, const char *path)
-{
-	softbody->AddMesh(meshState, path);
-}
-
-void CreateSoftBody()
-{
-	softbody.reset(new SoftBody());
-}
-
-void InitSoftBody()
-{
-	softbody->Init();
-}
-
-void DeleteSoftBody()
-{
-	softbody.reset(nullptr);
-}
-
-void SimulationUpdate()
-{
-	softbody->Update();
-}
-
-void MeshesUpdate()
-{
-	softbody->UpdateMeshes();
-}

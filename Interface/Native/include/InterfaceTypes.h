@@ -34,7 +34,9 @@ struct MeshDataNative
     int* FPtr;
 
     Vector3 com;
-    float Mass;
+	float Mass;
+
+	int materialType;
     float mu;
     float lambda;
     
