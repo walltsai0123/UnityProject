@@ -9,8 +9,7 @@ public class MeshManager : MonoBehaviour
 {
     public static MeshManager get;
     public List<TetMesh> tetMeshes { get; private set; }
-    private Thread thread;
-    private float startTime, endTime;
+    // private Thread thread;
 
     private void Awake()
     {
@@ -22,59 +21,37 @@ public class MeshManager : MonoBehaviour
         }
         get = this;
         tetMeshes = new List<TetMesh>();
-        BackEnd.CreateSoftBody();
+        //BackEnd.CreateSoftBody();
         Debug.Log("MeshManager Awake");
     }
     private void Start()
     {
-        BackEnd.InitSoftBody();
+        //BackEnd.InitSoftBody();
     }
     private void FixedUpdate()
     {
-        BackEnd.SimulationUpdate(Time.fixedDeltaTime);
+        BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, 10);
+        //BackEnd.SimulationUpdate(Time.fixedDeltaTime);
         Debug.Log("SimulationUpdate");
     }
-    //private void ExecuteThread()
-    //{
-    //    Assert.IsTrue(thread == null);
-
-    //    thread = new Thread(() => { BackEnd.SimulationUpdate(Time.fixedDeltaTime); } );
-    //    thread.Name = "Mesh Manager Worker";
-
-    //    startTime = Time.realtimeSinceStartup;
-    //    thread.Start();
-    //}
-    //private void PostExecuteThread()
-    //{
-    //    Assert.IsTrue(!thread.IsAlive);
-
-    //    thread.Join();
-    //    endTime = Time.realtimeSinceStartup;
-    //    thread = null;
-
-    //    Debug.Log(endTime - startTime);
-    //}
-    private void Update()
-    {
-        // BackEnd.MeshesUpdate();
-        //foreach(var tm in tetMeshes)
-        //{
-        //    tm.meshDirty = true;
-        //}
-    }
-    public unsafe void AddTetMesh(TetMesh tetMesh)
+    public unsafe int AddTetMesh(TetMesh tetMesh)
     {
         tetMeshes.Add(tetMesh);
-        BackEnd.AddMesh(tetMesh.state, tetMesh.tetFileName);
+        BackEnd.AddMesh(tetMesh.state, tetMesh.tetFileName,
+            tetMesh.transform.position, tetMesh.transform.rotation,
+            tetMesh.mass, tetMesh.mu, tetMesh.lambda, ((int)tetMesh.materialType));
+
+        return tetMeshes.Count - 1;
     }
     private void OnDestroy()
     {
-        if (thread != null)
-        {
-            thread.Join();
-            thread = null;
-        }
-        BackEnd.DeleteSoftBody();
+        //if (thread != null)
+        //{
+        //    thread.Join();
+        //    thread = null;
+        //}
+        //BackEnd.DeleteSoftBody();
+        BackEnd.XPBDSimDelete();
         Debug.Log("MeshManager Destroy");
     }
 

@@ -71,16 +71,13 @@ public class WheelController : MonoBehaviour
         UpdateWheel(frontRight, frontRightTransform);
         UpdateWheel(rearLeft, rearLeftTransform);
         UpdateWheel(rearRight, rearRightTransform);
+
     }
 
     private void UpdateWheel(WheelCollider collider, Transform trans)
     {
-        Vector3 position;
-        Quaternion rotation;
-
-        collider.GetWorldPose(out position, out rotation);
-
-        trans.position = position;
-        trans.rotation = rotation;
+        collider.GetWorldPose(out Vector3 position, out Quaternion rotation);
+        
+        trans.SetPositionAndRotation(position, rotation);
     }
 }

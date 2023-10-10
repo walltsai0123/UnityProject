@@ -19,7 +19,9 @@ extern "C"
 
     // Physics.cpp
     UNITY_INTERFACE_EXPORT
-    void AddMesh(MeshState *meshState, const char *path);
+    void AddMesh(MeshState *meshState, const char *path,
+                Vector3 pos, Quaternion rot,
+                float mass, float mu, float lambda, int matType);
 
     UNITY_INTERFACE_EXPORT
     void AddContact(Vector3 p, Vector3 n, float seperation);
@@ -37,10 +39,23 @@ extern "C"
     void SimulationUpdate(float dt);
 
     UNITY_INTERFACE_EXPORT
-    void CollisionUpdate();
+    void GetTransform(int index, Vector3& position, Quaternion& rotation);
 
     UNITY_INTERFACE_EXPORT
-    void MeshesUpdate();
+    void AddTorque(int index, float torque, Vector3 axis);
+
+    UNITY_INTERFACE_EXPORT
+    int AddXPBDSoftBody(MeshState *meshState, const char *path, float mass, float mu, float lambda);
+
+    UNITY_INTERFACE_EXPORT
+    void setBodyMaterial(int ID, float mu, float lambda);
+
+    UNITY_INTERFACE_EXPORT
+    void XPBDSimUpdate(float dt, int substeps);
+
+    UNITY_INTERFACE_EXPORT
+    void XPBDSimDelete();
+
 
     // IO.cpp
     UNITY_INTERFACE_EXPORT

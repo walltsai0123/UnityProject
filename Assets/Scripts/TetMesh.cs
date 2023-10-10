@@ -26,11 +26,13 @@ public unsafe class TetMesh : MonoBehaviour
     public float mass = 1f, mu = 5f, lambda = 100f;
     public bool meshDirty;
 
+    private int ID;
+
 
     private void Awake()
     {
         Initialize();
-        MeshManager.get.AddTetMesh(this);
+        // ID = MeshManager.get.AddTetMesh(this);
 
         Debug.Log("TetMesh Awake");
     }
@@ -45,6 +47,9 @@ public unsafe class TetMesh : MonoBehaviour
         DataRowMajor = new MeshData(this);
 
         state = BackEnd.InitMeshState(DataRowMajor.GetNative());
+
+        ID = BackEnd.AddXPBDSoftBody(state, tetFileName, mass, mu, lambda);
+        Debug.Log(ID);
     }
     void Start()
     {
@@ -52,10 +57,21 @@ public unsafe class TetMesh : MonoBehaviour
     }
     private void FixedUpdate()
     {
+        BackEnd.setBodyMaterial(ID, mu, lambda);
+
         DataRowMajor.ApplyDirty(state);
         DataRowMajor.ApplyDirtyToMesh(mesh);
-        transform.position = DataRowMajor.com;
         // this.GetComponent<MeshCollider>().sharedMesh = mesh;
+        //BackEnd.GetTransform(ID, out Vector3 pos, out Quaternion rot);
+
+        //transform.SetPositionAndRotation(pos, rot);
+    }
+    private void Update()
+    {
+        //float dir = Input.GetAxis("Vertical");
+        //float torque = 100f;
+
+        //BackEnd.AddTorque(ID, dir * torque, Vector3.right);
     }
     private void OnDestroy()
     {
@@ -70,36 +86,4 @@ public unsafe class TetMesh : MonoBehaviour
         }
         BackEnd.DisposeMeshState(state);
     }
-    //private void OnCollisionEnter(Collision collision)
-    //{
-    //    Debug.Log("OnCollisionEnter");
-    //    int counts = collision.contactCount;
-    //    Debug.Log("Collision count: " + counts);
-    //    gameObject.GetComponent<Renderer>().material.SetColor("_Color", Color.red);
-
-    //    for (int i = 0; i < counts; ++i)
-    //    {
-    //        var c = collision.GetContact(i);
-    //        BackEnd.AddContact(c.point, c.normal, c.separation);
-    //        Debug.Log("point: " + c.point + "\nnormal: " + c.normal + "\nseparation: " + c.separation);
-    //    }
-    //}
-    //private void OnCollisionStay(Collision collision)
-    //{
-    //    Debug.Log("OnCollisionStay");
-    //    int counts = collision.contactCount;
-    //    Debug.Log("Collision count: " + counts);
-    //    gameObject.GetComponent<Renderer>().material.SetColor("_Color", Color.blue);
-
-    //    for (int i = 0; i < counts; ++i)
-    //    {
-    //        var c = collision.GetContact(i);
-    //        BackEnd.AddContact(c.point, c.normal, c.separation);
-    //        Debug.Log("point: " + c.point + "\nnormal: " + c.normal + "\nseparation: " + c.separation);
-    //    }
-    //}
-    //private void OnCollisionExit(Collision collision)
-    //{
-        
-    //}
 }

@@ -1,7 +1,7 @@
 #include "SoftBody.h"
-#include "Debug.h"
 #include "Simulation.h"
 #include "CollisionSolver.h"
+
 #include <igl/readMESH.h>
 #include <igl/AABB.h>
 #include <igl/barycentric_coordinates.h>
@@ -27,6 +27,7 @@ SoftBody::~SoftBody()
     clear();
 
 #ifndef NODEBUG
+    logfile << "SoftBody Destruct" << std::endl;
     logfile.flush();
     logfile.close();
 #endif
@@ -48,9 +49,13 @@ void SoftBody::Init()
 
 void SoftBody::Update(float dt)
 {
+    // AddTorque(0, 100.0f, EigenVector3::UnitX());
+
     simulation->Update(dt);
 
     UpdateMeshes();
+
+    m_external_force.setZero();
 }
 
 void SoftBody::UpdateMeshes()
@@ -66,18 +71,11 @@ void SoftBody::UpdateMeshes()
     }
 
     // compute center of mass and move mesh to origin
-    for (int i = 0; i < meshes.size(); ++i)
-    {
-        EigenVector3 com = EigenVector3::Zero();
-        const auto& tetV = meshes[i]->tetMesh->V;
-        for(int j = 0; j < tetV.cols(); ++j)
-        {
-            com += meshes[i]->restOneRingVolumes[j] * tetV.col(j);
-        }
-        com /= meshes[i]->volume;
-        meshes[i]->state->com = Vector3(com);
-        meshes[i]->tetMesh->V.colwise() -= com;
-    }
+    computeTranslate();
+    
+
+    // compute rotation of each mesh
+    computeRotation();
 
     // tetMesh to visual mesh MeshState
     for(auto& mesh : meshes)
@@ -111,7 +109,9 @@ void SoftBody::Reset()
     // Update();
 }
 
-void SoftBody::AddMesh(MeshState *state, const char *path)
+void SoftBody::AddMesh(MeshState *state, const char *path,
+                    EigenVector3 pos, Eigen::Quaternionf rot,
+                    ScalarType mass, ScalarType mu, ScalarType lambda, int matType)
 {
     Eigen::MatrixXf V;
     Eigen::MatrixXi F, T;
@@ -122,19 +122,27 @@ void SoftBody::AddMesh(MeshState *state, const char *path)
         return;
     }
 
+    // Move tetMesh to origin 
     Eigen::RowVector3f mean = V.colwise().mean();
     V.rowwise() -= mean;
 
     TetMesh *tm = new TetMesh();
-    tm->V = V.transpose();
-
+    tm->restV = V.transpose();
+    tm->V = tm->restV;
     tm->T = T.transpose();
 
-    meshes.push_back(new Mesh(state, tm));
+    Mesh *newMesh = new Mesh(state, tm);
+    newMesh->position = pos;
+    newMesh->rotation = rot;
+    newMesh->Mass = mass;
+    newMesh->mu = mu;
+    newMesh->lambda = lambda;
+    newMesh->materialType = matType;
+    meshes.push_back(newMesh);
 
 #ifndef NODEBUG
     logfile << "file: " << path << "\n";
-    logfile << "V: " << tm->V.rows() << " " << tm->T.cols() << "\n";
+    logfile << "V: " << tm->V.rows() << " " << tm->V.cols() << "\n";
     logfile << tm->V << "\n";
     logfile << "T: " << tm->T.rows() << " " << tm->T.cols() << "\n";
     logfile << tm->T << "\n";
@@ -142,9 +150,11 @@ void SoftBody::AddMesh(MeshState *state, const char *path)
     logfile << "meshstate:\n";
     logfile << "V: " << state->V->rows() << " " << state->V->cols() << "\n";
     logfile << *(state->V) << "\n";
-    logfile << "materialType: " << state->materialType << "\n";
-    logfile << "mu, lambda: " << state->mu << " " << state->lambda << "\n";
-    logfile << "COM: " << state->com.AsEigenRow() << "\n";
+
+    logfile << "materialType: " << newMesh->materialType << "\n";
+    logfile << "mu, lambda: " << newMesh->mu << " " << newMesh->lambda << "\n";
+    logfile << "pos: " << newMesh->position.transpose() << "\n";
+    logfile << "rot: " << newMesh->rotation << "\n";
     logfile << flush;
 #endif
 }
@@ -156,6 +166,28 @@ void SoftBody::AddContact(EigenVector3 p, EigenVector3 n, ScalarType seperation)
     //     m_contacts.push_back(std::move(contact));
 }
 
+void SoftBody::AddTorque(int index, float torque, EigenVector3 axis)
+{
+    Mesh *mesh = meshes[index];
+    EigenVector3 com = mesh->position;
+    float ang_accel = torque / mesh->Mass;
+    for(int i = 0; i < mesh->tetMesh->V.cols(); ++i)
+    {
+        int globalIndex = meshIndexToVertexIndex[std::make_pair(index, i)];
+        EigenVector3 r = current_position(globalIndex) - com;
+        r -= r.dot(axis) * axis;
+
+        EigenVector3 force = r.cross(axis) * ang_accel * vertexMass(globalIndex);
+        m_external_force.block_vector(globalIndex) += force;
+    }
+}
+
+void SoftBody::GetMeshTransform(int index, EigenVector3 &pos, Eigen::Quaternionf &rot)
+{
+    Mesh* mesh = meshes[index];
+    pos = mesh->position;
+    rot = mesh->rotation;
+}
 
 const EigenVector3 SoftBody::current_position(int index) const
 {
@@ -189,24 +221,10 @@ const ScalarType SoftBody::vertexMassInv(int index) const
     return mass_inv;
 }
 
-// const std::vector<Contact *> SoftBody::getContacts() const
-// {
-//     std::vector<Contact *> result;
-//     result.resize(m_contacts.size());
-//     for(int i = 0; i < result.size(); ++i)
-//     {
-//         result[i] = m_contacts[i].get();
-//     }
-//     return result;
-// }
-
-// const std::vector<Contact *> SoftBody::getVertexContacts(int index) const
-// {
-//     return vertexContacts.at(index);
-// }
-
 void SoftBody::clear()
 {
+    for(auto& mesh : meshes)
+        delete mesh;
     meshes.clear();
 }
 
@@ -257,26 +275,6 @@ void SoftBody::computeBarycentricCoord()
             auto &tet = tetT.row(I[i]);
             mesh->closestTet[i] = tet.transpose();
         }
-
-#ifndef NODEBUG
-        // logfile << "tetV:" << tetV.rows() << "\n"
-        //         << tetV.transpose() << "\n";
-        // logfile << "tetT:" << tetT.rows() << "\n"
-        //         << tetT.transpose() << "\n";
-        // logfile << "Q:\n"
-        //         << Q.transpose() << "\n";
-        // logfile << "sqrd:\n"
-        //         << sqrd.transpose() << "\n";
-        // logfile << "sqrd size:\n"
-        //         << sqrd.size() << "\n";
-        // logfile << "I:\n"
-        //         << I.transpose() << "\n";
-        // logfile << "CP:\n"
-        //         << CP.transpose() << "\n";
-        // logfile << "L:\n"
-        //         << L.transpose() << "\n";
-        // logfile << flush;
-#endif
     }
 
 #ifndef NODEBUG
@@ -316,6 +314,7 @@ void SoftBody::generateParticleList()
     m_restpose_positions.resize(m_system_dimension);
     m_current_positions.resize(m_system_dimension);
     m_current_velocities.resize(m_system_dimension);
+    m_external_force.resize(m_system_dimension);
 
     // Assign initial position to all the vertices.
 
@@ -324,7 +323,7 @@ void SoftBody::generateParticleList()
     for (int k = 0; k < meshes.size(); ++k)
     {
         auto &m = meshes[k]->tetMesh;
-        auto &translate = meshes[k]->state->com.AsEigen();
+        auto &translate = meshes[k]->position;
         for (int i = 0; i < m->V.cols(); ++i)
         {
             m_restpose_positions.block_vector(index) = m->V.col(i) + translate;
@@ -335,12 +334,16 @@ void SoftBody::generateParticleList()
 
             index++;
         }
-    }
-    // Assign initial velocity to zero
-    m_current_velocities.setZero();
+    }    
     m_current_positions = m_restpose_positions;
     m_previous_positions = m_restpose_positions;
+
+    // Assign initial velocity
+    m_current_velocities.setZero();
     m_previous_velocities = m_current_velocities;
+
+    // Set force to zero
+    m_external_force.setZero();
 
 #ifndef NODEBUG
     logfile << "vertices num: " << m_vertices_number << "\n";
@@ -357,6 +360,13 @@ void SoftBody::generateParticleList()
         logfile << m_restpose_positions[i + 0] << " ";
         logfile << m_restpose_positions[i + 1] << " ";
         logfile << m_restpose_positions[i + 2] << "\n";
+    }
+    logfile << "m_current_velocities: " << m_current_velocities.size() / 3 << "\n";
+    for (int i = 0; i < m_current_velocities.size(); i += 3)
+    {
+        logfile << m_current_velocities[i + 0] << " ";
+        logfile << m_current_velocities[i + 1] << " ";
+        logfile << m_current_velocities[i + 2] << "\n";
     }
     logfile << flush;
 
@@ -430,7 +440,7 @@ void SoftBody::generateMassMatrix()
     m_triplets_1d.clear();
     for (int i = 0; i < meshes.size(); ++i)
     {
-        const float mass = meshes[i]->state->Mass;
+        const float mass = meshes[i]->Mass;
         const auto &mesh = meshes[i]->tetMesh;
         const float volume = meshes[i]->volume;
         for (int j = 0; j < mesh->V.cols(); ++j)
@@ -490,23 +500,10 @@ void SoftBody::generateMassMatrix()
     m_inv_mass_matrix.setFromTriplets(m_inv_triplets.begin(), m_inv_triplets.end());
     m_inv_mass_matrix_1d.setFromTriplets(m_inv_triplets_1d.begin(), m_inv_triplets_1d.end());
 
-    std::vector<EigenVector3> COM;
-    for(int i = 0; i < meshes.size(); ++i)
-    {
-        EigenVector3 com = EigenVector3::Zero();
-        for(int j = 0; j < meshes[i]->tetMesh->V.cols(); ++j)
-        {
-            const int index = meshIndexToVertexIndex[std::make_pair(i, j)];
-            com += m_mass_matrix_1d.coeff(index, index) * m_restpose_positions.block_vector(index);
-        }
-        com /= meshes[i]->state->Mass;
-        COM.push_back(com);
-    }
-
 #ifndef NODEBUG
     logfile << "mesh mass: " << meshes.size() << "\n";
     for (auto &m : meshes)
-        logfile << m->state->Mass << " ";
+        logfile << m->Mass << " ";
     logfile << "\n";
     logfile << "mass matrix size: " << m_mass_matrix.rows() << "\n";
     logfile << "mass matrix 1d size: " << m_mass_matrix_1d.rows() << "\n";
@@ -517,9 +514,6 @@ void SoftBody::generateMassMatrix()
     logfile << "mass inv matrix 1d size: " << m_inv_mass_matrix_1d.rows() << "\n";
     for (unsigned int i = 0; i != m_inv_mass_matrix_1d.rows(); i++)
         logfile << m_inv_mass_matrix_1d.coeff(i, i) << "\n";
-    logfile << "COM size: " << COM.size() << "\n";
-    for (const auto& com : COM)
-        logfile << com.transpose() << "\n";
     logfile << flush;
     fprintf(stderr, "generateMassMatrix() done\n");
 #endif
@@ -527,27 +521,6 @@ void SoftBody::generateMassMatrix()
 
 void SoftBody::computeTetVolumes()
 {
-    // m_restTetVolumes.clear();
-    // m_restTetVolumes.resize(m_tets.size());
-    // for (unsigned int i = 0; i < m_restTetVolumes.size(); ++i)
-    // {
-    //     const auto& tet = m_tets[i];
-
-    //     EigenVector3 tetVertices[4];
-    //     for (int j = 0; j < 4; ++j)
-    //         tetVertices[j] = m_restpose_positions.block_vector(tet[j]);
-
-    //     const EigenVector3 diff1 = tetVertices[1] - tetVertices[0];
-    //     const EigenVector3 diff2 = tetVertices[2] - tetVertices[0];
-    //     const EigenVector3 diff3 = tetVertices[3] - tetVertices[0];
-    //     m_restTetVolumes[i] = diff3.dot((diff1).cross(diff2)) / 6.0f;
-
-    //     if (m_restTetVolumes[i] < 0.0f)
-    //     {
-    //         std::cerr << " ERROR: Bad rest volume found: " << m_restTetVolumes[i] << std::endl;
-    //     }
-    // }
-
     for(auto& mesh : meshes)
     {
         auto& tetVolumes = mesh->restTetVolumes;
@@ -600,8 +573,15 @@ void SoftBody::computeOneRingVolumes()
                 oneRingVolumes[tet[y]] += quarter;
         }
         mesh->volume = std::accumulate(mesh->restOneRingVolumes.begin(), mesh->restOneRingVolumes.end(), 0.0f);
-    }
 
+        // Compute restpose com
+        EigenVector3 vertexSum = EigenVector3::Zero();
+        for(int i = 0; i < mesh->restOneRingVolumes.size(); ++i)
+        {
+            vertexSum += mesh->tetMesh->V.col(i) * mesh->restOneRingVolumes[i];
+        }
+        mesh->tetMesh->x_cm0 = vertexSum / mesh->volume;
+    }
 
 #ifndef NODEBUG
     for(int i = 0; i < meshes.size(); ++i)
@@ -610,11 +590,57 @@ void SoftBody::computeOneRingVolumes()
         logfile << "mesh " << i << " restOneRingVolumes: " << mesh->restOneRingVolumes.size() << "\n";
         for(const auto& V : mesh->restOneRingVolumes)
             logfile << V << "\n";
-        logfile << "volumes sum: " << mesh->volume;
+        logfile << "volumes sum: " << mesh->volume << "\n";
+        logfile << "x_cm0: " << mesh->tetMesh->x_cm0 << "\n";
     }
-    logfile << endl;
+    logfile << flush;
     fprintf(stderr, "computeOneRingVolumes() done\n");
 #endif
+}
+
+void SoftBody::computeTranslate()
+{
+    for (int i = 0; i < meshes.size(); ++i)
+    {
+        EigenVector3 com = EigenVector3::Zero();
+        const auto& tetV = meshes[i]->tetMesh->V;
+        for(int j = 0; j < tetV.cols(); ++j)
+        {
+            com += meshes[i]->restOneRingVolumes[j] * tetV.col(j);
+        }
+        com /= meshes[i]->volume;
+        meshes[i]->position = com;
+        meshes[i]->tetMesh->V.colwise() -= com;
+    }
+}
+
+void SoftBody::computeRotation()
+{
+    for(int i = 0; i < meshes.size(); ++i)
+    {
+        Mesh *mesh = meshes[i];
+        const EigenVector3 x_cm0 = mesh->tetMesh->x_cm0;
+        const EigenVector3 x_cm = EigenVector3::Zero();
+
+        EigenMatrix3 Apq;
+        Apq.setZero();
+        for(int x = 0; x < mesh->tetMesh->V.cols(); ++x)
+        {
+            const EigenVector3 p = mesh->tetMesh->V.col(x) - x_cm;
+            const EigenVector3 q = mesh->tetMesh->restV.col(x) - x_cm0;
+            Apq += mesh->restOneRingVolumes[x] * (p * q.transpose());
+        }
+
+        EigenMatrix3 R,S;
+        polarDecomposition(Apq, R, S);
+        mesh->rotation = R;
+
+        for(int x = 0; x < mesh->tetMesh->V.cols(); ++x)
+        {
+            mesh->tetMesh->V.col(x) = mesh->rotation.inverse() * mesh->tetMesh->V.col(x);
+        }
+    }
+    
 }
 
 void SoftBody::UpdateNormals()
@@ -641,23 +667,3 @@ void SoftBody::UpdateAABB()
 
     aabb.init(V,T);
 }
-
-// void SoftBody::collisionDetect()
-// {
-//     m_contacts.clear();
-//     vertexContacts.clear();
-
-//     for(int i = 0; i < m_vertices_number; ++i)
-//     {
-//         EigenVector3 vertexPos = this->current_position(i);
-//         if(vertexPos.y() < 0)
-//         {
-//             EigenVector3 p = vertexPos;
-//             p.y() = 0;
-//             EigenVector3 n(0.0f, 1.0f, 0.0f);
-//             float pene = vertexPos.y();
-
-//             m_contacts.push_back(std::make_unique<Contact>(p, n, pene, this, i));
-//         }
-//     }
-// }

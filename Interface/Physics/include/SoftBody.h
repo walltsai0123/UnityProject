@@ -19,8 +19,11 @@ class SoftBody
     friend class Simulation;
     struct TetMesh
     {
+        Eigen::MatrixXf restV;
         Eigen::MatrixXf V;
         Eigen::MatrixXi T;
+
+        EigenVector3 x_cm0;
     };
     class Mesh
     {
@@ -33,7 +36,14 @@ class SoftBody
         MeshState *state;
         TetMesh *tetMesh;
 
-        // int vertexOffset;
+        ScalarType Mass;
+        ScalarType mu;
+        ScalarType lambda;
+        int materialType;
+
+        EigenVector3 position;
+        Eigen::Quaternionf rotation;
+
         std::vector<EigenVector4> barycentricCoord;
         std::vector<EigenVector4I> closestTet;
         std::vector<ScalarType> restTetVolumes;
@@ -50,8 +60,14 @@ public:
     void UpdateMeshes();
     void Reset();
 
-    void AddMesh(MeshState *state, const char *path);
+    void AddMesh(MeshState *state, const char *path,
+                EigenVector3 pos, Eigen::Quaternionf rot,
+                ScalarType mass, ScalarType mu, ScalarType lambda, int matType);
     void AddContact(EigenVector3 p, EigenVector3 n, ScalarType seperation);
+
+    void AddTorque(int index, float torque, EigenVector3 axis);
+
+    void GetMeshTransform(int index, EigenVector3& pos, Eigen::Quaternionf& rot);
 
     // accessors
     const int DOFs() const { return m_system_dimension; };
@@ -97,6 +113,7 @@ protected:
     SparseMatrix m_inv_mass_matrix;    // 3mx3m
     SparseMatrix m_mass_matrix_1d;     // mxm
     SparseMatrix m_inv_mass_matrix_1d; // mxm
+    VectorX m_external_force;
 
     igl::AABB<Eigen::MatrixXf, 3> aabb;
 
@@ -110,6 +127,12 @@ private:
 
     void computeTetVolumes();
     void computeOneRingVolumes();
+
+    // Compute translate of tetmesh ans move tetmesh to (0,0,0)
+    void computeTranslate();
+    // Compute rotation of tetmesh
+    // Should only be called after translate computed
+    void computeRotation();
 
     void UpdateNormals();
     void UpdateAABB();

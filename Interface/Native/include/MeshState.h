@@ -14,14 +14,14 @@ struct MeshState
     // dimensions 3 * FSize
     Eigen::MatrixXi* F;
 
-    Vector3 com;
+    // Vector3 com;
     
-    float Mass{0.0f};
+    // float Mass{0.0f};
 
-    // elastic material parameter
-    int materialType;
-    float mu;
-    float lambda;
+    // // elastic material parameter
+    // int materialType;
+    // float mu;
+    // float lambda;
 
     int VSize{0};
     int FSize{0};

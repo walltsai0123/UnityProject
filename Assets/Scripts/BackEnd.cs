@@ -35,7 +35,8 @@ public class BackEnd
     public static extern unsafe MeshState* InitMeshState(MeshDataNative data);
 
     [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
-    public static extern unsafe void AddMesh(MeshState* meshState, string path);
+    public static extern unsafe void AddMesh(MeshState* meshState, string path,
+        Vector3 pos, Quaternion rot, float mass, float mu, float lambda, int matType);
 
     [DllImport(DllName)]
     public static extern void AddContact(Vector3 p, Vector3 n, float seperation);
@@ -56,10 +57,22 @@ public class BackEnd
     public static extern void SimulationUpdate(float dt);
 
     [DllImport(DllName)]
-    public static extern void CollisionUpdate();
+    public static extern void GetTransform(int index, out Vector3 position, out Quaternion rotation);
 
     [DllImport(DllName)]
-    public static extern void MeshesUpdate();
+    public static extern void AddTorque(int index, float torque, Vector3 axis);
+
+    [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
+    public static extern unsafe int AddXPBDSoftBody(MeshState* meshState, string path, float mass, float mu, float lambda);
+
+    [DllImport(DllName)]
+    public static extern void setBodyMaterial(int ID, float mu, float lambda);
+
+    [DllImport(DllName)]
+    public static extern void XPBDSimUpdate(float dt, int substeps);
+
+    [DllImport(DllName)]
+    public static extern void XPBDSimDelete();
 
     // IO.cpp
     [DllImport(DllName)]

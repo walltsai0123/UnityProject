@@ -1,6 +1,5 @@
 #include "math_headers.h"
 
-
 void Vector3mx1ToMatrixmx3(const VectorX &x, EigenMatrixx3 &m)
 {
     for (unsigned int i = 0; i < m.rows(); i++)
@@ -39,6 +38,37 @@ void EigenMakeSparseIdentityMatrix(unsigned int rows, unsigned int cols, SparseM
     }
     I.resize(rows, cols);
     I.setFromTriplets(triplets.begin(), triplets.end());
+}
+
+void polarDecomposition(const EigenMatrix3 &A, EigenMatrix3 &R, EigenMatrix3 &S)
+{
+    EigenMatrix3 U, V;
+    EigenVector3 Sigma;
+    svd_rv(A, U, Sigma, V);
+
+    R = U * V.transpose();
+    S = V * Sigma.asDiagonal() * V.transpose();
+}
+
+void svd_rv(const EigenMatrix3 &F, EigenMatrix3 &U, EigenVector3 Sigma, EigenMatrix3 &V)
+{
+    const Eigen::JacobiSVD<EigenMatrix3, Eigen::NoQRPreconditioner> svd(F, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    U = svd.matrixU();
+    V = svd.matrixV();
+    Sigma = svd.singularValues();
+
+    EigenMatrix3 L = EigenMatrix3::Identity();
+    L(2, 2) = (U * V.transpose()).determinant();
+
+    const ScalarType detU = U.determinant();
+    const ScalarType detV = V.determinant();
+
+    if (detU < 0.0 && detV > 0)
+        U = U * L;
+    if (detU > 0.0 && detV < 0.0)
+        V = V * L;
+
+    Sigma[2] = Sigma[2] * L(2, 2);
 }
 
 // // LBFGS
@@ -116,4 +146,3 @@ void EigenMakeSparseIdentityMatrix(unsigned int rows, unsigned int cols, SparseM
 //     (*s) = m_data_s + visit_pointer * m_vector_size;
 //     (*y) = m_data_y + visit_pointer * m_vector_size;
 // }
-

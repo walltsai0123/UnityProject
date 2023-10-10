@@ -1,11 +1,20 @@
 #include "Backend.h"
 
+#include "XPBDSoftBody.h"
+#include "XPBDSimulation.h"
+
 std::unique_ptr<SoftBody> softbody(nullptr);
+std::unique_ptr<XPBDSimulation> xpbdSim(nullptr);
 
 
-void AddMesh(MeshState *meshState, const char *path)
+void AddMesh(MeshState *meshState, const char *path,
+            Vector3 pos, Quaternion rot,
+            float mass, float mu, float lambda, int matType)
 {
-	softbody->AddMesh(meshState, path);
+	softbody->AddMesh(meshState, path, pos.AsEigen(), rot.AsEigen(), mass, mu, lambda, matType);
+
+	XPBDBody *testbody = new XPBDSoftBody(meshState, path, mass, mu, lambda);
+	delete testbody;
 }
 
 void AddContact(Vector3 p, Vector3 n, float seperation)
@@ -33,12 +42,44 @@ void SimulationUpdate(float dt)
 	softbody->Update(dt);
 }
 
-void CollisionUpdate()
+void GetTransform(int index, Vector3 &position, Quaternion &rotation)
 {
-	LOG("CollisionUpdate.");
+	EigenVector3 pos;
+	Eigen::Quaternionf rot;
+	softbody->GetMeshTransform(index, pos, rot);
+
+	position = Vector3(pos);
+	rotation = Quaternion(rot);
 }
 
-void MeshesUpdate()
+void AddTorque(int index, float torque, Vector3 axis)
 {
-	softbody->UpdateMeshes();
+	softbody->AddTorque(index, torque, axis.AsEigen());
+}
+
+int AddXPBDSoftBody(MeshState *meshState, const char *path, float mass, float mu, float lambda)
+{
+	if(xpbdSim.get() == nullptr)
+	{
+		xpbdSim.reset(new XPBDSimulation());
+	}
+
+	XPBDSoftBody *newSoftBody = new XPBDSoftBody(meshState, path, mass, mu, lambda);
+	int ID = xpbdSim->AddBody(newSoftBody);
+	return ID;
+}
+
+void setBodyMaterial(int ID, float mu, float lambda)
+{
+	xpbdSim->SetBodyMaterial(ID, mu, lambda);
+}
+
+void XPBDSimUpdate(float dt, int substeps)
+{
+	xpbdSim->Update(dt, substeps);
+}
+
+void XPBDSimDelete()
+{
+	xpbdSim.reset(nullptr);
 }

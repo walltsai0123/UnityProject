@@ -186,9 +186,11 @@ void Simulation::SetMaterialProperty(std::vector<Constraint *> &constraints)
         auto &c = constraints[i];
         auto vertexIndex = (m_softbody->m_tets[i])[0];
         auto meshIndex = m_softbody->vertexIndexToMeshIndex[vertexIndex].first;
-        MaterialType mType = (MaterialType)m_softbody->meshes[meshIndex]->state->materialType;
-        ScalarType mu = m_softbody->meshes[meshIndex]->state->mu;
-        ScalarType lambda = m_softbody->meshes[meshIndex]->state->lambda;
+
+        // Material property from Mesh
+        MaterialType mType = (MaterialType)m_softbody->meshes[meshIndex]->materialType;
+        ScalarType mu = m_softbody->meshes[meshIndex]->mu;
+        ScalarType lambda = m_softbody->meshes[meshIndex]->lambda;
 
         switch (c->Type())
         {
@@ -276,19 +278,20 @@ void Simulation::dampVelocity()
 
 void Simulation::calculateExternalForce()
 {
-    m_external_force.resize(m_softbody->m_system_dimension);
-    m_external_force.setZero();
+    // m_external_force.resize(m_softbody->m_system_dimension);
+    // m_external_force.setZero();
+    m_external_force = m_softbody->m_external_force;
+
+    VectorX gravity_force;
+    gravity_force.setZero(m_external_force.size());
 
     // gravity
     for (unsigned int i = 0; i < m_softbody->m_vertices_number; ++i)
     {
-        m_external_force[3 * i + 1] += -m_gravity_constant;
+        gravity_force[3 * i + 1] += -m_gravity_constant;
     }
 
-#ifdef ENABLE_MATLAB_DEBUGGING
-    g_debugger->SendSparseMatrix(m_softbody->m_mass_matrix, "M");
-#endif
-    m_external_force = m_softbody->m_mass_matrix * m_external_force;
+    m_external_force += m_softbody->m_mass_matrix * gravity_force;
 }
 
 void Simulation::integrateImplicitMethod()

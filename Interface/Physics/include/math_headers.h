@@ -68,6 +68,9 @@ EigenVector9 flatten(const EigenMatrix3& A);
 // eigen make sparse identity
 void EigenMakeSparseIdentityMatrix(unsigned int rows, unsigned int cols, SparseMatrix& I);
 
+void polarDecomposition(const EigenMatrix3& A, EigenMatrix3& R, EigenMatrix3& S);
+void svd_rv(const EigenMatrix3& F, EigenMatrix3& U, EigenVector3 Sigma, EigenMatrix3& V);
+
 template<typename T, int Options>
 Eigen::Quaternion<T, Options> operator*(T a, const Eigen::Quaternion<T, Options>& q)
 {
