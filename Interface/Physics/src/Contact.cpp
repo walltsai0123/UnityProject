@@ -1,6 +1,6 @@
 #include "Contact.h"
 
-#include "SoftBody.h"
+#include "PD/SoftBody.h"
 
 #ifndef NODEBUG
 std::ofstream logfile = std::ofstream("./log/Contact.log");

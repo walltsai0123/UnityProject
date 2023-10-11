@@ -63,7 +63,11 @@ public class BackEnd
     public static extern void AddTorque(int index, float torque, Vector3 axis);
 
     [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
-    public static extern unsafe int AddXPBDSoftBody(MeshState* meshState, string path, float mass, float mu, float lambda);
+    public static extern unsafe int AddXPBDSoftBody(MeshState* meshState, string path,
+        Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
+
+    [DllImport(DllName)]
+    public static extern void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp);
 
     [DllImport(DllName)]
     public static extern void setBodyMaterial(int ID, float mu, float lambda);

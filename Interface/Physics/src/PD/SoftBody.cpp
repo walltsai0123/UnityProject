@@ -1,5 +1,5 @@
-#include "SoftBody.h"
-#include "Simulation.h"
+#include "PD/SoftBody.h"
+#include "PD/Simulation.h"
 #include "CollisionSolver.h"
 
 #include <igl/readMESH.h>

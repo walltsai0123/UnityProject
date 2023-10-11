@@ -22,6 +22,9 @@ find_package(libigl REQUIRED)
 find_path(LIBIGL_INCLUDE_DIR NAMES igl/readMESH.h)
 message(STATUS "libigl include dir: ${LIBIGL_INCLUDE_DIR}")
 
+#message(STATUS "physics h files: ${PHYSICS_H}")
+#message(STATUS "physics src files: ${PHYSICS_SRC}")
+
 target_include_directories(${PROJECT_NAME} PRIVATE ${NATIVE_INCLUDE_DIR} ${PHYSICS_INCLUDE_DIR} "${EXTERNAL_DIR}/Unity" ${LIBIGL_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX igl::igl_core)
 #target_compile_definitions(${PROJECT_NAME} PRIVATE NODEBUG)

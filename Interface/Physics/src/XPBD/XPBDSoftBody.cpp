@@ -1,4 +1,4 @@
-#include "XPBDSoftBody.h"
+#include "XPBD/XPBDSoftBody.h"
 
 #include <igl/AABB.h>
 #include <igl/barycentric_coordinates.h>
@@ -8,16 +8,18 @@
 
 int XPBDSoftBody::counter = 0;
 
-XPBDSoftBody::XPBDSoftBody(MeshState *state, const std::string tetMeshFile, float mass, float mu, float lambda)
-    : XPBDBody(),
+XPBDSoftBody::XPBDSoftBody(MeshState *state, const std::string tetMeshFile, Eigen::Vector3f pos, Eigen::Quaternionf rot, float Mass, float mu, float lambda)
+    : XPBDBody(BodyType::Soft, Mass),
       m_state(state),
-      m_total_mass(mass),
       m_mu(mu),
       m_lambda(lambda)
 {
     // Set logfile
     std::string logfileName = "log/XPBDSoftBody_" + std::to_string(counter) + ".log";
     logfile.open(logfileName);
+
+    x = pos;
+    q = rot;
 
     // Read tetmesh file
     Eigen::MatrixXf V;
@@ -76,7 +78,7 @@ void XPBDSoftBody::solve(float dt)
     // Easy collision
     for (int i = 0; i < m_vertices_num; ++i)
     {
-        float planeY = -5.0f;
+        float planeY = 0.0f;
         if (m_positions[i].y() < planeY)
         {
             m_positions[i].y() = planeY;
@@ -86,9 +88,10 @@ void XPBDSoftBody::solve(float dt)
             Eigen::Vector3f F = m_prevPositions[i] - m_positions[i];
             m_positions[i].x() += F(0) * std::min(1.0f, dt * fricton);
             m_positions[i].z() += F(2) * std::min(1.0f, dt * fricton);
-        }
-            
+        }   
     }
+
+    updatePos();
 }
 
 void XPBDSoftBody::postSolve(float dt)
@@ -108,6 +111,17 @@ void XPBDSoftBody::endFrame()
     updateVisMesh();
 }
 
+void XPBDSoftBody::translatePos(Eigen::Vector3f delta)
+{
+    for(int i = 0; i < m_vertices_num; ++i)
+    {
+        m_positions[i] += delta;
+    }
+    x += delta;
+
+}
+
+// private function
 void XPBDSoftBody::computeSkinningInfo(const Eigen::MatrixXf &tetV, const Eigen::MatrixXi &tetT)
 {
     int VSize = m_state->VSize;
@@ -180,7 +194,7 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
     m_velocities.resize(m_vertices_num, Eigen::Vector3f::Zero());
     for (int i = 0; i < m_vertices_num; ++i)
     {
-        const Eigen::Vector3f pos = tetV.row(i).transpose();
+        const Eigen::Vector3f pos = tetV.row(i).transpose() + x;
         m_prevPositions[i] = pos;
         m_positions[i] = pos;
     }
@@ -224,7 +238,7 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
     }
 
     // scale mass with density and inverse it
-    float density = m_total_mass / totalVolume;
+    float density = mass / totalVolume;
     for (int i = 0; i < m_vertices_num; ++i)
     {
         m_invMass[i] *= density;
@@ -236,6 +250,7 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
     logfile << "Init Physics\n";
     logfile << "vertices num: " << m_vertices_num << "\n";
     logfile << "tets num: " << m_tets_num << "\n";
+    logfile << "x: " << x.transpose() << "\n";
     logfile << "Positions: " << m_positions.size() << "\n";
     for (const auto &pos : m_positions)
         logfile << pos.transpose() << "\n";
@@ -247,7 +262,7 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
         logfile << invM << "\n";
     logfile << "Density: " << density << "\n";
     logfile << "totalVolume: " << totalVolume << "\n";
-    logfile << "Total_mass: " << m_total_mass << "\n";
+    logfile << "Total_mass: " << mass << "\n";
     logfile << "mu lambda: " << m_mu << " " << m_lambda << "\n";
     logfile.flush();
 #endif
@@ -383,6 +398,20 @@ void XPBDSoftBody::solveVolumetric(int index, float compliance, float dt)
     }
 }
 
+void XPBDSoftBody::updatePos()
+{
+    // Calculate center of mass
+    Eigen::Vector3f newPos = Eigen::Vector3f::Zero();
+    for(int i = 0; i < m_vertices_num; ++i)
+    {
+        newPos += m_positions[i] / m_invMass[i];
+    }
+    newPos /= mass;
+
+    x = newPos;
+
+    logfile << "UpdatePos x:" << x.transpose() << std::endl;
+}
 void XPBDSoftBody::updateTetMesh()
 {
 }
@@ -411,7 +440,7 @@ void XPBDSoftBody::updateVisMesh()
         newPos += m_positions[id2] * b2;
         newPos += m_positions[id3] * b3;
 
-        m_state->V->col(i) = newPos;
+        m_state->V->col(i) = newPos - x;
     }
 
     // Update Normals

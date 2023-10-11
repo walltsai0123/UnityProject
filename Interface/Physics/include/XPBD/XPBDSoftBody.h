@@ -11,7 +11,7 @@
 class XPBDSoftBody : public XPBDBody
 {
 public:
-    XPBDSoftBody(MeshState *state, const std::string tetMeshFile = "", float mass = 1.0f, float mu = 100.0f, float lambda = 100.0f);
+    XPBDSoftBody(MeshState *state, const std::string tetMeshFile, Eigen::Vector3f pos, Eigen::Quaternionf rot, float mass = 1.0f, float mu = 100.0f, float lambda = 100.0f);
     ~XPBDSoftBody();
 
     virtual void setMaterial(float mu, float lambda);
@@ -20,6 +20,8 @@ public:
     virtual void solve(float dt) override;
     virtual void postSolve(float dt) override; 
     virtual void endFrame() override;
+
+    virtual void translatePos(Eigen::Vector3f delta) override;
 
 protected:
     int m_vertices_num;
@@ -49,7 +51,6 @@ protected:
     // tet volumes
     std::vector<float> m_tetVolumes;
 
-    float m_total_mass;
     float m_mu, m_lambda;
 
 private:
@@ -62,7 +63,9 @@ private:
     Eigen::Matrix3f getDeformationGradient(int index);
     void solveDeviatoric(int index, float compliance, float dt);
     void solveVolumetric(int index, float compliance, float dt);
+    void updatePos();
     void updateTetMesh();
     void updateVisMesh();
+
 };
 

@@ -2,7 +2,7 @@
 #include <PluginAPI/IUnityInterface.h>
 #include "BackendCallbacks.h"
 #include "MeshState.h"
-#include "SoftBody.h"
+#include "PD/SoftBody.h"
 
 extern std::unique_ptr<SoftBody> softbody;
 
@@ -45,10 +45,13 @@ extern "C"
     void AddTorque(int index, float torque, Vector3 axis);
 
     UNITY_INTERFACE_EXPORT
-    int AddXPBDSoftBody(MeshState *meshState, const char *path, float mass, float mu, float lambda);
+    int AddXPBDSoftBody(MeshState *meshState, const char *path, Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
 
     UNITY_INTERFACE_EXPORT
     void setBodyMaterial(int ID, float mu, float lambda);
+
+    UNITY_INTERFACE_EXPORT
+    void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp);
 
     UNITY_INTERFACE_EXPORT
     void XPBDSimUpdate(float dt, int substeps);

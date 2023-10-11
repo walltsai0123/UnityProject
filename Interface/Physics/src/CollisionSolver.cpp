@@ -1,7 +1,7 @@
 #include "CollisionSolver.h"
 
-#include "SoftBody.h"
-#include "Simulation.h"
+#include "PD/SoftBody.h"
+#include "PD/Simulation.h"
 #include <limits>
 // #include <algorithm>
 

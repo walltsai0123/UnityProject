@@ -48,7 +48,7 @@ public unsafe class TetMesh : MonoBehaviour
 
         state = BackEnd.InitMeshState(DataRowMajor.GetNative());
 
-        ID = BackEnd.AddXPBDSoftBody(state, tetFileName, mass, mu, lambda);
+        ID = BackEnd.AddXPBDSoftBody(state, tetFileName, transform.position, transform.rotation, mass, mu, lambda);
         Debug.Log(ID);
     }
     void Start()
@@ -62,9 +62,11 @@ public unsafe class TetMesh : MonoBehaviour
         DataRowMajor.ApplyDirty(state);
         DataRowMajor.ApplyDirtyToMesh(mesh);
         // this.GetComponent<MeshCollider>().sharedMesh = mesh;
-        //BackEnd.GetTransform(ID, out Vector3 pos, out Quaternion rot);
+        BackEnd.GetTransform(ID, out Vector3 pos, out Quaternion rot);
 
-        //transform.SetPositionAndRotation(pos, rot);
+        transform.SetPositionAndRotation(pos, rot);
+        Debug.Log(pos);
+        Debug.Log(rot);
     }
     private void Update()
     {

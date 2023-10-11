@@ -28,7 +28,7 @@
 //----------------------------------------------------------------------------------//
 
 
-#include "Constraint.h"
+#include "PD/Constraint.h"
 
 #ifdef ENABLE_MATLAB_DEBUGGING
 #include "matlab_debugger.h"

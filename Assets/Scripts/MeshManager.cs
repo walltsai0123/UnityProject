@@ -27,10 +27,11 @@ public class MeshManager : MonoBehaviour
     private void Start()
     {
         //BackEnd.InitSoftBody();
+        BackEnd.AddPosConstraints(0, 1, Vector3.zero, Vector3.zero, 2f, 0f);
     }
     private void FixedUpdate()
     {
-        BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, 10);
+        BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, 3);
         //BackEnd.SimulationUpdate(Time.fixedDeltaTime);
         Debug.Log("SimulationUpdate");
     }

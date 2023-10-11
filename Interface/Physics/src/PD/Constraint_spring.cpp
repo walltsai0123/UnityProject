@@ -28,7 +28,7 @@
 //----------------------------------------------------------------------------------//
 
 
-#include "Constraint.h"
+#include "PD/Constraint.h"
 #include <unsupported/Eigen/KroneckerProduct>
 
 #ifdef ENABLE_MATLAB_DEBUGGING

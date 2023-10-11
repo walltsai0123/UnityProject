@@ -1,7 +1,8 @@
 #include "Backend.h"
 
-#include "XPBDSoftBody.h"
-#include "XPBDSimulation.h"
+#include "XPBD/XPBDSoftBody.h"
+#include "XPBD/XPBDSimulation.h"
+
 
 std::unique_ptr<SoftBody> softbody(nullptr);
 std::unique_ptr<XPBDSimulation> xpbdSim(nullptr);
@@ -12,9 +13,6 @@ void AddMesh(MeshState *meshState, const char *path,
             float mass, float mu, float lambda, int matType)
 {
 	softbody->AddMesh(meshState, path, pos.AsEigen(), rot.AsEigen(), mass, mu, lambda, matType);
-
-	XPBDBody *testbody = new XPBDSoftBody(meshState, path, mass, mu, lambda);
-	delete testbody;
 }
 
 void AddContact(Vector3 p, Vector3 n, float seperation)
@@ -46,7 +44,8 @@ void GetTransform(int index, Vector3 &position, Quaternion &rotation)
 {
 	EigenVector3 pos;
 	Eigen::Quaternionf rot;
-	softbody->GetMeshTransform(index, pos, rot);
+	//softbody->GetMeshTransform(index, pos, rot);
+	xpbdSim->GetBodyTransform(index, pos, rot);
 
 	position = Vector3(pos);
 	rotation = Quaternion(rot);
@@ -57,14 +56,16 @@ void AddTorque(int index, float torque, Vector3 axis)
 	softbody->AddTorque(index, torque, axis.AsEigen());
 }
 
-int AddXPBDSoftBody(MeshState *meshState, const char *path, float mass, float mu, float lambda)
+int AddXPBDSoftBody(MeshState *meshState, const char *path,
+					Vector3 pos, Quaternion rot,
+					float mass, float mu, float lambda)
 {
 	if(xpbdSim.get() == nullptr)
 	{
 		xpbdSim.reset(new XPBDSimulation());
 	}
 
-	XPBDSoftBody *newSoftBody = new XPBDSoftBody(meshState, path, mass, mu, lambda);
+	XPBDSoftBody *newSoftBody = new XPBDSoftBody(meshState, path, pos.AsEigen(), rot.AsEigen(), mass, mu, lambda);
 	int ID = xpbdSim->AddBody(newSoftBody);
 	return ID;
 }
@@ -72,6 +73,11 @@ int AddXPBDSoftBody(MeshState *meshState, const char *path, float mass, float mu
 void setBodyMaterial(int ID, float mu, float lambda)
 {
 	xpbdSim->SetBodyMaterial(ID, mu, lambda);
+}
+
+void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp)
+{
+	xpbdSim->AddPosConstraint(ID1, ID2, R1.AsEigen(), R2.AsEigen(), len, comp);
 }
 
 void XPBDSimUpdate(float dt, int substeps)

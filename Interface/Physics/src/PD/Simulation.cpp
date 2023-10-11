@@ -1,6 +1,6 @@
 #define USE_STL_QUEUE_IMPLEMENTATION
-#include "Simulation.h"
-#include "SoftBody.h"
+#include "PD/Simulation.h"
+#include "PD/SoftBody.h"
 #include "CollisionSolver.h"
 
 #include <omp.h>
