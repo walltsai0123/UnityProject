@@ -36,8 +36,18 @@ MeshState *InitMeshState(const MeshDataNative data)
     return state;
 }
 
+UNITY_INTERFACE_EXPORT TetMeshState *InitTetMeshState(const TetMeshDataNative data)
+{
+    auto *state = new TetMeshState(data);
+    return state;
+}
+
 void DisposeMeshState(MeshState *state)
 {
 	delete state;
 }
 
+void DisposeTetMeshState(TetMeshState *state)
+{
+	delete state;
+}

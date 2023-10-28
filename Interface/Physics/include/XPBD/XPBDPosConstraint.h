@@ -2,7 +2,7 @@
 
 #include "XPBDConstraint.h"
 
-#include <Eigen/Core>
+
 
 class XPBDPosConstraint : public XPBDConstraint
 {
@@ -15,7 +15,9 @@ public:
     virtual void solveConstraint(float dt) override;
 protected:
     Eigen::Vector3f r1, r2;
-    Eigen::Vector3f dx;
-    float length;
+    float dmax;
+
+private:
+    static int counter;
 };
 

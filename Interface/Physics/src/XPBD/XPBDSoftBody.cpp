@@ -5,12 +5,45 @@
 #include <igl/per_vertex_normals.h>
 #include <igl/readMESH.h>
 
-
 int XPBDSoftBody::counter = 0;
 
-XPBDSoftBody::XPBDSoftBody(MeshState *state, const std::string tetMeshFile, Eigen::Vector3f pos, Eigen::Quaternionf rot, float Mass, float mu, float lambda)
-    : XPBDBody(BodyType::Soft, Mass),
-      m_state(state),
+namespace
+{
+    void svd_rv(const Eigen::Matrix3f &F, Eigen::Matrix3f &U, Eigen::Vector3f Sigma, Eigen::Matrix3f &V)
+    {
+        const Eigen::JacobiSVD<Eigen::Matrix3f, Eigen::NoQRPreconditioner> svd(F, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        U = svd.matrixU();
+        V = svd.matrixV();
+        Sigma = svd.singularValues();
+
+        Eigen::Matrix3f L = Eigen::Matrix3f::Identity();
+        L(2, 2) = (U * V.transpose()).determinant();
+
+        const float detU = U.determinant();
+        const float detV = V.determinant();
+
+        if (detU < 0.0 && detV > 0)
+            U = U * L;
+        if (detU > 0.0 && detV < 0.0)
+            V = V * L;
+
+        Sigma[2] = Sigma[2] * L(2, 2);
+    }
+    void polarDecomposition(const Eigen::Matrix3f &A, Eigen::Matrix3f &R, Eigen::Matrix3f &S)
+    {
+        Eigen::Matrix3f U, V;
+        Eigen::Vector3f Sigma;
+        svd_rv(A, U, Sigma, V);
+
+        R = U * V.transpose();
+        S = V * Sigma.asDiagonal() * V.transpose();
+    }
+}
+
+XPBDSoftBody::XPBDSoftBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, MeshState *state, TetMeshState *tetState, float Mass, float mu, float lambda)
+    : XPBDBody(BodyType::Soft),
+      m_state(state), m_tetState(tetState),
+      restX(pos),
       m_mu(mu),
       m_lambda(lambda)
 {
@@ -20,23 +53,13 @@ XPBDSoftBody::XPBDSoftBody(MeshState *state, const std::string tetMeshFile, Eige
 
     x = pos;
     q = rot;
+    mass = Mass;
 
-    // Read tetmesh file
-    Eigen::MatrixXf V;
-    Eigen::MatrixXi F, T;
-    bool success = igl::readMESH(tetMeshFile, V, T, F);
-    if (!success)
-    {
-        fprintf(stderr, "Load file %s error\n", tetMeshFile.c_str());
-        return;
-    }
+    Eigen::MatrixXf tetV = tetState->V->transpose();
+    Eigen::MatrixXi tetT = tetState->T->transpose();
 
-    // Move tetMesh to origin
-    Eigen::RowVector3f mean = V.colwise().mean();
-    V.rowwise() -= mean;
-
-    computeSkinningInfo(V, T);
-    initPhysics(V, T);
+    computeSkinningInfo(tetV, tetT);
+    initPhysics(tetV, tetT);
 
     counter++;
 }
@@ -88,14 +111,18 @@ void XPBDSoftBody::solve(float dt)
             Eigen::Vector3f F = m_prevPositions[i] - m_positions[i];
             m_positions[i].x() += F(0) * std::min(1.0f, dt * fricton);
             m_positions[i].z() += F(2) * std::min(1.0f, dt * fricton);
-        }   
+        }
     }
 
     updatePos();
+    updateRotation();
+    updateLocalPos();
+    updateInertia();
 }
 
 void XPBDSoftBody::postSolve(float dt)
 {
+    updateGlobalPos();
     for (int i = 0; i < m_vertices_num; ++i)
     {
         // Ignore zero mass
@@ -107,18 +134,19 @@ void XPBDSoftBody::postSolve(float dt)
 
 void XPBDSoftBody::endFrame()
 {
+    //updatePos();
+    //updateRotation();
     updateTetMesh();
     updateVisMesh();
 }
 
 void XPBDSoftBody::translatePos(Eigen::Vector3f delta)
 {
-    for(int i = 0; i < m_vertices_num; ++i)
+    for (int i = 0; i < m_vertices_num; ++i)
     {
         m_positions[i] += delta;
     }
     x += delta;
-
 }
 
 // private function
@@ -190,13 +218,16 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
 
     // Set positions and velocities
     m_positions.resize(m_vertices_num);
+    m_localPositions.resize(m_vertices_num);
     m_prevPositions.resize(m_vertices_num);
+    m_restPositions.resize(m_vertices_num);
     m_velocities.resize(m_vertices_num, Eigen::Vector3f::Zero());
     for (int i = 0; i < m_vertices_num; ++i)
     {
         const Eigen::Vector3f pos = tetV.row(i).transpose() + x;
-        m_prevPositions[i] = pos;
+        m_restPositions[i] = pos;
         m_positions[i] = pos;
+        m_localPositions[i] = pos - x;
     }
 
     // Set tets
@@ -246,6 +277,24 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
             m_invMass[i] = 1.0f / m_invMass[i];
     }
 
+    // move COM to x
+    Eigen::Vector3f COM = Eigen::Vector3f::Zero();
+    for (int i = 0; i < m_vertices_num; ++i)
+    {
+        COM += m_positions[i] / m_invMass[i];
+    }
+    COM /= mass;
+    Eigen::Vector3f delta = x - COM;
+    if (delta.norm() >= 1e-6)
+    {
+        for (int i = 0; i < m_vertices_num; ++i)
+        {
+            m_positions[i] += delta;
+            m_localPositions[i] += delta;
+            m_restPositions[i] += delta;
+        }
+    }
+
 #ifndef NODEBUG
     logfile << "Init Physics\n";
     logfile << "vertices num: " << m_vertices_num << "\n";
@@ -260,6 +309,9 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
     logfile << "Inverse mass: " << m_invMass.size() << "\n";
     for (const auto &invM : m_invMass)
         logfile << invM << "\n";
+    logfile << "Tet Volumes: " << m_tetVolumes.size() << "\n";
+    for (const auto &V : m_tetVolumes)
+        logfile << V << "\n";
     logfile << "Density: " << density << "\n";
     logfile << "totalVolume: " << totalVolume << "\n";
     logfile << "Total_mass: " << mass << "\n";
@@ -303,7 +355,7 @@ void XPBDSoftBody::solveDeviatoric(int index, float compliance, float dt)
     const Eigen::Matrix3f F = getDeformationGradient(index);
     const float trFTF = F.col(0).squaredNorm() + F.col(1).squaredNorm() + F.col(2).squaredNorm();
     float C = sqrtf(trFTF);
-    
+
     if (C == 0.0f)
         return;
 
@@ -402,18 +454,72 @@ void XPBDSoftBody::updatePos()
 {
     // Calculate center of mass
     Eigen::Vector3f newPos = Eigen::Vector3f::Zero();
-    for(int i = 0; i < m_vertices_num; ++i)
+    for (int i = 0; i < m_vertices_num; ++i)
     {
         newPos += m_positions[i] / m_invMass[i];
     }
     newPos /= mass;
-
     x = newPos;
-
-    logfile << "UpdatePos x:" << x.transpose() << std::endl;
 }
+
+void XPBDSoftBody::updateRotation()
+{
+    const Eigen::Vector3f x_cm0 = restX;
+    const Eigen::Vector3f x_cm = x;
+
+    Eigen::Matrix3f Apq;
+    Apq.setZero();
+    for (int i = 0; i < m_vertices_num; ++i)
+    {
+        const Eigen::Vector3f p = m_positions[i] - x_cm;
+        const Eigen::Vector3f q = m_restPositions[i] - x_cm0;
+        Apq += (p * q.transpose()) / m_invMass[i];
+    }
+
+    Eigen::Matrix3f R, S;
+    polarDecomposition(Apq, R, S);
+    q = R;
+}
+
+void XPBDSoftBody::updateInertia()
+{
+    Ibody.setZero();
+
+    for (int i = 0; i < m_vertices_num; ++i)
+    {
+        Eigen::Vector3f ri = m_localPositions[i];
+        Eigen::Matrix3f ri_tilde;
+        ri_tilde << 0.0f, -ri.z(), ri.y(),
+            ri.z(), 0.0f, -ri.x(),
+            -ri.y(), ri.x(), 0.0f;
+        Ibody += ri_tilde * ri_tilde.transpose() / m_invMass[i];
+    }
+
+    I = q * Ibody * q.inverse();
+}
+
+void XPBDSoftBody::updateLocalPos()
+{
+    for (int i = 0; i < m_vertices_num; ++i)
+    {
+        m_localPositions[i] = q.inverse() * (m_positions[i] - x);
+    }
+}
+
+void XPBDSoftBody::updateGlobalPos()
+{
+    for (int i = 0; i < m_vertices_num; ++i)
+    {
+        m_positions[i] = q * m_localPositions[i] + x;
+    }
+}
+
 void XPBDSoftBody::updateTetMesh()
 {
+    for (int i = 0; i < m_vertices_num; ++i)
+    {
+        m_tetState->V->col(i) = m_localPositions[i];
+    }
 }
 
 void XPBDSoftBody::updateVisMesh()
@@ -435,18 +541,19 @@ void XPBDSoftBody::updateVisMesh()
         int id3 = m_tets[tetId](3);
 
         Eigen::Vector3f newPos = Eigen::Vector3f::Zero();
-        newPos += m_positions[id0] * b0;
-        newPos += m_positions[id1] * b1;
-        newPos += m_positions[id2] * b2;
-        newPos += m_positions[id3] * b3;
+        newPos += m_tetState->V->col(id0) * b0;
+        newPos += m_tetState->V->col(id1) * b1;
+        newPos += m_tetState->V->col(id2) * b2;
+        newPos += m_tetState->V->col(id3) * b3;
 
-        m_state->V->col(i) = newPos - x;
+        m_state->V->col(i) = newPos;
     }
 
     // Update Normals
     Eigen::MatrixXf V = m_state->V->transpose();
     Eigen::MatrixXf N;
-    Eigen::MatrixXi F = m_state->F->transpose();;
+    Eigen::MatrixXi F = m_state->F->transpose();
+    
     igl::per_vertex_normals(V, F, N);
     *(m_state->N) = N.transpose();
 }

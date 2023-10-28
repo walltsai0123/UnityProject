@@ -8,14 +8,16 @@ public unsafe struct MeshState
     public readonly void* NPtr;
     public readonly void* FPtr;
 
-    //public readonly Vector3 com;
-
-    //public readonly float Mass;
-
-    //public readonly int materialType;
-    //public readonly float mu;
-    //public readonly float lambda;
-
     public readonly int VSize;
     public readonly int FSize;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct TetMeshState
+{
+    public readonly void* VPtr;
+    public readonly void* TPtr;
+
+    public readonly int VSize;
+    public readonly int TSize;
 }

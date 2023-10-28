@@ -15,7 +15,13 @@ extern "C"
     MeshState *InitMeshState(const MeshDataNative data);
 
     UNITY_INTERFACE_EXPORT
+    TetMeshState *InitTetMeshState(const TetMeshDataNative data);
+
+    UNITY_INTERFACE_EXPORT
     void DisposeMeshState(MeshState *state);
+
+    UNITY_INTERFACE_EXPORT
+    void DisposeTetMeshState(TetMeshState *state);
 
     // Physics.cpp
     UNITY_INTERFACE_EXPORT
@@ -45,7 +51,10 @@ extern "C"
     void AddTorque(int index, float torque, Vector3 axis);
 
     UNITY_INTERFACE_EXPORT
-    int AddXPBDSoftBody(MeshState *meshState, const char *path, Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
+    int AddXPBDRigidBody(Vector3 pos, Quaternion rot, Vector3 inertia, float mass);
+
+    UNITY_INTERFACE_EXPORT
+    int AddXPBDSoftBody(MeshState *meshState, TetMeshState *tetState, Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
 
     UNITY_INTERFACE_EXPORT
     void setBodyMaterial(int ID, float mu, float lambda);
@@ -62,7 +71,10 @@ extern "C"
 
     // IO.cpp
     UNITY_INTERFACE_EXPORT
-    void ApplyDirty(MeshState *state, const MeshDataNative data);
+    void ApplyDirtyVis(MeshState *state, const MeshDataNative data);
+
+    UNITY_INTERFACE_EXPORT
+    void ApplyDirtyTet(TetMeshState *state, const TetMeshDataNative data);
 
     UNITY_INTERFACE_EXPORT
     bool ReadMESH(const char *path,

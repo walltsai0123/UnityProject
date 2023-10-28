@@ -1,5 +1,6 @@
 #include "Backend.h"
 
+#include "XPBD/XPBDRigidBody.h"
 #include "XPBD/XPBDSoftBody.h"
 #include "XPBD/XPBDSimulation.h"
 
@@ -56,33 +57,46 @@ void AddTorque(int index, float torque, Vector3 axis)
 	softbody->AddTorque(index, torque, axis.AsEigen());
 }
 
-int AddXPBDSoftBody(MeshState *meshState, const char *path,
-					Vector3 pos, Quaternion rot,
-					float mass, float mu, float lambda)
+int AddXPBDRigidBody(Vector3 pos, Quaternion rot, Vector3 inertia, float mass)
 {
-	if(xpbdSim.get() == nullptr)
+    if(!xpbdSim)
 	{
 		xpbdSim.reset(new XPBDSimulation());
 	}
 
-	XPBDSoftBody *newSoftBody = new XPBDSoftBody(meshState, path, pos.AsEigen(), rot.AsEigen(), mass, mu, lambda);
+	XPBDRigidBody *newRigid = new XPBDRigidBody(pos.AsEigen(), rot.AsEigen(), inertia.AsEigen(), mass);
+	int ID = xpbdSim->AddBody(newRigid);
+	return ID;
+}
+
+int AddXPBDSoftBody(MeshState *meshState, TetMeshState *tetState, Vector3 pos, Quaternion rot, float mass, float mu, float lambda)
+{
+	if(!xpbdSim)
+	{
+		xpbdSim.reset(new XPBDSimulation());
+	}
+
+	XPBDSoftBody *newSoftBody = new XPBDSoftBody(pos.AsEigen(), rot.AsEigen(), meshState, tetState, mass, mu, lambda);
 	int ID = xpbdSim->AddBody(newSoftBody);
 	return ID;
 }
 
 void setBodyMaterial(int ID, float mu, float lambda)
 {
-	xpbdSim->SetBodyMaterial(ID, mu, lambda);
+	if(xpbdSim)
+		xpbdSim->SetBodyMaterial(ID, mu, lambda);
 }
 
 void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp)
 {
-	xpbdSim->AddPosConstraint(ID1, ID2, R1.AsEigen(), R2.AsEigen(), len, comp);
+	if(xpbdSim)
+		xpbdSim->AddPosConstraint(ID1, ID2, R1.AsEigen(), R2.AsEigen(), len, comp);
 }
 
 void XPBDSimUpdate(float dt, int substeps)
 {
-	xpbdSim->Update(dt, substeps);
+	if(xpbdSim)
+		xpbdSim->Update(dt, substeps);
 }
 
 void XPBDSimDelete()

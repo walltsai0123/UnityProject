@@ -107,10 +107,14 @@ namespace
     }
 }
 
-void ApplyDirty(MeshState *state, const MeshDataNative data)
+void ApplyDirtyVis(MeshState *state, const MeshDataNative data)
 {
     MatrixToMap(state->V, data.VPtr);
     MatrixToMap(state->N, data.NPtr);
+}
+void ApplyDirtyTet(TetMeshState *state, const TetMeshDataNative data)
+{
+    MatrixToMap(state->V, data.VPtr);
 }
 bool ReadMESH(const char *path,
               void *&VPtr, int &VSize,

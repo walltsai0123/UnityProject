@@ -60,14 +60,16 @@ struct MeshDataNative
     float* VPtr;
     float* NPtr;
     int* FPtr;
-
-    // Vector3 com;
-	// float Mass;
-
-	// int materialType;
-    // float mu;
-    // float lambda;
     
     int VSize;
     int FSize;
+};
+
+struct TetMeshDataNative
+{
+    float* VPtr;
+    int* TPtr;
+    
+    int VSize;
+    int TSize;
 };

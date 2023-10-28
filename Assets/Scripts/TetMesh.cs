@@ -18,7 +18,7 @@ public unsafe class TetMesh : MonoBehaviour
     private MeshFilter meshFilter;
     public Mesh mesh { get; private set; }
     public MeshRenderer meshRenderer { get; private set; }
-    public MeshData DataRowMajor { get; private set; }
+    public VisMeshData DataRowMajor { get; private set; }
     public MeshState* state;
 
     public string tetFileName;
@@ -44,11 +44,11 @@ public unsafe class TetMesh : MonoBehaviour
         mesh = meshFilter.mesh;
         meshRenderer = GetComponent<MeshRenderer>();
 
-        DataRowMajor = new MeshData(this);
+        DataRowMajor = new VisMeshData(this);
 
         state = BackEnd.InitMeshState(DataRowMajor.GetNative());
 
-        ID = BackEnd.AddXPBDSoftBody(state, tetFileName, transform.position, transform.rotation, mass, mu, lambda);
+        //ID = BackEnd.AddXPBDSoftBody(state, tetFileName, transform.position, transform.rotation, mass, mu, lambda);
         Debug.Log(ID);
     }
     void Start()

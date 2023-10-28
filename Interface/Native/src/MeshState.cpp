@@ -4,13 +4,6 @@
 
 MeshState::MeshState(const MeshDataNative udata)
 {
-	// Mass = udata.Mass;
-	// com = udata.com;
-	
-	// materialType = udata.materialType;
-	// mu = udata.mu;
-	// lambda = udata.lambda;
-	
 	VSize = udata.VSize;
 	FSize = udata.FSize;
 
@@ -33,8 +26,6 @@ MeshState::MeshState(const MeshDataNative udata)
     logfile << *N << "\n";
 	logfile << "F\n";
     logfile << *F << "\n";
-	// logfile << "materialType: " << materialType << "\n";
-    // logfile << "mu, lambda: " << mu << " " << lambda << "\n";
     logfile.flush();
 	logfile.close();
 #endif
@@ -45,4 +36,35 @@ MeshState::~MeshState()
 	delete V;
 	delete N;
 	delete F;
+}
+
+TetMeshState::TetMeshState(const TetMeshDataNative udata)
+{
+	VSize = udata.VSize;
+	TSize = udata.TSize;
+
+	V = new Eigen::MatrixXf(3, VSize);
+	T = new Eigen::MatrixXi(4, TSize);
+
+	// Copy over data
+	MatrixFromMap(udata.VPtr, V);
+	MatrixFromMap(udata.TPtr, T);
+
+#ifndef NODEBUG
+	using namespace std;
+    ofstream logfile("log/TetMeshState.log");
+	logfile << "MeshState\n";
+    logfile << "V:\n";
+    logfile << *V << "\n";
+    logfile << "T:\n";
+    logfile << *T << "\n";
+    logfile.flush();
+	logfile.close();
+#endif
+}
+
+TetMeshState::~TetMeshState()
+{
+	delete V;
+	delete T;
 }

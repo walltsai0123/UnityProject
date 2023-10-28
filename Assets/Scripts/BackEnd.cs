@@ -34,6 +34,17 @@ public class BackEnd
     [DllImport(DllName)]
     public static extern unsafe MeshState* InitMeshState(MeshDataNative data);
 
+    [DllImport(DllName)]
+    public static extern unsafe TetMeshState* InitTetMeshState(TetMeshDataNative data);
+
+    [DllImport(DllName)]
+    public static extern unsafe void DisposeMeshState(MeshState* state);
+
+    [DllImport(DllName)]
+    public static extern unsafe void DisposeTetMeshState(TetMeshState* state);
+
+    // Physics.cpp
+
     [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
     public static extern unsafe void AddMesh(MeshState* meshState, string path,
         Vector3 pos, Quaternion rot, float mass, float mu, float lambda, int matType);
@@ -41,8 +52,6 @@ public class BackEnd
     [DllImport(DllName)]
     public static extern void AddContact(Vector3 p, Vector3 n, float seperation);
 
-    [DllImport(DllName)]
-    public static extern unsafe void DisposeMeshState(MeshState* state);
 
     [DllImport(DllName)]
     public static extern void CreateSoftBody();
@@ -62,9 +71,12 @@ public class BackEnd
     [DllImport(DllName)]
     public static extern void AddTorque(int index, float torque, Vector3 axis);
 
-    [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
-    public static extern unsafe int AddXPBDSoftBody(MeshState* meshState, string path,
-        Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
+    [DllImport(DllName)]
+    public static extern int AddXPBDRigidBody(Vector3 pos, Quaternion rot, Vector3 inertia, float mass);
+
+    [DllImport(DllName)]
+    public static extern unsafe int AddXPBDSoftBody
+        (MeshState* meshState, TetMeshState* tetState, Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
 
     [DllImport(DllName)]
     public static extern void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp);
@@ -80,7 +92,10 @@ public class BackEnd
 
     // IO.cpp
     [DllImport(DllName)]
-    public static extern unsafe void ApplyDirty(MeshState* state, MeshDataNative data);
+    public static extern unsafe void ApplyDirtyVis(MeshState* state, MeshDataNative data);
+
+    [DllImport(DllName)]
+    public static extern unsafe void ApplyDirtyTet(TetMeshState* state, TetMeshDataNative data);
 
     [DllImport(DllName, ExactSpelling = true, CharSet = CharSet.Ansi)]
     public static extern unsafe bool ReadMESH(string path,

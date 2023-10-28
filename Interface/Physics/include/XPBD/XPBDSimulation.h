@@ -1,4 +1,6 @@
 #pragma once
+
+#include <fstream>
 #include <vector>
 #include <memory>
 #include <Eigen/Core>
@@ -22,4 +24,7 @@ public:
 protected:
     std::vector<std::unique_ptr<XPBDBody>> bodies;
     std::vector<std::unique_ptr<XPBDConstraint>> constraints;
+
+private:
+    std::ofstream logfile;
 };

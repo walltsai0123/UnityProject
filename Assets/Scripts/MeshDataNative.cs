@@ -8,14 +8,6 @@ public readonly unsafe struct MeshDataNative
     public readonly float* NPtr;
     public readonly int* FPtr;
 
-    //public readonly Vector3 com;
-
-    //public readonly float Mass;
-
-    //public readonly int materialType;
-    //public readonly float Mu;
-    //public readonly float Lambda;
-
     public readonly int VSize;
     public readonly int FSize;
 
@@ -25,14 +17,26 @@ public readonly unsafe struct MeshDataNative
         NPtr = nPtr;
         FPtr = fPtr;
 
-        //com = COM;
-
-        //materialType = mType;
-        //Mass = mass;
-        //Mu = mu;
-        //Lambda = lambda;
-
         VSize = vSize;
         FSize = fSize;
+    }
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public readonly unsafe struct TetMeshDataNative
+{
+    public readonly float* VPtr;
+    public readonly int* TPtr;
+
+    public readonly int VSize;
+    public readonly int TSize;
+
+    public TetMeshDataNative(float* vPtr, int* tPtr, int vSize, int tSize)
+    {
+        VPtr = vPtr;
+        TPtr = tPtr;
+
+        VSize = vSize;
+        TSize = tSize;
     }
 }

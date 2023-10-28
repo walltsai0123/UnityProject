@@ -4,7 +4,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Assertions;
 
-public class MeshData : IDisposable
+public class VisMeshData : IDisposable
 {
     public NativeArray<Vector3> V;
     public NativeArray<Vector3> N;
@@ -13,25 +13,32 @@ public class MeshData : IDisposable
     public readonly int VSize;
     public readonly int FSize;
 
-    public int materialType;
-
     private MeshDataNative _native;
-    public MeshData(TetMesh tetMesh)
+    public VisMeshData(TetMesh tetMesh)
     {
         var mesh = tetMesh.mesh;
         VSize = mesh.vertexCount;
         FSize = mesh.triangles.Length / 3;
 
-        Allocate(tetMesh);
-        CopyFrom(tetMesh);
+        Allocate(mesh);
+        CopyFrom(mesh);
+    }
+    public VisMeshData(VisMesh visMesh)
+    {
+        var mesh = visMesh.mesh;
+        VSize = mesh.vertexCount;
+        FSize = mesh.triangles.Length / 3;
+
+        Allocate(mesh);
+        CopyFrom(mesh);
     }
 
-    private void Allocate(TetMesh tetMesh)
+    private void Allocate(Mesh mesh)
     {
         Assert.IsTrue(VSize > 0 && FSize > 0);
         Assert.IsTrue(!V.IsCreated);
 
-        var mesh = tetMesh.mesh;
+        //var mesh = tetMesh.mesh;
 
         V = new NativeArray<Vector3>(VSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         N = new NativeArray<Vector3>(VSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
@@ -52,12 +59,13 @@ public class MeshData : IDisposable
                 (float*)V.GetUnsafePtr(), (float*)N.GetUnsafePtr(), (int*)F.GetUnsafePtr(),
                 VSize, FSize);
         }
+        
     }
-    private void CopyFrom(TetMesh tetMesh)
+    private void CopyFrom(Mesh mesh)
     {
         Assert.IsTrue(V.IsCreated);
 
-        var mesh = tetMesh.mesh;
+        // var mesh = tetMesh.mesh;
 
         V.CopyFrom(mesh.vertices);
         N.CopyFrom(mesh.normals);
@@ -67,7 +75,7 @@ public class MeshData : IDisposable
     {
         Assert.IsTrue(VSize == state->VSize && FSize == state->FSize);
 
-        BackEnd.ApplyDirty(state, _native);
+        BackEnd.ApplyDirtyVis(state, _native);
     }
     public void ApplyDirtyToMesh(Mesh mesh)
     {

@@ -9,7 +9,6 @@ public class MeshManager : MonoBehaviour
 {
     public static MeshManager get;
     public List<TetMesh> tetMeshes { get; private set; }
-    // private Thread thread;
 
     private void Awake()
     {
@@ -27,11 +26,11 @@ public class MeshManager : MonoBehaviour
     private void Start()
     {
         //BackEnd.InitSoftBody();
-        BackEnd.AddPosConstraints(0, 1, Vector3.zero, Vector3.zero, 2f, 0f);
+        // BackEnd.AddPosConstraints(0, 1, Vector3.zero, Vector3.zero, 2f, 0f);
     }
     private void FixedUpdate()
     {
-        BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, 3);
+        BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, 10);
         //BackEnd.SimulationUpdate(Time.fixedDeltaTime);
         Debug.Log("SimulationUpdate");
     }
@@ -46,11 +45,6 @@ public class MeshManager : MonoBehaviour
     }
     private void OnDestroy()
     {
-        //if (thread != null)
-        //{
-        //    thread.Join();
-        //    thread = null;
-        //}
         //BackEnd.DeleteSoftBody();
         BackEnd.XPBDSimDelete();
         Debug.Log("MeshManager Destroy");

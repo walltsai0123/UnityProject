@@ -2,10 +2,6 @@
 
 #include "PD/SoftBody.h"
 
-#ifndef NODEBUG
-std::ofstream logfile = std::ofstream("./log/Contact.log");
-#endif
-
 Contact::Contact()
 {
 }
@@ -16,7 +12,7 @@ Contact::Contact(const EigenVector3 &_p, const EigenVector3 &_n, float _phi, Sof
     computeContactFrame();
     computeJacobian();
 
-    PrintInfo(logfile);
+    // PrintInfo(logfile);
 }
 
 Contact::~Contact()
