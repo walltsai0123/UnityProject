@@ -81,8 +81,9 @@ public class VisMeshData : IDisposable
     {
         mesh.SetVertices(V);
         mesh.RecalculateBounds();
+        mesh.RecalculateNormals();
         
-        mesh.SetNormals(N);
+        //mesh.SetNormals(N);
     }
     public MeshDataNative GetNative()
     {

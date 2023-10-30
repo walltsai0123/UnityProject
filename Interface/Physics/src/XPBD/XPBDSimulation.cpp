@@ -2,6 +2,7 @@
 
 #include "XPBD/XPBDBody.h"
 #include "XPBD/XPBDPosConstraint.h"
+#include "XPBD/XPBDFixedJoint.h"
 #include "XPBD/XPBDSimulation.h"
 
 XPBDSimulation::XPBDSimulation()
@@ -39,6 +40,13 @@ void XPBDSimulation::AddPosConstraint(int id1, int id2, Eigen::Vector3f r1, Eige
     constraints.push_back(std::make_unique<XPBDPosConstraint>(b1, b2, r1, r2, Length, comp));
 }
 
+void XPBDSimulation::AddFixedJoint(int id1, int id2)
+{
+    XPBDBody *b1 = bodies[id1].get();
+    XPBDBody *b2 = bodies[id2].get();
+    constraints.push_back(std::make_unique<XPBDFixedJoint>(b1, b2));
+}
+
 void XPBDSimulation::SetBodyMaterial(int index, float mu, float lambda)
 {
     bodies[index]->setMaterial(mu, lambda);
@@ -52,15 +60,16 @@ void XPBDSimulation::Update(float dt, int substeps)
     {
         for(auto& body : bodies)
             body->preSolve(sdt);
-        for(auto& C : constraints)
-            C->preSolve();
         logfile << step << " Pre solve " << std::flush;
+
         for(auto& body : bodies)
             body->solve(sdt);
         logfile << "Solve " << std::flush;
+
         for(auto& C : constraints)
             C->solveConstraint(sdt);
         logfile << "Constraint solve " << std::flush;
+
         for(auto& body : bodies)
             body->postSolve(sdt);
         logfile << "Post solve\n" << std::flush;

@@ -82,6 +82,9 @@ public class BackEnd
     public static extern void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp);
 
     [DllImport(DllName)]
+    public static extern void AddFixedJoint(int ID1, int ID2);
+
+    [DllImport(DllName)]
     public static extern void setBodyMaterial(int ID, float mu, float lambda);
 
     [DllImport(DllName)]

@@ -7,13 +7,8 @@
 class XPBDConstraint
 {
 public:
-    XPBDConstraint(XPBDBody* B1, XPBDBody* B2, float comp): b1(B1), b2(B2), compliance(comp), lambda(0.0f){}
-    virtual ~XPBDConstraint()
-    {  
-        logfile.flush();
-        logfile.close();
-    }
-
+    XPBDConstraint(XPBDBody* B1, XPBDBody* B2, float comp);
+    virtual ~XPBDConstraint();
 
     virtual void preSolve(){
         lambda = 0.0f;
@@ -28,6 +23,7 @@ protected:
     float compliance;
     
     std::ofstream logfile;
-private:
-    
+
+    void solvePosConstraint(float dt, const Eigen::Vector3f r1, const Eigen::Vector3f r2, float dmax, float comp);
+    void solveAngConstraint(float dt, const Eigen::Vector3f dq, float angle, float comp);
 };

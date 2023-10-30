@@ -7,7 +7,7 @@ namespace XPBD
     public class Simulation : MonoBehaviour
     {
         public static Simulation get;
-
+        public int substeps = 10;
         private void Awake()
         {
             if (get)
@@ -22,7 +22,7 @@ namespace XPBD
 
         private void FixedUpdate()
         {
-            BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, 10);
+            BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, substeps);
         }
 
         private void OnDestroy()

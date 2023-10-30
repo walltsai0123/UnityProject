@@ -243,8 +243,8 @@ MonoBehaviour:
   visMesh: {fileID: 2443012950347655155}
   physicMesh: {fileID: 4715981143376354075}
   mass: 12
-  mu: 1200
-  lambda: 120000
+  mu: 5500
+  lambda: Infinity
   showTet: 0
 --- !u!1 &7289325884975452697
 GameObject:

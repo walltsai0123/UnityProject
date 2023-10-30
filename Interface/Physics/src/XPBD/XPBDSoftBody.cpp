@@ -114,6 +114,12 @@ void XPBDSoftBody::solve(float dt)
         }
     }
 
+    // Record particle cache velocities
+    for (int i = 0; i < m_vertices_num; ++i)
+    {
+        m_cacheVelocities[i] = (m_positions[i] - m_prevPositions[i]) / dt;
+    }
+
     updatePos();
     updateRotation();
     updateLocalPos();
@@ -123,19 +129,29 @@ void XPBDSoftBody::solve(float dt)
 void XPBDSoftBody::postSolve(float dt)
 {
     updateGlobalPos();
+
+    Eigen::Vector3f v = (x - cacheX) / dt;
+    Eigen::Quaternionf dq = q * cacheQ.inverse();
+    Eigen::Vector3f omega = 2.0f * Eigen::Vector3f(dq.x(), dq.y(), dq.z()) / dt;
+    omega = dq.w() >= 0 ? omega : -omega;
+
     for (int i = 0; i < m_vertices_num; ++i)
     {
         // Ignore zero mass
         if (m_invMass[i] == 0)
             continue;
+
         m_velocities[i] = (m_positions[i] - m_prevPositions[i]) / dt;
+        // m_velocities[i] = m_cacheVelocities[i];
+        // m_velocities[i] += v;
+        // m_velocities[i] += omega.cross(m_positions[i] - x);
     }
 }
 
 void XPBDSoftBody::endFrame()
 {
-    //updatePos();
-    //updateRotation();
+    // updatePos();
+    // updateRotation();
     updateTetMesh();
     updateVisMesh();
 }
@@ -222,6 +238,7 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
     m_prevPositions.resize(m_vertices_num);
     m_restPositions.resize(m_vertices_num);
     m_velocities.resize(m_vertices_num, Eigen::Vector3f::Zero());
+    m_cacheVelocities.resize(m_vertices_num);
     for (int i = 0; i < m_vertices_num; ++i)
     {
         const Eigen::Vector3f pos = tetV.row(i).transpose() + x;
@@ -316,6 +333,7 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
     logfile << "totalVolume: " << totalVolume << "\n";
     logfile << "Total_mass: " << mass << "\n";
     logfile << "mu lambda: " << m_mu << " " << m_lambda << "\n";
+    logfile << "1/mu 1/lambda: " << 1.0f/m_mu << " " << 1.0f/m_lambda << "\n";
     logfile.flush();
 #endif
 }
@@ -460,6 +478,7 @@ void XPBDSoftBody::updatePos()
     }
     newPos /= mass;
     x = newPos;
+    cacheX = x;
 }
 
 void XPBDSoftBody::updateRotation()
@@ -479,6 +498,7 @@ void XPBDSoftBody::updateRotation()
     Eigen::Matrix3f R, S;
     polarDecomposition(Apq, R, S);
     q = R;
+    cacheQ = q;
 }
 
 void XPBDSoftBody::updateInertia()
@@ -550,10 +570,10 @@ void XPBDSoftBody::updateVisMesh()
     }
 
     // Update Normals
-    Eigen::MatrixXf V = m_state->V->transpose();
-    Eigen::MatrixXf N;
-    Eigen::MatrixXi F = m_state->F->transpose();
-    
-    igl::per_vertex_normals(V, F, N);
-    *(m_state->N) = N.transpose();
+    // Eigen::MatrixXf V = m_state->V->transpose();
+    // Eigen::MatrixXf N;
+    // Eigen::MatrixXi F = m_state->F->transpose();
+
+    // igl::per_vertex_normals(V, F, N);
+    // *(m_state->N) = N.transpose();
 }

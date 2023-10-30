@@ -29,6 +29,10 @@ protected:
     
     Eigen::Vector3f restX;
 
+    // Position and Rotation after internal constraints
+    Eigen::Vector3f cacheX;
+    Eigen::Quaternionf cacheQ;
+
     // Visual Mesh State
     MeshState *m_state;
     // Physic Mesh State;
@@ -42,6 +46,7 @@ protected:
     std::vector<Eigen::Vector4i> m_tets;
 
     // velocities
+    std::vector<Eigen::Vector3f> m_cacheVelocities;
     std::vector<Eigen::Vector3f> m_velocities;
 
     // Skinning info mapping visual mesh to tetMesh

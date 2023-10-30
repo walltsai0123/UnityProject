@@ -5,8 +5,9 @@
 class XPBDFixedJoint : public XPBDJoint
 {
 public:
-    XPBDFixedJoint(XPBDBody *B1, XPBDBody *B2, float comp);
+    XPBDFixedJoint(XPBDBody *B1, XPBDBody *B2);
     ~XPBDFixedJoint();
 
     virtual void solveConstraint(float dt);
+protected:
 };

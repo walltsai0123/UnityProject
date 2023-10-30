@@ -93,6 +93,12 @@ void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, floa
 		xpbdSim->AddPosConstraint(ID1, ID2, R1.AsEigen(), R2.AsEigen(), len, comp);
 }
 
+void AddFixedJoint(int ID1, int ID2)
+{
+	if(xpbdSim)
+		xpbdSim->AddFixedJoint(ID1, ID2);
+}
+
 void XPBDSimUpdate(float dt, int substeps)
 {
 	if(xpbdSim)
