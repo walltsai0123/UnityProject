@@ -1,8 +1,5 @@
 #include "XPBD/XPBDFixedJoint.h"
 
-#include "XPBD/XPBDAngConstraint.h"
-#include "XPBD/XPBDPosConstraint.h"
-
 XPBDFixedJoint::XPBDFixedJoint(XPBDBody *B1, XPBDBody *B2)
     : XPBDJoint(B1, B2)
 {
@@ -19,10 +16,10 @@ XPBDFixedJoint::~XPBDFixedJoint() {}
 
 void XPBDFixedJoint::solveConstraint(float dt)    
 {
-    solvePosConstraint(dt, anchor, Eigen::Vector3f::Zero(), 0.0f, compliance);
+    // solvePosConstraint(dt, anchor, Eigen::Vector3f::Zero(), 0.0f, compliance);
 
-    Eigen::Quaternionf dq = b1->getRotation() * b2->getRotation().inverse();
-    Eigen::Vector3f dq_fixed = 2.0f * Eigen::Vector3f(dq.x(), dq.y(), dq.z());
+    // Eigen::Quaternionf dq = b1->getRotation() * b2->getRotation().inverse();
+    // Eigen::Vector3f dq_fixed = 2.0f * Eigen::Vector3f(dq.x(), dq.y(), dq.z());
 
     // solveAngConstraint(dt, dq_fixed, 0.0f, compliance);
 }

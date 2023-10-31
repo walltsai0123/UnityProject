@@ -36,6 +36,43 @@ XPBDRigidBody::XPBDRigidBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, Eigen:
     logfile.flush();
 #endif
 }
+
+XPBDRigidBody::XPBDRigidBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, Geometry *_geometry, float Mass)
+    : XPBDBody(BodyType::Rigid),
+      v(0, 0, 0),
+      omega(0, 0, 0),
+      IbodyInv(Eigen::Matrix3f::Identity()),
+      Iinv(Eigen::Matrix3f::Zero()),
+      f(0, 0, 0),
+      tau(0, 0, 0),
+      geometry(_geometry)
+{
+    std::string logfileName = "log/XPBDRigidBody_" + std::to_string(counter) + ".log";
+    logfile.open(logfileName);
+
+    mass = Mass;
+    x = pos;
+    q = rot;
+    Ibody = geometry->computeInertia(mass);
+    IbodyInv = Ibody.inverse();
+
+    counter++;
+
+#ifndef NODEBUG
+    logfile << "Init\n";
+    logfile << "Pos " << x.transpose() << "\n";
+    logfile << "Rot " << q << "\n";
+    logfile << "Mass" << mass << "\n";
+    logfile << "Geometry: " << geometry->toString() << "\n";
+    logfile << "Ibody\n"
+            << Ibody << "\n";
+    logfile << "IbodyInv\n"
+            << IbodyInv << "\n";
+    logfile.flush();
+#endif
+}
+
+
 XPBDRigidBody::~XPBDRigidBody()
 {
     counter--;
@@ -73,12 +110,6 @@ void XPBDRigidBody::postSolve(float dt)
 
 void XPBDRigidBody::endFrame()
 {
-}
-
-void XPBDRigidBody::setRotation(const Eigen::Quaternionf newRot)
-{   
-    q = newRot; 
-    updateInertia(); 
 }
 
 void XPBDRigidBody::updateInertia()

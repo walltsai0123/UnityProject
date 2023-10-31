@@ -6,7 +6,6 @@ namespace XPBD
 {
     public unsafe class SoftBody : Body
     {
-        // public int ID { get; private set; }
         public VisMesh visMesh;
         public PhysicMesh physicMesh;
 
@@ -30,8 +29,9 @@ namespace XPBD
             mu = Mathf.Max(0.001f, mu);
             lambda = Mathf.Max(0.001f, lambda);
             BackEnd.setBodyMaterial(ID, mu, lambda);
-            BackEnd.GetTransform(ID, out Vector3 pos, out Quaternion rot);
-            transform.SetPositionAndRotation(pos, rot);
+
+            // BackEnd.GetTransform(ID, out Vector3 pos, out Quaternion rot);
+            // transform.SetPositionAndRotation(pos, rot);
         }
     }
 }

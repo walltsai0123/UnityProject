@@ -29,8 +29,8 @@ public class MeshImporter : ScriptedImporter
         ctx.AddObjectToAsset("Material", newMaterial);
         meshRenderer.material = newMaterial;
 
-        var tetMesh = gameObject.AddComponent<TetMesh>();
-        tetMesh.tetFileName = ctx.assetPath;
+        //var tetMesh = gameObject.AddComponent<TetMesh>();
+        //tetMesh.tetFileName = ctx.assetPath;
 
         var physicMesh = gameObject.AddComponent<XPBD.PhysicMesh>();
         

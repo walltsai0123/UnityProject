@@ -54,6 +54,9 @@ extern "C"
     int AddXPBDRigidBody(Vector3 pos, Quaternion rot, Vector3 inertia, float mass);
 
     UNITY_INTERFACE_EXPORT
+    int AddXPBDRigidBox(Vector3 pos, Quaternion rot, Vector3 size, float mass);
+
+    UNITY_INTERFACE_EXPORT
     int AddXPBDSoftBody(MeshState *meshState, TetMeshState *tetState, Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
 
     UNITY_INTERFACE_EXPORT
@@ -64,6 +67,9 @@ extern "C"
 
     UNITY_INTERFACE_EXPORT
     void AddFixedJoint(int ID1, int ID2);
+
+    UNITY_INTERFACE_EXPORT
+    void AttachRigidSoft(int rId, int sId);
 
     UNITY_INTERFACE_EXPORT
     void XPBDSimUpdate(float dt, int substeps);

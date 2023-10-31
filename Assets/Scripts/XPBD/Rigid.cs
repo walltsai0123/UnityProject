@@ -4,18 +4,37 @@ namespace XPBD
 {
     public class Rigid : Body
     {
+        public enum eGeometryType { kSphere, kBox, kNone };
         public Rigidbody m_rigidbody;
         public Vector3 inertia;
 
         public float mass;
+        public eGeometryType geometryType = eGeometryType.kNone;
 
         private void Awake()
         {
-            m_rigidbody = GetComponent<Rigidbody>();
-            inertia = m_rigidbody.inertiaTensor;
-            m_rigidbody.isKinematic = true;
+            if(geometryType == eGeometryType.kNone)
+            {
+                Debug.Log("geometry unset");
+                return;
+            }
 
-            ID = BackEnd.AddXPBDRigidBody(transform.position, transform.rotation, inertia, mass);
+            if (geometryType == eGeometryType.kBox)
+            {
+                Transform m_transform = this.transform;
+                BoxCollider box = GetComponent<BoxCollider>();
+                if(box == null)
+                {
+                    Debug.Log("BoxCollider not found");
+                    return;
+                }
+                Vector3 boxSize = box.size;
+                boxSize.x *= transform.localScale.x;
+                boxSize.y *= transform.localScale.y;
+                boxSize.z *= transform.localScale.z;
+                ID = BackEnd.AddXPBDRigidBox(m_transform.position, m_transform.rotation, boxSize, mass);
+                Debug.Log(ID + boxSize.ToString());
+            }
         }
 
         // Update is called once per frame

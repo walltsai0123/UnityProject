@@ -14,6 +14,9 @@ public:
     XPBDSoftBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, MeshState *state, TetMeshState *tetState,  float mass = 1.0f, float mu = 100.0f, float lambda = 100.0f);
     ~XPBDSoftBody();
 
+    inline std::vector<Eigen::Vector3f>& getPositions() { return m_positions; }
+    inline float invMass(int index) { return m_invMass[index]; }
+
     virtual void setMaterial(float mu, float lambda);
 
     virtual void preSolve(float dt) override;

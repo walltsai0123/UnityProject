@@ -2,7 +2,13 @@
 
 #include "XPBD/XPBDUtil.h"
 
-XPBDConstraint::XPBDConstraint(XPBDBody *B1, XPBDBody *B2, float comp) : b1(B1), b2(B2), compliance(comp), lambda(0.0f){}
+XPBDConstraint::XPBDConstraint(XPBDBody *B1, XPBDBody *B2, float comp) : b1(B1), b2(B2), compliance(comp), lambda(0.0f)
+{
+    if(b1->bodyType > b2->bodyType)
+    {
+        std::swap(b1, b2);
+    }
+}
 
 
 XPBDConstraint::~XPBDConstraint()
@@ -10,6 +16,7 @@ XPBDConstraint::~XPBDConstraint()
     logfile.flush();
     logfile.close();
 }
+
 void XPBDConstraint::solvePosConstraint(float dt, const Eigen::Vector3f r1, const Eigen::Vector3f r2, float dmax, float comp)
 {
     Eigen::Vector3f b1x = b1->getPosition();

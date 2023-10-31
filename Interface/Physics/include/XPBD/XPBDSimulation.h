@@ -20,6 +20,7 @@ public:
 
     void AddPosConstraint(int id1, int id2, Eigen::Vector3f r1, Eigen::Vector3f r2, float Length, float comp);
     void AddFixedJoint(int id1, int id2);
+    void AttachRigidSoft(int rId, int sId);
     void SetBodyMaterial(int index, float mu, float lambda);
     void Update(float dt, int substeps);
 

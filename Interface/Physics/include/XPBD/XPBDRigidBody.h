@@ -1,14 +1,18 @@
 #pragma once
 
 #include "XPBDBody.h"
-#include <fstream>
+#include "RigidGeometry.h"
+#include <memory>
 
 
 class XPBDRigidBody : public XPBDBody
 {
 public:
     XPBDRigidBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, Eigen::Vector3f inertia, float mass);
+    XPBDRigidBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, Geometry* _geometry, float mass);
     ~XPBDRigidBody();
+
+    inline Geometry* getGeometry() { return geometry.get(); }
 
     virtual void preSolve(float dt) override;
     virtual void solve(float dt) override;
@@ -16,14 +20,6 @@ public:
     virtual void endFrame() override;
 
     virtual void translatePos(Eigen::Vector3f delta) { x += delta; };
-
-    virtual float getMass() override { return mass; }
-    virtual Eigen::Vector3f getPosition() { return x; }
-    virtual void setPosition(const Eigen::Vector3f newPos) { x = newPos; }
-    virtual Eigen::Quaternionf getRotation() { return q; }
-    virtual void setRotation(const Eigen::Quaternionf newRot);
-    virtual Eigen::Matrix3f getInertia() { return I; }
-    virtual Eigen::Matrix3f getInertiaLocal() { return Ibody; };
 
 protected:
     Eigen::Matrix3f Iinv;            // Inertia and inverse inertia matrix (global)
@@ -36,6 +32,7 @@ protected:
     Eigen::Vector3f f;                  // Linear force.
     Eigen::Vector3f tau;                // Angular force (torque).
 
+    std::unique_ptr<Geometry> geometry; // The geometry of the rigid body.
 private:
     //std::ofstream logfile;
     static int counter;

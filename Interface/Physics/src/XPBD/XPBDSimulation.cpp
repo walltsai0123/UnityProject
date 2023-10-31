@@ -1,9 +1,11 @@
 #include "XPBD/XPBDSimulation.h"
 
+#include "XPBD/XPBDAttatchment.h"
 #include "XPBD/XPBDBody.h"
 #include "XPBD/XPBDPosConstraint.h"
 #include "XPBD/XPBDFixedJoint.h"
 #include "XPBD/XPBDSimulation.h"
+
 
 XPBDSimulation::XPBDSimulation()
 {
@@ -45,6 +47,13 @@ void XPBDSimulation::AddFixedJoint(int id1, int id2)
     XPBDBody *b1 = bodies[id1].get();
     XPBDBody *b2 = bodies[id2].get();
     constraints.push_back(std::make_unique<XPBDFixedJoint>(b1, b2));
+}
+
+void XPBDSimulation::AttachRigidSoft(int rId, int sId)
+{
+    XPBDBody *b1 = bodies[rId].get();
+    XPBDBody *b2 = bodies[sId].get();
+    constraints.push_back(std::make_unique<XPBDAttatchment>(b1, b2));
 }
 
 void XPBDSimulation::SetBodyMaterial(int index, float mu, float lambda)

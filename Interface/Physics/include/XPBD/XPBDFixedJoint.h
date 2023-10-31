@@ -8,6 +8,6 @@ public:
     XPBDFixedJoint(XPBDBody *B1, XPBDBody *B2);
     ~XPBDFixedJoint();
 
-    virtual void solveConstraint(float dt);
+     void solveConstraint(float dt);
 protected:
 };

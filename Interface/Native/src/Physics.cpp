@@ -69,6 +69,18 @@ int AddXPBDRigidBody(Vector3 pos, Quaternion rot, Vector3 inertia, float mass)
 	return ID;
 }
 
+int AddXPBDRigidBox(Vector3 pos, Quaternion rot, Vector3 size, float mass)
+{
+    if(!xpbdSim)
+	{
+		xpbdSim.reset(new XPBDSimulation());
+	}
+
+	XPBDRigidBody *newRigid = new XPBDRigidBody(pos.AsEigen(), rot.AsEigen(), new Box(size.AsEigen()), mass);
+	int ID = xpbdSim->AddBody(newRigid);
+	return ID;
+}
+
 int AddXPBDSoftBody(MeshState *meshState, TetMeshState *tetState, Vector3 pos, Quaternion rot, float mass, float mu, float lambda)
 {
 	if(!xpbdSim)
@@ -97,6 +109,12 @@ void AddFixedJoint(int ID1, int ID2)
 {
 	if(xpbdSim)
 		xpbdSim->AddFixedJoint(ID1, ID2);
+}
+
+void AttachRigidSoft(int rId, int sId)
+{
+	if(xpbdSim)
+		xpbdSim->AttachRigidSoft(rId, sId);
 }
 
 void XPBDSimUpdate(float dt, int substeps)

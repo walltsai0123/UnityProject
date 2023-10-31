@@ -113,27 +113,10 @@ void XPBDSoftBody::solve(float dt)
             m_positions[i].z() += F(2) * std::min(1.0f, dt * fricton);
         }
     }
-
-    // Record particle cache velocities
-    for (int i = 0; i < m_vertices_num; ++i)
-    {
-        m_cacheVelocities[i] = (m_positions[i] - m_prevPositions[i]) / dt;
-    }
-
-    updatePos();
-    updateRotation();
-    updateLocalPos();
-    updateInertia();
 }
 
 void XPBDSoftBody::postSolve(float dt)
 {
-    updateGlobalPos();
-
-    Eigen::Vector3f v = (x - cacheX) / dt;
-    Eigen::Quaternionf dq = q * cacheQ.inverse();
-    Eigen::Vector3f omega = 2.0f * Eigen::Vector3f(dq.x(), dq.y(), dq.z()) / dt;
-    omega = dq.w() >= 0 ? omega : -omega;
 
     for (int i = 0; i < m_vertices_num; ++i)
     {
@@ -142,18 +125,20 @@ void XPBDSoftBody::postSolve(float dt)
             continue;
 
         m_velocities[i] = (m_positions[i] - m_prevPositions[i]) / dt;
-        // m_velocities[i] = m_cacheVelocities[i];
-        // m_velocities[i] += v;
-        // m_velocities[i] += omega.cross(m_positions[i] - x);
     }
 }
 
 void XPBDSoftBody::endFrame()
 {
-    // updatePos();
-    // updateRotation();
     updateTetMesh();
     updateVisMesh();
+
+    logfile << "\npositions\n";
+    for (const auto &pos : m_positions)
+        logfile << pos.transpose() << "\n";
+
+    logfile << "tetmesh\n";
+    logfile << *(m_tetState->V) << std::endl;
 }
 
 void XPBDSoftBody::translatePos(Eigen::Vector3f delta)
@@ -317,6 +302,7 @@ void XPBDSoftBody::initPhysics(const Eigen::MatrixXf &tetV, const Eigen::MatrixX
     logfile << "vertices num: " << m_vertices_num << "\n";
     logfile << "tets num: " << m_tets_num << "\n";
     logfile << "x: " << x.transpose() << "\n";
+    logfile << "COM: " << COM.transpose() << "\n";
     logfile << "Positions: " << m_positions.size() << "\n";
     for (const auto &pos : m_positions)
         logfile << pos.transpose() << "\n";
@@ -406,7 +392,8 @@ void XPBDSoftBody::solveDeviatoric(int index, float compliance, float dt)
     if (weight == 0.0f)
         return;
 
-    float alpha = compliance / dt / dt;
+    float h2 = dt * dt;
+    float alpha = compliance / h2;
     float dlambda = -C / (weight + alpha);
 
     for (int i = 0; i < 4; ++i)
@@ -538,7 +525,7 @@ void XPBDSoftBody::updateTetMesh()
 {
     for (int i = 0; i < m_vertices_num; ++i)
     {
-        m_tetState->V->col(i) = m_localPositions[i];
+        m_tetState->V->col(i) = m_positions[i] - x;
     }
 }
 

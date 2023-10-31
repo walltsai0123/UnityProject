@@ -23,6 +23,7 @@ namespace XPBD
         private void FixedUpdate()
         {
             BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, substeps);
+            Debug.Log("Simulation Update");
         }
 
         private void OnDestroy()

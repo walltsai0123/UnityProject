@@ -75,6 +75,9 @@ public class BackEnd
     public static extern int AddXPBDRigidBody(Vector3 pos, Quaternion rot, Vector3 inertia, float mass);
 
     [DllImport(DllName)]
+    public static extern int AddXPBDRigidBox(Vector3 pos, Quaternion rot, Vector3 size, float mass);
+
+    [DllImport(DllName)]
     public static extern unsafe int AddXPBDSoftBody
         (MeshState* meshState, TetMeshState* tetState, Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
 
@@ -83,6 +86,9 @@ public class BackEnd
 
     [DllImport(DllName)]
     public static extern void AddFixedJoint(int ID1, int ID2);
+
+    [DllImport(DllName)]
+    public static extern void AttachRigidSoft(int rId, int sId);
 
     [DllImport(DllName)]
     public static extern void setBodyMaterial(int ID, float mu, float lambda);
