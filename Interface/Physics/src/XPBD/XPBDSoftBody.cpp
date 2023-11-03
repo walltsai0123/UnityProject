@@ -132,13 +132,6 @@ void XPBDSoftBody::endFrame()
 {
     updateTetMesh();
     updateVisMesh();
-
-    logfile << "\npositions\n";
-    for (const auto &pos : m_positions)
-        logfile << pos.transpose() << "\n";
-
-    logfile << "tetmesh\n";
-    logfile << *(m_tetState->V) << std::endl;
 }
 
 void XPBDSoftBody::translatePos(Eigen::Vector3f delta)
@@ -455,6 +448,30 @@ void XPBDSoftBody::solveVolumetric(int index, float compliance, float dt)
     }
 }
 
+void XPBDSoftBody::generateCollision()
+{
+    for(int i = 0; i < m_vertices_num; ++i)
+    {
+        if(m_positions[i].y() <= 1e-6f)
+        {
+
+
+        }
+    }
+}
+
+void XPBDSoftBody::solveCollision(float dt)
+{
+    Eigen::Vector3f surfaceN(0.0f, 1.0f, 0.0f);
+    for(int i = 0; i < m_vertices_num; ++i)
+    {
+        if(m_positions[i].y() <= 1e-6f)
+        {
+
+        }
+    }
+}
+
 void XPBDSoftBody::updatePos()
 {
     // Calculate center of mass
@@ -465,7 +482,6 @@ void XPBDSoftBody::updatePos()
     }
     newPos /= mass;
     x = newPos;
-    cacheX = x;
 }
 
 void XPBDSoftBody::updateRotation()
@@ -485,7 +501,6 @@ void XPBDSoftBody::updateRotation()
     Eigen::Matrix3f R, S;
     polarDecomposition(Apq, R, S);
     q = R;
-    cacheQ = q;
 }
 
 void XPBDSoftBody::updateInertia()
@@ -555,12 +570,4 @@ void XPBDSoftBody::updateVisMesh()
 
         m_state->V->col(i) = newPos;
     }
-
-    // Update Normals
-    // Eigen::MatrixXf V = m_state->V->transpose();
-    // Eigen::MatrixXf N;
-    // Eigen::MatrixXi F = m_state->F->transpose();
-
-    // igl::per_vertex_normals(V, F, N);
-    // *(m_state->N) = N.transpose();
 }

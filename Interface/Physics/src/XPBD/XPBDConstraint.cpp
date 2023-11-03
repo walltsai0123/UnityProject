@@ -2,17 +2,19 @@
 
 #include "XPBD/XPBDUtil.h"
 
+int XPBDConstraint::counter = 0;
+
 XPBDConstraint::XPBDConstraint(XPBDBody *B1, XPBDBody *B2, float comp) : b1(B1), b2(B2), compliance(comp), lambda(0.0f)
 {
-    if(b1->bodyType > b2->bodyType)
-    {
-        std::swap(b1, b2);
-    }
+    std::string logfileName = "log/XPBDConstraint_" + std::to_string(counter) + ".log";
+    logfile.open(logfileName);
+    counter++;
 }
 
 
 XPBDConstraint::~XPBDConstraint()
 {
+    counter--;
     logfile.flush();
     logfile.close();
 }
@@ -54,14 +56,14 @@ void XPBDConstraint::solvePosConstraint(float dt, const Eigen::Vector3f r1, cons
     b1->setPosition(b1newX);
     b2->setPosition(b2newX);
 
-    // Eigen::Vector3f p1 = b1q.inverse() * p;
-    // Eigen::Vector3f p2 = b2q.inverse() * p;
-    // Eigen::Vector3f r1xp = I1inv * r1.cross(p1);
-    // Eigen::Quaternionf b1newRot = b1q + 0.5f * Eigen::Quaternionf(0.0f, r1xp(0), r1xp(1), r1xp(2)) * b1q;
-    // Eigen::Vector3f r2xp = I2inv * r2.cross(p2);
-    // Eigen::Quaternionf b2newRot = b2q + -0.5f * Eigen::Quaternionf(0.0f, r2xp(0), r2xp(1), r2xp(2)) * b2q;
-    // b1->setRotation(b1newRot.normalized());
-    // b2->setRotation(b2newRot.normalized());
+    Eigen::Vector3f p1 = b1q.inverse() * p;
+    Eigen::Vector3f p2 = b2q.inverse() * p;
+    Eigen::Vector3f r1xp = I1inv * r1.cross(p1);
+    Eigen::Quaternionf b1newRot = b1q + 0.5f * Eigen::Quaternionf(0.0f, r1xp(0), r1xp(1), r1xp(2)) * b1q;
+    Eigen::Vector3f r2xp = I2inv * r2.cross(p2);
+    Eigen::Quaternionf b2newRot = b2q + -0.5f * Eigen::Quaternionf(0.0f, r2xp(0), r2xp(1), r2xp(2)) * b2q;
+    b1->setRotation(b1newRot.normalized());
+    b2->setRotation(b2newRot.normalized());
 }
 void XPBDConstraint::solveAngConstraint(float dt, const Eigen::Vector3f dq, float angle, float comp)
 {

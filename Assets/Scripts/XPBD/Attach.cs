@@ -10,13 +10,23 @@ namespace XPBD
         public SoftBody thisBody { get; private set; }
         public Rigid attachedBody;
 
+        public int ID1, ID2;
+
         private void Awake()
         {
             thisBody = GetComponent<SoftBody>();
+            Debug.Log("Attach Awake");
         }
         private void Start()
         {
-            BackEnd.AttachRigidSoft(attachedBody.ID, thisBody.ID);
+            
+            if (thisBody.gameObject.activeInHierarchy && attachedBody.gameObject.activeInHierarchy)
+            {
+                ID1 = attachedBody.ID;
+                ID2 = thisBody.ID;
+                BackEnd.AttachRigidSoft(ID1, ID2);
+            }
+                
         }
     }
     

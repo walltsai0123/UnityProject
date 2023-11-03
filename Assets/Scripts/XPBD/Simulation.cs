@@ -17,6 +17,7 @@ namespace XPBD
                 return;
             }
             get = this;
+            BackEnd.XPBDSimInit();
             Debug.Log("Simulation Awake");
         }
 

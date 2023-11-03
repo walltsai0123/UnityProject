@@ -19,10 +19,12 @@ protected:
     XPBDBody* b1;
     XPBDBody* b2;
     
+    bool valid;
     float lambda;
     float compliance;
     
     std::ofstream logfile;
+    static int counter;
 
     void solvePosConstraint(float dt, const Eigen::Vector3f r1, const Eigen::Vector3f r2, float dmax, float comp);
     void solveAngConstraint(float dt, const Eigen::Vector3f dq, float angle, float comp);

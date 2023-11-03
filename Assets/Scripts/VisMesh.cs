@@ -27,7 +27,12 @@ public unsafe class VisMesh : MonoBehaviour
         DataRowMajor.ApplyDirty(state);
         DataRowMajor.ApplyDirtyToMesh(mesh);
     }
-    
+
+    public void Show(bool show)
+    {
+        meshRenderer.enabled = show;
+    }
+
     private void OnDestroy()
     {
         Dispose();

@@ -8,8 +8,14 @@
 #include <vector>
 #include <Eigen/Core>
 
+
 class XPBDSoftBody : public XPBDBody
 {
+    struct Collision{
+        int index;
+        Eigen::Vector3f q;
+        Eigen::Vector3f surfaceN;
+    };
 public:
     XPBDSoftBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, MeshState *state, TetMeshState *tetState,  float mass = 1.0f, float mu = 100.0f, float lambda = 100.0f);
     ~XPBDSoftBody();
@@ -31,10 +37,6 @@ protected:
     int m_tets_num;
     
     Eigen::Vector3f restX;
-
-    // Position and Rotation after internal constraints
-    Eigen::Vector3f cacheX;
-    Eigen::Quaternionf cacheQ;
 
     // Visual Mesh State
     MeshState *m_state;
@@ -65,10 +67,12 @@ protected:
     // tet volumes
     std::vector<float> m_tetVolumes;
 
+    // collision
+    std::vector<Collision> m_collisions;
+
     float m_mu, m_lambda;
 
 private:
-    //std::ofstream logfile;
     static int counter;
 
     void computeSkinningInfo(const Eigen::MatrixXf& tetV, const Eigen::MatrixXi& tetT);
@@ -79,6 +83,8 @@ private:
     // Inner constraint solve
     void solveDeviatoric(int index, float compliance, float dt);
     void solveVolumetric(int index, float compliance, float dt);
+    void generateCollision();
+    void solveCollision(float dt);
 
     // update the body position and rotation
     void updatePos();

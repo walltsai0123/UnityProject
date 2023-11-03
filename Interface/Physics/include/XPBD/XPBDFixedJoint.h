@@ -8,6 +8,7 @@ public:
     XPBDFixedJoint(XPBDBody *B1, XPBDBody *B2);
     ~XPBDFixedJoint();
 
-     void solveConstraint(float dt);
+    virtual void solveConstraint(float dt);
 protected:
+    Eigen::Quaternionf dq0;
 };

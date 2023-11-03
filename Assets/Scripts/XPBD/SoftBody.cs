@@ -11,6 +11,7 @@ namespace XPBD
 
         public float mass = 1f, mu = 10f, lambda = 1000f;
         public bool showTet = false;
+        public bool showVis = true;
 
         private void Awake()
         {
@@ -22,6 +23,7 @@ namespace XPBD
         private void FixedUpdate()
         {
             physicMesh.Show(showTet);
+            visMesh.Show(showVis);
 
             physicMesh.UpdateMesh();
             visMesh.UpdateMesh();

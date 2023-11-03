@@ -3,7 +3,7 @@
 #include <Eigen/Dense>
 
 // List of geometry type ids.
-enum eGeometryType { kSphere, kBox };
+enum eGeometryType { kSphere, kBox, kCylinder };
 
 // Generic geometry interface.
 //
@@ -71,4 +71,28 @@ public:
     virtual eGeometryType getType() const override { return kBox; }
 
     virtual char* toString() override { return "Box"; }
+};
+
+// Cylinder geometry
+//
+class Cylinder : public Geometry
+{
+public:
+    float radius;
+    float height;
+    Cylinder(float r, float h) : radius(r), height(h){}
+    virtual ~Cylinder() {}
+
+    virtual Eigen::Matrix3f computeInertia(float _mass) override
+    {
+        m_I.setZero();
+        m_I(0,0) = (1.0f/12.0f)*_mass*(3 * radius * radius + height * height);
+        m_I(1,1) = (1.0f/12.0f)*_mass*(3 * radius * radius + height * height);
+        m_I(2,2) = (1.0f/2.0f)*_mass*(radius * radius);
+        return m_I;
+    }
+
+    virtual eGeometryType getType() const override { return kCylinder; }
+
+    virtual char* toString() override { return "Cylinder"; }
 };

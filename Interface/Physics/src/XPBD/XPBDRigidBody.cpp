@@ -28,7 +28,7 @@ XPBDRigidBody::XPBDRigidBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, Eigen:
     logfile << "Init\n";
     logfile << "Pos " << x.transpose() << "\n";
     logfile << "Rot " << q << "\n";
-    logfile << "Mass" << mass << "\n";
+    logfile << "Mass " << mass << "\n";
     logfile << "Ibody\n"
             << Ibody << "\n";
     logfile << "IbodyInv\n"
@@ -104,8 +104,11 @@ void XPBDRigidBody::postSolve(float dt)
 {
     v = (x - xprev) / dt;
     Eigen::Quaternionf dq = q * qprev.inverse();
-    omega = 2.0f * Eigen::Vector3f(dq.x(), dq.y(), dq.z()) / dt;
-    omega = dq.w() >= 0 ? omega : -omega;
+    // omega = 2.0f * Eigen::Vector3f(dq.x(), dq.y(), dq.z()) / dt;
+    // omega = dq.w() >= 0 ? omega : -omega;
+
+    Eigen::AngleAxisf aa(dq);
+    omega = aa.angle() * aa.axis() / dt;
 }
 
 void XPBDRigidBody::endFrame()

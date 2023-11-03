@@ -69,19 +69,19 @@ void XPBDSimulation::Update(float dt, int substeps)
     {
         for(auto& body : bodies)
             body->preSolve(sdt);
-        logfile << step << " Pre solve " << std::flush;
+        //logfile << step << " Pre solve " << std::flush;
 
         for(auto& body : bodies)
             body->solve(sdt);
-        logfile << "Solve " << std::flush;
+        //logfile << "Solve " << std::flush;
 
         for(auto& C : constraints)
             C->solveConstraint(sdt);
-        logfile << "Constraint solve " << std::flush;
+        //logfile << "Constraint solve " << std::flush;
 
         for(auto& body : bodies)
             body->postSolve(sdt);
-        logfile << "Post solve\n" << std::flush;
+        //logfile << "Post solve\n" << std::flush;
     }
 
     for(auto& body : bodies)
