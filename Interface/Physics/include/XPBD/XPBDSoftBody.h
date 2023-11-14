@@ -13,8 +13,11 @@ class XPBDSoftBody : public XPBDBody
 {
     struct Collision{
         int index;
+        float frictionCoef = 0.4f;
         Eigen::Vector3f q;
         Eigen::Vector3f surfaceN;
+        Eigen::Vector3f fn;
+        float vn_;
     };
 public:
     XPBDSoftBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, MeshState *state, TetMeshState *tetState,  float mass = 1.0f, float mu = 100.0f, float lambda = 100.0f);
@@ -25,12 +28,13 @@ public:
 
     virtual void setMaterial(float mu, float lambda);
 
+    virtual void collectCollsion(float dt) override;
     virtual void preSolve(float dt) override;
     virtual void solve(float dt) override;
-    virtual void postSolve(float dt) override; 
+    virtual void postSolve(float dt) override;
+    virtual void velocitySolve(float dt) override;
     virtual void endFrame() override;
 
-    virtual void translatePos(Eigen::Vector3f delta) override;
 
 protected:
     int m_vertices_num;

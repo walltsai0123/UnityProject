@@ -18,12 +18,12 @@ public:
     virtual void setMaterial(float mu, float lambda){}
 
     // Simulation Update
+    virtual void collectCollsion(float dt) = 0;
     virtual void preSolve(float dt) = 0;
     virtual void solve(float dt) = 0;
     virtual void postSolve(float dt) = 0;
+    virtual void velocitySolve(float dt) = 0;
     virtual void endFrame() = 0;
-
-    virtual void translatePos(Eigen::Vector3f delta) = 0;
 
     virtual float getMass() { return mass; }
     virtual Eigen::Vector3f getPosition() { return x; }

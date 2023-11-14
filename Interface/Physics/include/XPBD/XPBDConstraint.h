@@ -16,8 +16,8 @@ public:
     virtual void solveConstraint(float dt) = 0;
 
 protected:
-    XPBDBody* b1;
-    XPBDBody* b2;
+    XPBDBody* body1;
+    XPBDBody* body2;
     
     bool valid;
     float lambda;

@@ -80,7 +80,8 @@ class Cylinder : public Geometry
 public:
     float radius;
     float height;
-    Cylinder(float r, float h) : radius(r), height(h){}
+    Eigen::Vector3f axis;
+    Cylinder(float r, float h) : radius(r), height(h), axis(0,1,0){}
     virtual ~Cylinder() {}
 
     virtual Eigen::Matrix3f computeInertia(float _mass) override

@@ -77,6 +77,47 @@ void XPBDSoftBody::setMaterial(float mu, float lambda)
     m_lambda = lambda;
 }
 
+void XPBDSoftBody::collectCollsion(float dt)
+{
+    m_collisions.clear();
+    Eigen::Vector3f surfaceN(0.0f, 1.0f, 0.0f);
+    for(int i = 0; i < m_vertices_num; ++i)
+    {
+        Eigen::Vector3f predPos = m_positions[i] + m_velocities[i] * dt;
+        if(predPos.y() <= 0.0f)
+        {
+            Collision newCollision;
+            newCollision.index = i;
+            newCollision.surfaceN = surfaceN;
+            newCollision.vn_ = surfaceN.dot(m_velocities[i]);
+            if(m_positions[i].y() > 0.0f)
+            {
+                Eigen::Vector3f ray = predPos - m_positions[i];
+                float coef = -m_positions[i].y() / ray.y();
+                Eigen::Vector3f q = m_positions[i] + coef * ray;
+                newCollision.q = q;
+            }
+            else if(m_positions[i].y() <= 0.0f)
+            {
+                Eigen::Vector3f q = predPos;
+                q.y() = 0.0f;
+                newCollision.q = q;
+            }
+            m_collisions.push_back(newCollision);
+        }
+    }
+
+    // logfile << "\nCollision\n";
+    // for(int i = 0; i < m_collisions.size(); ++i)
+    // {
+    //     const Collision &c = m_collisions[i];
+    //     logfile << "index: " << c.index;
+    //     logfile << " q: " << c.q.transpose();
+    //     logfile << " surfaceN: " << c.surfaceN.transpose();
+    //     logfile << std::endl;
+    // }
+}
+
 void XPBDSoftBody::preSolve(float dt)
 {
     const Eigen::Vector3f gravity(0.0f, -9.81f, 0.0f);
@@ -92,32 +133,33 @@ void XPBDSoftBody::preSolve(float dt)
         m_prevPositions[i] = m_positions[i];
         m_positions[i] += m_velocities[i] * dt;
     }
+
 }
 
 void XPBDSoftBody::solve(float dt)
 {
     solveElements(dt);
+    solveCollision(dt);
 
     // Easy collision
-    for (int i = 0; i < m_vertices_num; ++i)
-    {
-        float planeY = 0.0f;
-        if (m_positions[i].y() < planeY)
-        {
-            m_positions[i].y() = planeY;
+    // for (int i = 0; i < m_vertices_num; ++i)
+    // {
+    //     float planeY = 0.0f;
+    //     if (m_positions[i].y() < planeY)
+    //     {
+    //         m_positions[i].y() = planeY;
 
-            // simple friction
-            float fricton = 1000.0f;
-            Eigen::Vector3f F = m_prevPositions[i] - m_positions[i];
-            m_positions[i].x() += F(0) * std::min(1.0f, dt * fricton);
-            m_positions[i].z() += F(2) * std::min(1.0f, dt * fricton);
-        }
-    }
+    //         // simple friction
+    //         float fricton = 1000.0f;
+    //         Eigen::Vector3f F = m_prevPositions[i] - m_positions[i];
+    //         m_positions[i].x() += F(0) * std::min(1.0f, dt * fricton);
+    //         m_positions[i].z() += F(2) * std::min(1.0f, dt * fricton);
+    //     }
+    // }
 }
 
 void XPBDSoftBody::postSolve(float dt)
 {
-
     for (int i = 0; i < m_vertices_num; ++i)
     {
         // Ignore zero mass
@@ -128,20 +170,33 @@ void XPBDSoftBody::postSolve(float dt)
     }
 }
 
+void XPBDSoftBody::velocitySolve(float dt)
+{
+    float frictionCoef = 0.4f;
+    float restitutionCoef;
+    for(Collision &c : m_collisions)
+    {
+        Eigen::Vector3f v = m_velocities[c.index];
+        float vn = c.surfaceN.dot(v);
+        Eigen::Vector3f vt = v - vn * c.surfaceN;
+
+        // tangent
+        Eigen::Vector3f dvt = -vt.normalized() * std::min(dt * frictionCoef * c.fn.norm(), vt.norm());
+        m_velocities[c.index] += dvt;
+
+        // normal
+        restitutionCoef = (std::abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;
+        Eigen::Vector3f dvn = c.surfaceN * (-vn + std::min(0.0f, -restitutionCoef * c.vn_));
+        m_velocities[c.index] += dvn;
+    }
+}
+
 void XPBDSoftBody::endFrame()
 {
     updateTetMesh();
     updateVisMesh();
 }
 
-void XPBDSoftBody::translatePos(Eigen::Vector3f delta)
-{
-    for (int i = 0; i < m_vertices_num; ++i)
-    {
-        m_positions[i] += delta;
-    }
-    x += delta;
-}
 
 // private function
 void XPBDSoftBody::computeSkinningInfo(const Eigen::MatrixXf &tetV, const Eigen::MatrixXi &tetT)
@@ -450,25 +505,61 @@ void XPBDSoftBody::solveVolumetric(int index, float compliance, float dt)
 
 void XPBDSoftBody::generateCollision()
 {
+    m_collisions.clear();
+    Eigen::Vector3f surfaceN(0.0f, 1.0f, 0.0f);
     for(int i = 0; i < m_vertices_num; ++i)
     {
-        if(m_positions[i].y() <= 1e-6f)
+        if(m_positions[i].y() <= 0.0f)
         {
-
-
+            Collision newCollision;
+            newCollision.index = i;
+            newCollision.surfaceN = surfaceN;
+            newCollision.vn_ = surfaceN.dot(m_velocities[i]);
+            if(m_prevPositions[i].y() > 0.0f)
+            {
+                Eigen::Vector3f ray = m_positions[i] - m_prevPositions[i];
+                float coef = -m_prevPositions[i].y() / ray.y();
+                Eigen::Vector3f q = m_prevPositions[i] + coef * ray;
+                newCollision.q = q;
+            }
+            else if(m_prevPositions[i].y() <= 0.0f)
+            {
+                Eigen::Vector3f q = m_positions[i];
+                q.y() = 0.0f;
+                newCollision.q = q;
+            }
+            m_collisions.push_back(newCollision);
         }
     }
 }
 
 void XPBDSoftBody::solveCollision(float dt)
 {
-    Eigen::Vector3f surfaceN(0.0f, 1.0f, 0.0f);
-    for(int i = 0; i < m_vertices_num; ++i)
+    for(Collision &c : m_collisions)
     {
-        if(m_positions[i].y() <= 1e-6f)
-        {
+        float C = (m_positions[c.index] - c.q).dot(c.surfaceN);
+        if(C >= 0.0f)
+            continue;
 
-        }
+        float alpha = 0.0f;
+        float w1 = m_invMass[c.index];
+        float w2 = 0.0f;
+        float dlambda = -C / (w1 + w2 + alpha);
+        Eigen::Vector3f p = dlambda * c.surfaceN;
+        c.fn = p / dt / dt;
+        m_positions[c.index] += p * w1;
+
+        Eigen::Vector3f dp = m_positions[c.index] - m_prevPositions[c.index];
+        Eigen::Vector3f dp_t = dp - dp.dot(c.surfaceN) * c.surfaceN;
+
+        float C2 = dp_t.norm();
+        if(C2 <= 1e-6f)
+            continue;
+        
+        float dlambda_t = -C2 / (w1 + w2 + alpha);
+        dlambda_t = std::min(dlambda_t, dlambda * c.frictionCoef);
+        Eigen::Vector3f p2 = dlambda_t * dp_t.normalized();
+        m_positions[c.index] += p2 * w1;
     }
 }
 

@@ -26,7 +26,7 @@ void Initialize(const StringCallback debugCallback, StringCallback debugWarningC
 	fprintf(stderr, "Debug stdio redirect.\n");
 	fprintf(stderr, "OpenMP max threads: %d\n", omp_get_max_threads());
 #endif
-	// Eigen::initParallel();
+	Eigen::initParallel();
 	LOG("Initialized BackEnd.")
 }
 

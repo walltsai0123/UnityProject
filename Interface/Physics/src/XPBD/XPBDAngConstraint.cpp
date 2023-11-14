@@ -16,8 +16,8 @@ XPBDAngConstraint::~XPBDAngConstraint()
 
 void XPBDAngConstraint::solveConstraint(float dt)
 {
-    Eigen::Quaternionf b1q = b1->getRotation();
-    Eigen::Quaternionf b2q = b2->getRotation();
+    Eigen::Quaternionf b1q = body1->getRotation();
+    Eigen::Quaternionf b2q = body2->getRotation();
     Eigen::Vector3f a1 = b1q * a;
     Eigen::Vector3f a2 = b2q * a;
 
@@ -29,8 +29,8 @@ void XPBDAngConstraint::solveConstraint(float dt)
     Eigen::Vector3f n = d_q.normalized();
     Eigen::Vector3f n1 = b1q.inverse() * n;
     Eigen::Vector3f n2 = b2q.inverse() * n;
-    Eigen::Matrix3f I1inv = b1->getInertiaLocal().inverse();
-    Eigen::Matrix3f I2inv = b2->getInertiaLocal().inverse();
+    Eigen::Matrix3f I1inv = body1->getInertiaLocal().inverse();
+    Eigen::Matrix3f I2inv = body2->getInertiaLocal().inverse();
     
     float w1 = n1.transpose() * I1inv * n1;
     float w2 = n2.transpose() * I2inv * n2;
@@ -47,6 +47,6 @@ void XPBDAngConstraint::solveConstraint(float dt)
     Eigen::Quaternionf q1 = b1q + 0.5f * Eigen::Quaternionf(0.0f, I1invP[0], I1invP[1], I1invP[2]) * b1q;
     Eigen::Quaternionf q2 = b2q + -0.5f * Eigen::Quaternionf(0.0f, I2invP[0], I2invP[1], I2invP[2]) * b2q;
 
-    b1->setRotation(q1);
-    b2->setRotation(q2);
+    body1->setRotation(q1);
+    body2->setRotation(q2);
 }

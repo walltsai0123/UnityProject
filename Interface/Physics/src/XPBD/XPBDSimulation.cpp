@@ -1,6 +1,6 @@
 #include "XPBD/XPBDSimulation.h"
 
-#include "XPBD/XPBDAttatchment.h"
+#include "XPBD/XPBDAttachment.h"
 #include "XPBD/XPBDBody.h"
 #include "XPBD/XPBDPosConstraint.h"
 #include "XPBD/XPBDFixedJoint.h"
@@ -53,7 +53,7 @@ void XPBDSimulation::AttachRigidSoft(int rId, int sId)
 {
     XPBDBody *b1 = bodies[rId].get();
     XPBDBody *b2 = bodies[sId].get();
-    constraints.push_back(std::make_unique<XPBDAttatchment>(b1, b2));
+    constraints.push_back(std::make_unique<XPBDAttachment>(b1, b2));
 }
 
 void XPBDSimulation::SetBodyMaterial(int index, float mu, float lambda)
@@ -63,29 +63,31 @@ void XPBDSimulation::SetBodyMaterial(int index, float mu, float lambda)
 
 void XPBDSimulation::Update(float dt, int substeps)
 {
-    logfile << "Update Start: " << dt << " " << substeps << std::endl;
+    //logfile << "Update Start: " << dt << " " << substeps << std::endl;
     float sdt = dt / substeps;
+    for(auto& body : bodies)
+        body->collectCollsion(dt);
     for(int step = 0; step < substeps; ++step)
     {
         for(auto& body : bodies)
             body->preSolve(sdt);
-        //logfile << step << " Pre solve " << std::flush;
 
         for(auto& body : bodies)
             body->solve(sdt);
-        //logfile << "Solve " << std::flush;
 
         for(auto& C : constraints)
             C->solveConstraint(sdt);
-        //logfile << "Constraint solve " << std::flush;
 
         for(auto& body : bodies)
             body->postSolve(sdt);
-        //logfile << "Post solve\n" << std::flush;
+
+        for(auto& body : bodies)
+            body->velocitySolve(sdt);
     }
+    
 
     for(auto& body : bodies)
         body->endFrame();
 
-    logfile << "Update End" << std::endl;
+    //logfile << "Update End" << std::endl;
 }

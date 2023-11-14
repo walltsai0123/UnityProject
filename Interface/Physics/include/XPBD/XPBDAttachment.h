@@ -9,11 +9,11 @@ struct ParticlePos
     Eigen::Vector3f pos;
 };
 
-class XPBDAttatchment : public XPBDConstraint
+class XPBDAttachment : public XPBDConstraint
 {
 public:
-    XPBDAttatchment(XPBDBody *rb, XPBDBody *sb);
-    ~XPBDAttatchment();
+    XPBDAttachment(XPBDBody *rb, XPBDBody *sb);
+    ~XPBDAttachment();
 
     virtual void solveConstraint(float dt) override;
 protected:

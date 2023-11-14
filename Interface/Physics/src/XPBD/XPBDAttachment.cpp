@@ -1,20 +1,20 @@
-#include "XPBD/XPBDAttatchment.h"
+#include "XPBD/XPBDAttachment.h"
 
 #include "XPBD/XPBDRigidBody.h"
 #include "XPBD/XPBDSoftBody.h"
 
-XPBDAttatchment::XPBDAttatchment(XPBDBody *b1, XPBDBody *b2)
-    : XPBDConstraint(b1, b2, 0.0f)
+XPBDAttachment::XPBDAttachment(XPBDBody *B1, XPBDBody *B2)
+    : XPBDConstraint(B1, B2, 0.0f)
 {
-    valid = b1->bodyType == BodyType::Rigid && b2->bodyType == BodyType::Soft;
+    valid = body1->bodyType == BodyType::Rigid && body2->bodyType == BodyType::Soft;
 
     logfile << "XPBDAttatchment\n";
     logfile << "valid: " << valid << std::endl;
     if(!valid)
         return;
 
-    XPBDRigidBody *rb = dynamic_cast<XPBDRigidBody *>(b1);
-    XPBDSoftBody *sb = dynamic_cast<XPBDSoftBody *>(b2);
+    XPBDRigidBody *rb = dynamic_cast<XPBDRigidBody *>(body1);
+    XPBDSoftBody *sb = dynamic_cast<XPBDSoftBody *>(body2);
     std::vector<Eigen::Vector3f> &positions = sb->getPositions();
 
     Geometry *geo = rb->getGeometry();
@@ -69,19 +69,18 @@ XPBDAttatchment::XPBDAttatchment(XPBDBody *b1, XPBDBody *b2)
     logfile << particlePos.size() << std::endl;
 }
 
-XPBDAttatchment::~XPBDAttatchment() {}
+XPBDAttachment::~XPBDAttachment() {}
 
-void XPBDAttatchment::solveConstraint(float dt)
+void XPBDAttachment::solveConstraint(float dt)
 {
-    logfile << "valid: " << valid << std::endl;
     if(!valid)
         return;
     
-    XPBDSoftBody *sb = dynamic_cast<XPBDSoftBody *>(b2);
+    XPBDSoftBody *sb = dynamic_cast<XPBDSoftBody *>(body2);
     std::vector<Eigen::Vector3f> &positions = sb->getPositions();
 
-    Eigen::Vector3f rbx = b1->getPosition();
-    Eigen::Quaternionf rbq = b1->getRotation();
+    Eigen::Vector3f rbx = body1->getPosition();
+    Eigen::Quaternionf rbq = body1->getRotation();
 
     for (ParticlePos& pp : particlePos)
     {
@@ -93,7 +92,7 @@ void XPBDAttatchment::solveConstraint(float dt)
         if(C < 1e-6)
             continue;
         
-        float w1 = 1.0f / b1->getMass();
+        float w1 = 1.0f / body1->getMass();
         float w2 = sb->invMass(pp.id);
 
         float alpha = 0.0f / dt / dt;
@@ -101,7 +100,7 @@ void XPBDAttatchment::solveConstraint(float dt)
         Eigen::Vector3f p = dlambda * dr.normalized();
         p = rbq * p;
 
-        b1->setPosition(rbx + p * w1);
+        body1->setPosition(rbx + p * w1);
         positions[pp.id] -= p * w2;
     }
 }

@@ -10,5 +10,5 @@ public:
 
     virtual void solveConstraint(float dt);
 protected:
-    Eigen::Quaternionf dq0;
+    Eigen::Quaternionf b1q0, b2q0;      // Rest state rotation of body1 and body2
 };
