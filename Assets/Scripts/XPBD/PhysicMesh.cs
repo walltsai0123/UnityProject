@@ -1,4 +1,6 @@
 using UnityEngine;
+using Unity.Collections;
+using Unity.Mathematics;
 
 namespace XPBD
 {
@@ -19,16 +21,28 @@ namespace XPBD
             mesh = meshFilter.mesh;
             meshRenderer = GetComponent<MeshRenderer>();
 
-            DataRowMajor = new TetMeshData(this);
-            state = BackEnd.InitTetMeshState(DataRowMajor.GetNative());
+            //DataRowMajor = new TetMeshData(this);
+            //state = BackEnd.InitTetMeshState(DataRowMajor.GetNative());
 
             Debug.Log("PhysicMesh Initialize");
         }
-        public void UpdateMesh()
+        public void UpdateMesh(Vector3[] pos)
         {
-            DataRowMajor.ApplyDirty(state);
-            DataRowMajor.ApplyDirtyToMesh(mesh);
+            //DataRowMajor.ApplyDirty(state);
+            //DataRowMajor.ApplyDirtyToMesh(mesh);
+
+
+            mesh.SetVertices(pos);
+            mesh.RecalculateBounds();
+            mesh.RecalculateNormals();
         }
+        public void UpdateMesh(NativeArray<float3> pos)
+        {
+            mesh.SetVertices<float3>(pos);
+            mesh.RecalculateBounds();
+            mesh.RecalculateNormals();
+        }
+
 
         public void Show(bool showTets)
         {

@@ -2,7 +2,6 @@
 
 #include "XPBD/XPBDAttachment.h"
 #include "XPBD/XPBDBody.h"
-#include "XPBD/XPBDPosConstraint.h"
 #include "XPBD/XPBDFixedJoint.h"
 #include "XPBD/XPBDSimulation.h"
 
@@ -35,12 +34,7 @@ void XPBDSimulation::GetBodyTransform(int index, Eigen::Vector3f &pos, Eigen::Qu
     pos = bodies[index]->getPosition();
     rot = bodies[index]->getRotation();
 }
-void XPBDSimulation::AddPosConstraint(int id1, int id2, Eigen::Vector3f r1, Eigen::Vector3f r2, float Length, float comp)
-{
-    XPBDBody *b1 = bodies[id1].get();
-    XPBDBody *b2 = bodies[id2].get();
-    constraints.push_back(std::make_unique<XPBDPosConstraint>(b1, b2, r1, r2, Length, comp));
-}
+
 
 void XPBDSimulation::AddFixedJoint(int id1, int id2)
 {

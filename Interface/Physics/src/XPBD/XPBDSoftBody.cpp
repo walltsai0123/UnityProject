@@ -106,16 +106,6 @@ void XPBDSoftBody::collectCollsion(float dt)
             m_collisions.push_back(newCollision);
         }
     }
-
-    // logfile << "\nCollision\n";
-    // for(int i = 0; i < m_collisions.size(); ++i)
-    // {
-    //     const Collision &c = m_collisions[i];
-    //     logfile << "index: " << c.index;
-    //     logfile << " q: " << c.q.transpose();
-    //     logfile << " surfaceN: " << c.surfaceN.transpose();
-    //     logfile << std::endl;
-    // }
 }
 
 void XPBDSoftBody::preSolve(float dt)

@@ -26,6 +26,6 @@ protected:
     std::ofstream logfile;
     static int counter;
 
-    void solvePosConstraint(float dt, const Eigen::Vector3f r1, const Eigen::Vector3f r2, float dmax, float comp);
-    void solveAngConstraint(float dt, const Eigen::Vector3f dq, float angle, float comp);
+    static void solvePosConstraint(float dt, XPBDBody* body1, XPBDBody* body2, const Eigen::Vector3f &r1, const Eigen::Vector3f &r2, const Eigen::Vector3f &dx, float dmax, float comp);
+    static void solveAngConstraint(float dt, XPBDBody* body1, XPBDBody* body2, const Eigen::Vector3f &dq, float angle, float comp);
 };

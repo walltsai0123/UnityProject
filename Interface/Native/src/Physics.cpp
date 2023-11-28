@@ -111,12 +111,6 @@ void setBodyMaterial(int ID, float mu, float lambda)
 		xpbdSim->SetBodyMaterial(ID, mu, lambda);
 }
 
-void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp)
-{
-	if(xpbdSim)
-		xpbdSim->AddPosConstraint(ID1, ID2, R1.AsEigen(), R2.AsEigen(), len, comp);
-}
-
 void AddFixedJoint(int ID1, int ID2)
 {
 	if(xpbdSim)

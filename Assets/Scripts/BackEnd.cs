@@ -85,9 +85,6 @@ public class BackEnd
         (MeshState* meshState, TetMeshState* tetState, Vector3 pos, Quaternion rot, float mass, float mu, float lambda);
 
     [DllImport(DllName)]
-    public static extern void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp);
-
-    [DllImport(DllName)]
     public static extern void AddFixedJoint(int ID1, int ID2);
 
     [DllImport(DllName)]

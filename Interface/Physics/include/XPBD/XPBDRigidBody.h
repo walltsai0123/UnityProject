@@ -3,6 +3,7 @@
 #include "XPBDBody.h"
 #include "RigidGeometry.h"
 #include <memory>
+#include <vector>
 
 
 class XPBDRigidBody : public XPBDBody
@@ -10,6 +11,14 @@ class XPBDRigidBody : public XPBDBody
     struct AABB{
         Eigen::Vector3f min;
         Eigen::Vector3f max;
+    };
+    struct Collision{
+        float frictionCoef = 0.4f;
+        Eigen::Vector3f r;
+        float pene;
+        Eigen::Vector3f surfaceN;
+        Eigen::Vector3f fn;
+        float vn_;
     };
 public:
     XPBDRigidBody(Eigen::Vector3f pos, Eigen::Quaternionf rot, Eigen::Vector3f inertia, float mass);
@@ -38,6 +47,7 @@ protected:
 
     AABB aabb;
     bool collidePlane;
+    std::vector<Collision> collisions;
 
     std::unique_ptr<Geometry> geometry; // The geometry of the rigid body.
 private:
@@ -48,5 +58,6 @@ private:
     void updateInertia();
 
     void solveCollision(float dt);
+    void computeContact(const Eigen::Vector3f& planeNormal, const Eigen::Vector3f& planePoint);
 
 };

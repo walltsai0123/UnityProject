@@ -66,9 +66,6 @@ extern "C"
     void setBodyMaterial(int ID, float mu, float lambda);
 
     UNITY_INTERFACE_EXPORT
-    void AddPosConstraints(int ID1, int ID2, Vector3 R1, Vector3 R2, float len, float comp);
-
-    UNITY_INTERFACE_EXPORT
     void AddFixedJoint(int ID1, int ID2);
 
     UNITY_INTERFACE_EXPORT

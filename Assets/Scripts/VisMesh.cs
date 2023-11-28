@@ -16,8 +16,8 @@ public unsafe class VisMesh : MonoBehaviour
         mesh = meshFilter.mesh;
         meshRenderer = GetComponent<MeshRenderer>();
 
-        DataRowMajor = new VisMeshData(this);
-        state = BackEnd.InitMeshState(DataRowMajor.GetNative());
+        //DataRowMajor = new VisMeshData(this);
+        //state = BackEnd.InitMeshState(DataRowMajor.GetNative());
 
         Debug.Log("VisMesh Initialize");
     }

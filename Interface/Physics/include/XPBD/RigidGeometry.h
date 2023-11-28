@@ -88,8 +88,8 @@ public:
     {
         m_I.setZero();
         m_I(0,0) = (1.0f/12.0f)*_mass*(3 * radius * radius + height * height);
-        m_I(1,1) = (1.0f/12.0f)*_mass*(3 * radius * radius + height * height);
-        m_I(2,2) = (1.0f/2.0f)*_mass*(radius * radius);
+        m_I(1,1) = (1.0f/2.0f)*_mass*(radius * radius);
+        m_I(2,2) = (1.0f/12.0f)*_mass*(3 * radius * radius + height * height);
         return m_I;
     }
 

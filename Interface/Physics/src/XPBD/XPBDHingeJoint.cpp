@@ -1,8 +1,5 @@
 #include "XPBD/XPBDHingeJoint.h"
 
-#include "XPBD/XPBDAngConstraint.h"
-#include "XPBD/XPBDPosConstraint.h"
-
 XPBDHingeJoint::XPBDHingeJoint(XPBDBody *B1, XPBDBody *B2, const Eigen::Vector3f &Anchor, const Eigen::Vector3f &Axis, float comp)
     : XPBDJoint(B1, B2)
 {
