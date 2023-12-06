@@ -6,12 +6,18 @@ namespace XPBD
 {
     public abstract class Body : MonoBehaviour
     {
-        public int ID;
+        //public int ID;
         public float mass = 1f;
+        public bool UseGravity = true;
 
         public float InvMass
         {
-            get { return 1f / mass; }
+            get 
+            {
+                if (mass == 0f)
+                    return 0f;
+                return 1f / mass; 
+            }
         }
 
         public virtual void CollectCollision(float dt)

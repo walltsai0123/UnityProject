@@ -21,7 +21,7 @@ namespace XPBD
         private NativeArray<float3> prevPos;
         private NativeArray<float3> vel;
         private NativeArray<int4> tets;
-        private NativeArray<float> invMass;
+        public NativeArray<float> invMass;
         private NativeArray<float> restVolumes;
         private NativeArray<float3x3> invDm;
 
@@ -80,10 +80,14 @@ namespace XPBD
 
         public override void PreSolve(float dt, Vector3 gravity)
         {
+            float3 g = float3.zero;
+            if (UseGravity)
+                g = gravity;
+
             PreSolveJob preSolveJob = new PreSolveJob
             {
                 dt = dt,
-                gravity = gravity,
+                gravity = g,
                 pos = Pos,
                 prevPos = prevPos,
                 vel = vel,
@@ -167,8 +171,8 @@ namespace XPBD
         }
         private void OnDrawGizmos()
         {
-            Gizmos.color = Color.black;
-            Gizmos.DrawWireMesh(physicMesh.mesh);
+            //Gizmos.color = Color.black;
+            //Gizmos.DrawWireMesh(physicMesh.mesh);
         }
 
         private void OnDestroy()

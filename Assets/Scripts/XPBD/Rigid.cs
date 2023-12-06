@@ -8,12 +8,13 @@ namespace XPBD
     {
         public enum eGeometryType { kSphere, kBox, kCylinder, kNone };
         private Rigidbody m_rigidbody;
+        //public bool Fixed = false;
         public float3 Position { get; set; }
         public quaternion Rotation { get; set; }
         public float3 vel { get; private set; }
         public float3 omega { get; private set; }
         public float3 fext { get; private set; }
-        public float3 tau { get; private set; }
+        public float3 Tau { get; set; }
 
         public float3x3 InertiaBody { get; private set; }
         public float3x3 InertiaBodyInv { get; private set; }
@@ -21,9 +22,7 @@ namespace XPBD
         // Previous position and rotation
         private float3 prevPos;
         private quaternion prevRot;
-        
-
-
+       
         public eGeometryType geometryType = eGeometryType.kNone;
 
         public override void CollectCollision(float dt)
@@ -32,8 +31,12 @@ namespace XPBD
 
         public override void PreSolve(float dt, Vector3 gravity)
         {
-            fext = mass * gravity;
-            tau = float3.zero;
+            if(UseGravity)
+            {
+                float3 g = gravity;
+                fext += mass * g;
+            }
+            //Tau = float3.zero;
 
             prevPos = Position;
             vel += dt * InvMass * fext;
@@ -43,7 +46,7 @@ namespace XPBD
             float3x3 Iinv = math.mul(math.mul(new float3x3(Rotation), InertiaBodyInv), new float3x3(math.conjugate(Rotation)));
 
             prevRot = Rotation;
-            omega += dt * math.mul(Iinv, tau - math.cross(omega, math.mul(I, omega)));
+            omega += dt * math.mul(Iinv, Tau - math.cross(omega, math.mul(I, omega)));
             quaternion Omega = new quaternion(omega.x, omega.y, omega.z, 0f);
             Omega.value *= 0.5f * dt;
             quaternion dq = math.mul(Omega, Rotation);
@@ -70,6 +73,7 @@ namespace XPBD
         }
         public override void EndFrame()
         {
+            ClearForce();
             transform.SetPositionAndRotation(Position, Rotation);
         }
 
@@ -127,7 +131,7 @@ namespace XPBD
             omega = float3.zero;
             //omega = new(1, 0, 0);
             fext = float3.zero;
-            tau = float3.zero;
+            Tau = float3.zero;
 
             float3 inertiaVec = m_rigidbody.inertiaTensor;
             InertiaBody = new(
@@ -135,10 +139,21 @@ namespace XPBD
                 0, inertiaVec.y, 0,
                 0, 0, inertiaVec.z);
             InertiaBodyInv = math.inverse(InertiaBody);
+            if(mass == 0f)
+            {
+                InertiaBody *= 0f;
+                InertiaBodyInv *= 0f;
+            }
 
             m_rigidbody.isKinematic = true;
 
-            //Debug.Log("inertiaVec: " + inertiaVec);
+            // Debug.Log("InertiaBody: " + InertiaBody);
+        }
+
+        private void ClearForce()
+        {
+            fext = float3.zero;
+            Tau = float3.zero;
         }
     }
 }

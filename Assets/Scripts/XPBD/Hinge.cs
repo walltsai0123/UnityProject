@@ -1,22 +1,23 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
-using Unity.Jobs;
 using Unity.Collections;
+using Unity.Jobs;
 
 namespace XPBD
 {
     [RequireComponent(typeof(Rigid))]
-    public class FixedJoint : Constraint
+    public class Hinge : Constraint
     {
         private Rigid thisBody;
         public Rigid attachedBody;
-
-        // public int ID1, ID2;
-
-        //private float3 anchor;
+        public Vector3 anchor;
+        public Vector3 axis = Vector3.right;
+        private float3 axisA, axisB, axisC;
         private float3 r1, r2;
-        private quaternion q1;
-        private quaternion q2;
+        private quaternion q1, q2;
+
         private JobHandle jobHandle;
 
         public override void SolveConstraint(float dt)
@@ -24,13 +25,12 @@ namespace XPBD
             SolveAngularConstraint(dt);
             SolvePositionConstraint(dt);
         }
+
         private void SolveAngularConstraint(float dt)
         {
-            //quaternion Q1 = math.mul(math.conjugate(q1), thisBody.Rotation);
-            //quaternion Q2 = math.mul(math.conjugate(q2), attachedBody.Rotation);
-            quaternion Q1 = math.mul(thisBody.Rotation, math.conjugate(q1));
-            quaternion Q2 = math.mul(attachedBody.Rotation, math.conjugate(q2));
-            float3 dq = 2f * math.mul(Q1, math.conjugate(Q2)).value.xyz;
+            float3 A1 = math.rotate(thisBody.Rotation, math.rotate(q1, axisA));
+            float3 A2 = math.rotate(attachedBody.Rotation, math.rotate(q2, axisA));
+            float3 dq = math.cross(A1, A2);
 
             NativeArray<AngularConstraintData> angularConstraintDatas = new NativeArray<AngularConstraintData>(1, Allocator.TempJob);
             angularConstraintDatas[0] = new AngularConstraintData(thisBody, attachedBody);
@@ -44,15 +44,12 @@ namespace XPBD
             };
             jobHandle = angularConstraintJob.Schedule();
             jobHandle.Complete();
-
-            //thisBody.Rotation = math.mul(b1q0, angularConstraintDatas[0].q1);
-            //attachedBody.Rotation = math.mul(b2q0, angularConstraintDatas[0].q2);
+            
             thisBody.Rotation = angularConstraintDatas[0].q1;
             attachedBody.Rotation = angularConstraintDatas[0].q2;
 
             angularConstraintDatas.Dispose();
         }
-
         private void SolvePositionConstraint(float dt)
         {
             NativeArray<PositionConstraintData> positionConstraintDatas = new NativeArray<PositionConstraintData>(1, Allocator.TempJob);
@@ -84,29 +81,32 @@ namespace XPBD
         private void Awake()
         {
             thisBody = GetComponent<Rigid>();
-            Debug.Log("FixedJoint Awake");
+            Debug.Log("Hinge Awake");
         }
         void Start()
         {
-            //if (thisBody.gameObject.activeInHierarchy && attachedBody.gameObject.activeInHierarchy)
-            //{
-            //    ID1 = thisBody.ID;
-            //    ID2 = attachedBody.ID;
-
-            //    BackEnd.AddFixedJoint(ID1, ID2);
-            //}
             Initialize();
             Simulation.get.AddConstraints(this);
         }
 
         void Initialize()
         {
+            r1 = anchor;
+            float3 Anchor = thisBody.Position + math.rotate(thisBody.Rotation, r1);
+            r2 = math.rotate(math.conjugate(attachedBody.Rotation) ,Anchor - attachedBody.Position);
+
             q1 = thisBody.Rotation;
             q2 = attachedBody.Rotation;
 
-            // anchor = math.rotate(math.conjugate(b1q0), attachedBody.Position - thisBody.Position);
-            r1 = math.rotate(math.conjugate(q1), attachedBody.Position - thisBody.Position);
-            r2 = float3.zero;
+            // Calculate joint perpendicular unit axes
+            axisA = math.normalize(axis);
+            axisB = math.cross(axisA, new float3(1, 0, 0));
+            if(math.length(axisB) < math.EPSILON)
+            {
+                axisB = -math.cross(axisA, new float3(0, 0, -1));
+            }
+            axisB = math.normalize(axisB);
+            axisC = math.cross(axisA, axisB);
         }
     }
 }

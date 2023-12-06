@@ -1,22 +1,31 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
-using Unity.Jobs;
 using Unity.Collections;
+using Unity.Jobs;
 
 namespace XPBD
 {
     [RequireComponent(typeof(Rigid))]
-    public class FixedJoint : Constraint
+    public class Prismatic : Constraint
     {
         private Rigid thisBody;
         public Rigid attachedBody;
+        public Vector3 anchor;
+        public Vector3 axis = Vector3.up;
 
-        // public int ID1, ID2;
+        [MinAttribute(0f)]
+        public float min = 0f;
+        [MinAttribute(0f)]
+        public float max = 0f;
+        [MinAttribute(0f)]
+        public float compliance = 0f;
 
-        //private float3 anchor;
+        private float3 axisA, axisB, axisC;
         private float3 r1, r2;
-        private quaternion q1;
-        private quaternion q2;
+        private quaternion q1, q2;
+
         private JobHandle jobHandle;
 
         public override void SolveConstraint(float dt)
@@ -26,8 +35,6 @@ namespace XPBD
         }
         private void SolveAngularConstraint(float dt)
         {
-            //quaternion Q1 = math.mul(math.conjugate(q1), thisBody.Rotation);
-            //quaternion Q2 = math.mul(math.conjugate(q2), attachedBody.Rotation);
             quaternion Q1 = math.mul(thisBody.Rotation, math.conjugate(q1));
             quaternion Q2 = math.mul(attachedBody.Rotation, math.conjugate(q2));
             float3 dq = 2f * math.mul(Q1, math.conjugate(Q2)).value.xyz;
@@ -45,14 +52,11 @@ namespace XPBD
             jobHandle = angularConstraintJob.Schedule();
             jobHandle.Complete();
 
-            //thisBody.Rotation = math.mul(b1q0, angularConstraintDatas[0].q1);
-            //attachedBody.Rotation = math.mul(b2q0, angularConstraintDatas[0].q2);
             thisBody.Rotation = angularConstraintDatas[0].q1;
             attachedBody.Rotation = angularConstraintDatas[0].q2;
 
             angularConstraintDatas.Dispose();
         }
-
         private void SolvePositionConstraint(float dt)
         {
             NativeArray<PositionConstraintData> positionConstraintDatas = new NativeArray<PositionConstraintData>(1, Allocator.TempJob);
@@ -60,14 +64,36 @@ namespace XPBD
 
             float3 R1 = thisBody.Position + math.rotate(thisBody.Rotation, r1);
             float3 R2 = attachedBody.Position + math.rotate(attachedBody.Rotation, r2);
-            float3 dx = R1 - R2;
+            float3 Dr = R1 - R2;
+            float3 Dx = float3.zero;
+
+            float3 AxisA = math.rotate(thisBody.Rotation, axisA);
+            float3 AxisB = math.rotate(thisBody.Rotation, axisB);
+            float3 AxisC = math.rotate(thisBody.Rotation, axisC);
+
+            if (max < min)
+                max = min;
+            // Axis A
+            float da = math.dot(Dr, AxisA);
+            if (da < min)
+                Dx += AxisA * (da - min);
+            if (da > max)
+                Dx += AxisA * (da - max);
+
+            //Axis B
+            float db = math.dot(Dr, AxisB);
+            Dx += AxisB * db;
+
+            //Axis C
+            float dc = math.dot(Dr, AxisC);
+            Dx += AxisC * dc;
 
             PositionConstraintJob positionConstraintJob = new PositionConstraintJob
             {
                 Datas = positionConstraintDatas,
-                dx = dx,
+                dx = Dx,
                 dmax = 0f,
-                compliance = 0f,
+                compliance = compliance,
                 dt = dt
             };
             jobHandle = positionConstraintJob.Schedule();
@@ -81,33 +107,48 @@ namespace XPBD
             positionConstraintDatas.Dispose();
         }
 
+
         private void Awake()
         {
             thisBody = GetComponent<Rigid>();
-            Debug.Log("FixedJoint Awake");
+            Debug.Log("Prismatic Awake");
         }
         void Start()
         {
-            //if (thisBody.gameObject.activeInHierarchy && attachedBody.gameObject.activeInHierarchy)
-            //{
-            //    ID1 = thisBody.ID;
-            //    ID2 = attachedBody.ID;
-
-            //    BackEnd.AddFixedJoint(ID1, ID2);
-            //}
             Initialize();
             Simulation.get.AddConstraints(this);
         }
 
         void Initialize()
         {
+            r1 = anchor;
+            float3 Anchor = thisBody.Position + math.rotate(thisBody.Rotation, r1);
+            r2 = math.rotate(math.conjugate(attachedBody.Rotation), Anchor - attachedBody.Position);
+
             q1 = thisBody.Rotation;
             q2 = attachedBody.Rotation;
 
-            // anchor = math.rotate(math.conjugate(b1q0), attachedBody.Position - thisBody.Position);
-            r1 = math.rotate(math.conjugate(q1), attachedBody.Position - thisBody.Position);
-            r2 = float3.zero;
+            // Calculate joint perpendicular unit axes
+            axisA = math.normalize(axis);
+            axisB = math.cross(axisA, new float3(1, 0, 0));
+            if (math.length(axisB) < math.EPSILON)
+            {
+                axisB = -math.cross(axisA, new float3(0, 0, -1));
+            }
+            axisB = math.normalize(axisB);
+            axisC = math.cross(axisA, axisB);
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (attachedBody == null)
+                return;
+            Vector3 R1 = transform.position + transform.rotation * anchor;
+            Vector3 R2 = attachedBody.transform.position + attachedBody.transform.rotation * r2;
+            Gizmos.color = Color.green;
+            Gizmos.DrawSphere(R1, 0.1f);
+            Gizmos.color = Color.red;
+            Gizmos.DrawSphere(R2, 0.1f);
         }
     }
 }
-

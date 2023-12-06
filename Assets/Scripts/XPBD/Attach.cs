@@ -36,7 +36,7 @@ namespace XPBD
                 if (C < math.EPSILON)
                     continue;
 
-                float w1 = 1f / thisBody.mass;
+                float w1 = thisBody.invMass[pPos.i];
                 float w2 = attachedBody.InvMass;
                 float alpha = 0.0f;
                 float dlambda = -C / (w1 + w2 + alpha);
@@ -74,7 +74,7 @@ namespace XPBD
                 Debug.LogWarning("Collider null");
                 return;
             }
-            Debug.Log(collider);
+            // Debug.Log(collider);
             for(int i = 0; i < thisBody.VerticesNum; ++i)
             {
                 if (!Util.IsInsideCollider(collider, thisBody.Pos[i]))
