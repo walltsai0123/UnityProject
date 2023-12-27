@@ -141,14 +141,42 @@ namespace XPBD
 
         private void OnDrawGizmosSelected()
         {
+            //if (attachedBody == null)
+            //    return;
+            //Vector3 R1 = transform.position + transform.rotation * anchor;
+            //Vector3 R2 = attachedBody.transform.position + attachedBody.transform.rotation * r2;
+            //Gizmos.color = Color.green;
+            //Gizmos.DrawSphere(R1, 0.1f);
+            //Gizmos.color = Color.red;
+            //Gizmos.DrawSphere(R2, 0.1f);
+
             if (attachedBody == null)
                 return;
-            Vector3 R1 = transform.position + transform.rotation * anchor;
-            Vector3 R2 = attachedBody.transform.position + attachedBody.transform.rotation * r2;
+
+            Vector3 R1, R2, dir1, dir2;
+
+            if (thisBody == null)
+            {
+                R1 = transform.position + transform.rotation * anchor;
+                R2 = attachedBody.transform.position + attachedBody.transform.rotation * r2;
+                dir1 = transform.TransformDirection(transform.InverseTransformDirection(axis)) * 1f;
+                dir2 = attachedBody.transform.TransformDirection(attachedBody.transform.InverseTransformDirection(axis)) * 1f;
+            }
+            else
+            {
+                R1 = transform.position + transform.rotation * r1;
+                R2 = attachedBody.transform.position + attachedBody.transform.rotation * r2;
+                dir1 = transform.TransformDirection(math.rotate(math.conjugate(q1), axis)) * 1f;
+                dir2 = attachedBody.transform.TransformDirection(math.rotate(math.conjugate(q2), axis)) * 1f;
+            }
+
             Gizmos.color = Color.green;
             Gizmos.DrawSphere(R1, 0.1f);
             Gizmos.color = Color.red;
             Gizmos.DrawSphere(R2, 0.1f);
+
+            DrawArrow.ForGizmo(R1, dir1, Color.red);
+            DrawArrow.ForGizmo(R2, dir2, Color.blue);
         }
     }
 }

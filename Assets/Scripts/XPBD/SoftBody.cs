@@ -4,6 +4,7 @@ using Unity.Jobs;
 using Unity.Collections;
 using Unity.Burst;
 using System.Collections.Generic;
+using System;
 
 namespace XPBD
 {
@@ -25,10 +26,16 @@ namespace XPBD
         private NativeArray<float> restVolumes;
         private NativeArray<float3x3> invDm;
 
+        // Skinning Info
+        private NativeArray<float3> visPos;
+        private NativeArray<float4> skinningInfo;
+
         public int VerticesNum { get; private set; }
         public int TetsNum { get; private set; }
 
         private float3 startPos;
+        [SerializeField]
+        private Vector3 v0 = Vector3.zero;
 
         private JobHandle jobHandle;
 
@@ -110,7 +117,8 @@ namespace XPBD
                 invDm = this.invDm,
                 invMass = this.invMass
             };
-            solveElementJob.Run(TetsNum);
+            jobHandle = solveElementJob.Schedule(TetsNum, jobHandle);
+            jobHandle.Complete();
             SolveCollision(dt);
         }
 
@@ -152,12 +160,24 @@ namespace XPBD
             visMesh.Show(showVis);
 
             physicMesh.UpdateMesh(Pos);
-            //visMesh.UpdateMesh();
+
+            UpdateVisMeshJob updateVisMeshJob = new UpdateVisMeshJob
+            {
+                visPos = visPos,
+                pos = Pos,
+                tets = tets,
+                skinningInfo = skinningInfo
+            };
+            jobHandle = updateVisMeshJob.Schedule(visPos.Length, 1, jobHandle);
+            jobHandle.Complete();
+
+            visMesh.UpdateMesh(visPos);
+
         }
 
         private void Awake()
         {
-            visMesh.Initialized();
+            visMesh.Initialize();
             physicMesh.Initialize();
             Initialize();
             //ID = BackEnd.AddXPBDSoftBody(visMesh.state, physicMesh.state, transform.position, transform.rotation, mass, mu, lambda);
@@ -169,11 +189,7 @@ namespace XPBD
             Simulation.get.AddBody(this);
             Debug.Log("SoftBody Start");
         }
-        private void OnDrawGizmos()
-        {
-            //Gizmos.color = Color.black;
-            //Gizmos.DrawWireMesh(physicMesh.mesh);
-        }
+
 
         private void OnDestroy()
         {
@@ -184,6 +200,8 @@ namespace XPBD
             if (tets.IsCreated) tets.Dispose();
             if (restVolumes.IsCreated) restVolumes.Dispose();
             if (invDm.IsCreated) invDm.Dispose();
+            if (visPos.IsCreated) visPos.Dispose();
+            if (skinningInfo.IsCreated) skinningInfo.Dispose();
         }
 
         private void Initialize()
@@ -204,7 +222,7 @@ namespace XPBD
             for (int i = 0; i < VerticesNum; ++i)
             {
                 Pos[i] = prevPos[i] = physicMesh.mesh.vertices[i];
-                vel[i] = float3.zero;
+                vel[i] = v0;
                 invMass[i] = 0f;
             }
             for (int i = 0; i < TetsNum; ++i)
@@ -254,11 +272,115 @@ namespace XPBD
                     invMass[i] = 1.0f / invMass[i];
             }
 
+            // Visual embedded mesh
+            visPos = new NativeArray<float3>(visMesh.mesh.vertexCount, Allocator.Persistent);
+            ComputeSkinningInfo();
+
+            // Move to starting position
             startPos = transform.position;
             transform.position = Vector3.zero;
             Translate(startPos);
 
             collisions = new List<Collision>();
+        }
+
+        private void ComputeSkinningInfo()
+        {
+            int numVisVerts = visMesh.mesh.vertexCount;
+
+            Hash hash = new Hash(0.15f, numVisVerts);
+            hash.Create(visMesh.mesh.vertices);
+
+            skinningInfo = new NativeArray<float4>(numVisVerts, Allocator.Persistent);
+            for (int i = 0; i < skinningInfo.Length; ++i)
+                skinningInfo[i] = new float4(-1, -1, -1, -1);
+
+            float[] minDist = new float[numVisVerts];
+            Array.Fill(minDist, float.MaxValue);
+            float border = 0.05f;
+
+            // Each tet searches for containing vertices
+            float3 tetCenter = float3.zero;
+            float3x3 mat = float3x3.zero;
+            float4 bary = float4.zero;
+            float averageEdge = 0f;
+            for(int i = 0; i < TetsNum; ++i)
+            {
+                // Compute bounding sphere for tet
+                tetCenter = float3.zero;
+                for (int j = 0; j < 4; ++j)
+                    tetCenter += 0.25f * (Pos[tets[i][j]]);
+
+                float rMax = 0f;
+
+                for (int j = 0; j < 4; ++j)
+                {
+                    float r2 = math.length(tetCenter - Pos[tets[i][j]]);
+                    rMax = math.max(rMax, r2);
+                }
+
+                rMax += border;
+
+                hash.Query(tetCenter, rMax);
+                if (hash.querySize == 0)
+                    continue;
+
+                int id0 = tets[i].x;
+                int id1 = tets[i].y;
+                int id2 = tets[i].z;
+                int id3 = tets[i].w;
+
+                //float edgeLength = math.length(Pos[id0] - Pos[id3]);
+                //edgeLength += math.length(Pos[id1] - Pos[id3]);
+                //edgeLength += math.length(Pos[id2] - Pos[id3]);
+                //edgeLength += math.length(Pos[id0] - Pos[id2]);
+                //edgeLength += math.length(Pos[id1] - Pos[id2]);
+                //edgeLength += math.length(Pos[id0] - Pos[id1]);
+                //averageEdge += edgeLength / 6;
+
+                mat.c0 = Pos[id0] - Pos[id3];
+                mat.c1 = Pos[id1] - Pos[id3];
+                mat.c2 = Pos[id2] - Pos[id3];
+
+                mat = math.inverse(mat);
+
+                for (int j = 0; j < hash.querySize; ++j)
+                {
+                    int id = hash.queryIds[j];
+
+                    if (minDist[id] <= 0f)
+                        continue;
+
+                    float3 visVert = visMesh.mesh.vertices[id];
+                    if (math.lengthsq(visVert - tetCenter) > rMax * rMax)
+                        continue;
+
+                    bary.xyz = visVert - Pos[id3];
+                    bary.xyz = math.mul(mat, bary.xyz);
+                    bary.w = 1f - bary.x - bary.y - bary.z;
+
+                    float dist = 0f;
+
+                    for (int k = 0; k < 4; ++k)
+                        dist = math.max(dist, -bary[k]);
+
+                    if (dist < minDist[id])
+                    {
+                        minDist[id] = dist;
+                        skinningInfo[id] = new float4(i, bary[0], bary[1], bary[2]);
+                    }
+                }
+            }
+            averageEdge /= TetsNum;
+            // Debug.Log("averageEdge " + averageEdge);
+
+            // Print skinningInfo
+            //string str = string.Empty;
+            //for (int i = 0; i < skinningInfo.Length; ++i)
+            //{
+            //    str += skinningInfo[i] + "\n";
+            //}
+            //Debug.Log("skinningInfo:\n" + str);
         }
 
         private void SolveCollision(float dt)
@@ -469,6 +591,41 @@ namespace XPBD
                 pos[id1] += dlambda * invMass[id1] * gradients.c1;
                 pos[id2] += dlambda * invMass[id2] * gradients.c2;
                 pos[id3] += dlambda * invMass[id3] * gradients.c3;
+            }
+        }
+
+        [BurstCompile]
+        private struct UpdateVisMeshJob : IJobParallelFor
+        {
+            public NativeArray<float3> visPos;
+            [ReadOnly]
+            public NativeArray<float3> pos;
+            [ReadOnly]
+            public NativeArray<int4> tets;
+            [ReadOnly]
+            public NativeArray<float4> skinningInfo;
+
+            public void Execute(int index)
+            {
+                int tetNr = (int)skinningInfo[index][0];
+                if (tetNr < 0)
+                    return;
+
+                float b0 = skinningInfo[index][1];
+                float b1 = skinningInfo[index][2];
+                float b2 = skinningInfo[index][3];
+                float b3 = 1f - b0 - b1 - b2;
+
+                int id0 = tets[tetNr].x;
+                int id1 = tets[tetNr].y;
+                int id2 = tets[tetNr].z;
+                int id3 = tets[tetNr].w;
+
+                visPos[index] = float3.zero;
+                visPos[index] += pos[id0] * b0;
+                visPos[index] += pos[id1] * b1;
+                visPos[index] += pos[id2] * b2;
+                visPos[index] += pos[id3] * b3;
             }
         }
     }

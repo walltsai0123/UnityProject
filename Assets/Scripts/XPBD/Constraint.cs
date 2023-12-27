@@ -57,11 +57,11 @@ namespace XPBD
                     return;
 
                 PositionConstraintData data = Datas[0];
-                float3 R1 = math.rotate(Datas[0].q1, Datas[0].r1);
-                float3 R2 = math.rotate(Datas[0].q2, Datas[0].r2);
+                float3 R1 = math.rotate(data.q1, data.r1);
+                float3 R2 = math.rotate(data.q2, data.r2);
                 float3 n = math.normalize(dx);
-                float3x3 I1Inv = math.mul(new float3x3(Datas[0].q1), math.mul(Datas[0].IBodyInv1, new float3x3(math.conjugate(Datas[0].q1))));
-                float3x3 I2Inv = math.mul(new float3x3(Datas[0].q2), math.mul(Datas[0].IBodyInv2, new float3x3(math.conjugate(data.q2))));
+                float3x3 I1Inv = math.mul(new float3x3(data.q1), math.mul(data.IBodyInv1, new float3x3(math.conjugate(data.q1))));
+                float3x3 I2Inv = math.mul(new float3x3(data.q2), math.mul(data.IBodyInv2, new float3x3(math.conjugate(data.q2))));
 
                 float3 r1xn = math.cross(R1, n);
                 float3 r2xn = math.cross(R2, n);
@@ -120,7 +120,7 @@ namespace XPBD
             {
                 AngularConstraintData data = Datas[0];
                 float C = math.length(dq) - angle;
-                if (math.abs(C) < math.EPSILON)
+                if (C == 0f)
                     return;
 
                 float3 n = math.normalize(dq);

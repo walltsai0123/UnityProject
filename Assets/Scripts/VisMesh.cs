@@ -1,4 +1,6 @@
 using UnityEngine;
+using Unity.Mathematics;
+using Unity.Collections;
 
 [RequireComponent(typeof(MeshRenderer), typeof(MeshFilter))]
 public unsafe class VisMesh : MonoBehaviour
@@ -10,7 +12,7 @@ public unsafe class VisMesh : MonoBehaviour
     public VisMeshData DataRowMajor { get; private set; }
     public MeshState* state;
 
-    public void Initialized()
+    public void Initialize()
     {
         meshFilter = GetComponent<MeshFilter>();
         mesh = meshFilter.mesh;
@@ -26,6 +28,12 @@ public unsafe class VisMesh : MonoBehaviour
     {
         DataRowMajor.ApplyDirty(state);
         DataRowMajor.ApplyDirtyToMesh(mesh);
+    }
+    public void UpdateMesh(NativeArray<float3> pos)
+    {
+        mesh.SetVertices<float3>(pos);
+        mesh.RecalculateBounds();
+        mesh.RecalculateNormals();
     }
 
     public void Show(bool show)

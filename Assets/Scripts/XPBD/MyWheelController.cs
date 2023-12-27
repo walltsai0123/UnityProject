@@ -7,10 +7,11 @@ namespace XPBD
 {
     public class MyWheelController : MonoBehaviour
     {
-        [SerializeField] Rigid frontLeft;
-        [SerializeField] Rigid frontRight;
-        [SerializeField] Rigid rearLeft;
-        [SerializeField] Rigid rearRight;
+        [SerializeField] Wheel frontLeft;
+        [SerializeField] Wheel frontRight;
+        [SerializeField] Wheel rearLeft;
+        [SerializeField] Wheel rearRight;
+        [SerializeField] Rigid rack;
 
         private Rigid carBody;
         public float accelration = 500f;
@@ -23,9 +24,17 @@ namespace XPBD
 
         private Vector3 axis = Vector3.right;
 
+        private Hinge fLHinge, fRHinge;
+
         private void Awake()
         {
             carBody = GetComponent<Rigid>();
+
+            Hinge[] hinges;
+            hinges = rack.GetComponents<Hinge>();
+            Debug.Assert(hinges.Length == 2);
+            fLHinge = hinges[0];
+            fRHinge = hinges[1];
         }
         // Update is called once per frame
         void Update()
@@ -38,13 +47,29 @@ namespace XPBD
             else
                 currentBrakeForce = 0f;
 
-            float3 worldAxis = math.rotate(carBody.Rotation, axis);
-            float3 totalForce = (currentAccel - currentBrakeForce) * worldAxis;
+            float3 Axis = math.rotate(carBody.Rotation, axis);
+            frontLeft.RotateAxis = Axis;
+            frontRight.RotateAxis = Axis;
+            rearLeft.RotateAxis = Axis;
+            rearRight.RotateAxis = Axis;
 
-            frontLeft.Tau = totalForce;
-            frontRight.Tau = totalForce;
-            rearLeft.Tau = totalForce;
-            rearRight.Tau = totalForce;
+            //frontLeft.MotorTorque = currentAccel;
+            //frontRight.MotorTorque = currentAccel;
+            rearLeft.MotorTorque = currentAccel;
+            rearRight.MotorTorque = currentAccel;
+
+            frontLeft.BrakeTorque = currentBrakeForce;
+            frontRight.BrakeTorque = currentBrakeForce;
+            rearLeft.BrakeTorque = currentBrakeForce;
+            rearRight.BrakeTorque = currentBrakeForce;
+
+            frontLeft.SteerAngle = currentTurnAngle;
+            frontRight.SteerAngle = currentTurnAngle;
+
+            //rack.fext = currentTurnAngle * 100f * Axis;
+
+            fLHinge.targetAngle = currentTurnAngle;
+            fRHinge.targetAngle = currentTurnAngle;
         }
     }
 

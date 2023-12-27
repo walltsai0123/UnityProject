@@ -6,6 +6,7 @@ namespace XPBD
     [RequireComponent(typeof(Rigidbody))]
     public class Rigid : Body
     {
+        
         public enum eGeometryType { kSphere, kBox, kCylinder, kNone };
         private Rigidbody m_rigidbody;
         //public bool Fixed = false;
@@ -13,7 +14,7 @@ namespace XPBD
         public quaternion Rotation { get; set; }
         public float3 vel { get; private set; }
         public float3 omega { get; private set; }
-        public float3 fext { get; private set; }
+        public float3 fext { get; set; }
         public float3 Tau { get; set; }
 
         public float3x3 InertiaBody { get; private set; }
@@ -22,7 +23,10 @@ namespace XPBD
         // Previous position and rotation
         private float3 prevPos;
         private quaternion prevRot;
-       
+
+        [SerializeField] 
+        private Vector3 v0 = Vector3.zero;
+
         public eGeometryType geometryType = eGeometryType.kNone;
 
         public override void CollectCollision(float dt)
@@ -127,7 +131,7 @@ namespace XPBD
 
             Position = prevPos = transform.position;
             Rotation = prevRot = transform.rotation;
-            vel = float3.zero;
+            vel = v0;
             omega = float3.zero;
             //omega = new(1, 0, 0);
             fext = float3.zero;
@@ -146,7 +150,7 @@ namespace XPBD
             }
 
             m_rigidbody.isKinematic = true;
-
+            //Destroy(m_rigidbody);
             // Debug.Log("InertiaBody: " + InertiaBody);
         }
 

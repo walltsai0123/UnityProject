@@ -137,11 +137,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3628820504343495579, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.9115727
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3628820504343495579, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.143
+      value: 2.422
       objectReference: {fileID: 0}
     - target: {fileID: 3628820504343495579, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
       propertyPath: m_LocalPosition.z
@@ -176,8 +176,40 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4934597536011944866, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: mu
+      value: 300
+      objectReference: {fileID: 0}
+    - target: {fileID: 4934597536011944866, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: mass
+      value: 50
+      objectReference: {fileID: 0}
+    - target: {fileID: 4934597536011944866, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: v0.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4934597536011944866, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
       propertyPath: lambda
-      value: 11000000
+      value: 300000
+      objectReference: {fileID: 0}
+    - target: {fileID: 5059136615911823931, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5655854843747323850, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: mass
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 5655854843747323850, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: v0.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6713698461815539806, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: m_Height
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 7224089584524249223, guid: f3ee1ee36abab0e40946e34264ddd45a, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
