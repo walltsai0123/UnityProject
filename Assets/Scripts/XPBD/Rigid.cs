@@ -1,19 +1,20 @@
 using UnityEngine;
 using Unity.Mathematics;
+using System.Collections.Generic;
 
 namespace XPBD
 {
     [RequireComponent(typeof(Rigidbody))]
     public class Rigid : Body
     {
-        
         public enum eGeometryType { kSphere, kBox, kCylinder, kNone };
         private Rigidbody m_rigidbody;
+        public Collider m_Collider { get; private set; }
         //public bool Fixed = false;
         public float3 Position { get; set; }
         public quaternion Rotation { get; set; }
-        public float3 vel { get; private set; }
-        public float3 omega { get; private set; }
+        public float3 vel { get; set; }
+        public float3 omega { get; set; }
         public float3 fext { get; set; }
         public float3 Tau { get; set; }
 
@@ -21,20 +22,29 @@ namespace XPBD
         public float3x3 InertiaBodyInv { get; private set; }
 
         // Previous position and rotation
-        private float3 prevPos;
-        private quaternion prevRot;
+        public float3 prevPos { get; private set; }
+        public quaternion prevRot { get; private set; }
 
         [SerializeField] 
         private Vector3 v0 = Vector3.zero;
 
         public eGeometryType geometryType = eGeometryType.kNone;
 
-        public override void CollectCollision(float dt)
+        private List<ContactPoint> contactPoints;
+
+        public List<RigidCollision> rigidCollisions;
+
+        private float grabMass;
+
+        #region Body
+        public override void CollectCollision(float dt, Primitive primitive)
         {
         }
 
         public override void PreSolve(float dt, Vector3 gravity)
         {
+            if (isGrabbed)
+                return;
             if(UseGravity)
             {
                 float3 g = gravity;
@@ -59,11 +69,15 @@ namespace XPBD
 
         public override void Solve(float dt)
         {
-            
+            if (isGrabbed)
+                return;
         }
 
         public override void PostSolve(float dt)
         {
+            if (isGrabbed)
+                return;
+
             vel = (Position - prevPos) / dt;
             quaternion dq = math.mul(Rotation, math.conjugate(prevRot));
             float4 dqf = 2.0f * dq.value / dt;
@@ -73,48 +87,23 @@ namespace XPBD
         }
         public override void VelocitySolve(float dt)
         {
-            
+            if (isGrabbed)
+                return;
         }
         public override void EndFrame()
         {
             ClearForce();
+            rigidCollisions.Clear();
             transform.SetPositionAndRotation(Position, Rotation);
         }
+        #endregion
 
+        #region MonoBehaviour
         private void Awake()
         {
-            //if(geometryType == eGeometryType.kNone)
-            //{
-            //    Debug.Log("geometry unset");
-            //    return;
-            //}
-            //Transform m_transform = this.transform;
-
-            //if (geometryType == eGeometryType.kBox)
-            //{
-            //    BoxCollider box = GetComponent<BoxCollider>();
-            //    if(box == null)
-            //    {
-            //        Debug.Log("BoxCollider not found");
-            //        return;
-            //    }
-            //    Vector3 boxSize = box.size;
-            //    boxSize.x *= transform.localScale.x;
-            //    boxSize.y *= transform.localScale.y;
-            //    boxSize.z *= transform.localScale.z;
-            //    ID = BackEnd.AddXPBDRigidBox(m_transform.position, m_transform.rotation, boxSize, mass);
-            //}
-            //else if (geometryType == eGeometryType.kCylinder)
-            //{
-            //    float radius = 0.5f * transform.localScale.x;
-            //    float height = 2f * transform.localScale.y;
-            //    ID = BackEnd.AddXPBDRigidCylinder(m_transform.position, m_transform.rotation, radius, height, mass);
-                
-            //}
-
             Initialized();
-            
-            //Debug.Log(ID);
+            contactPoints = new();
+            rigidCollisions = new();
             Debug.Log("Rigid Awake");
         }
 
@@ -123,17 +112,44 @@ namespace XPBD
             Simulation.get.AddBody(this);
         }
 
+        private void OnCollisionEnter(Collision collision)
+        {
+            AddCollision(collision);
+        }
+        private void OnCollisionStay(Collision collision)
+        {
+            AddCollision(collision);
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (contactPoints == null)
+                return;
+            foreach (var cp in contactPoints)
+            {
+                Vector3 point = cp.point;
+                Vector3 normal = cp.normal;
+
+                Gizmos.DrawSphere(point, 0.05f);
+                Gizmos.DrawRay(point, normal);
+            }
+        }
+
+        #endregion
+
         private void Initialized()
         {
+            bodyType = BodyType.Rigid;
             Transform transform = this.transform;
             m_rigidbody = GetComponent<Rigidbody>();
             m_rigidbody.mass = mass;
+
+            m_Collider = GetComponent<Collider>();
 
             Position = prevPos = transform.position;
             Rotation = prevRot = transform.rotation;
             vel = v0;
             omega = float3.zero;
-            //omega = new(1, 0, 0);
             fext = float3.zero;
             Tau = float3.zero;
 
@@ -150,8 +166,6 @@ namespace XPBD
             }
 
             m_rigidbody.isKinematic = true;
-            //Destroy(m_rigidbody);
-            // Debug.Log("InertiaBody: " + InertiaBody);
         }
 
         private void ClearForce()
@@ -159,6 +173,63 @@ namespace XPBD
             fext = float3.zero;
             Tau = float3.zero;
         }
+
+        private void AddCollision(Collision collision)
+        {
+            if (isGrabbed)
+                return;
+            if (collision.collider.gameObject.CompareTag("Primitive"))
+            {
+                collision.GetContacts(contactPoints);
+
+                Primitive primitive = collision.collider.gameObject.GetComponent<Primitive>();
+
+                //rigidCollisions.Add(new(this, primitive, contactPoints[0]));
+                foreach (var cp in contactPoints)
+                {
+                    rigidCollisions.Add(new(this, primitive, cp));
+                }
+            }
+        }
+
+        #region IGrabbable
+        public override void StartGrab(Vector3 grabPos)
+        {
+            isGrabbed = true;
+
+            Position = grabPos;
+
+            vel = Vector3.zero;
+            omega = Vector3.zero;
+        }
+
+        public override void MoveGrabbed(Vector3 grabPos)
+        {
+            Position = grabPos;
+        }
+
+        public override void EndGrab(Vector3 grabPos, Vector3 vel)
+        {
+            isGrabbed = false;
+
+            Position = grabPos;
+            this.vel = vel;
+        }
+
+        public override void IsRayHittingBody(Ray ray, out CustomHit hit)
+        {
+            hit = null;
+            if(Intersection.IsRayHittingCollider(ray, m_Collider, out float hitDistance))
+            {
+                hit = new CustomHit(hitDistance, Vector3.zero, Vector3.zero);
+            }
+        }
+
+        public override Vector3 GetGrabbedPos()
+        {
+            return Position;
+        }
+        #endregion
     }
 }
 

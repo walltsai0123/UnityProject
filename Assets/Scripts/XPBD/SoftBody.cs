@@ -12,6 +12,8 @@ namespace XPBD
     {
         public VisMesh visMesh;
         public PhysicMesh physicMesh;
+        private Material material;
+        private Shader shader1, shader2;
 
         public float mu = 10f, lambda = 1000f;
         public bool showTet = false;
@@ -19,8 +21,8 @@ namespace XPBD
 
         // Simulation Data NativeArray
         public NativeArray<float3> Pos;
-        private NativeArray<float3> prevPos;
-        private NativeArray<float3> vel;
+        public NativeArray<float3> prevPos;
+        public NativeArray<float3> vel;
         private NativeArray<int4> tets;
         public NativeArray<float> invMass;
         private NativeArray<float> restVolumes;
@@ -47,12 +49,12 @@ namespace XPBD
             public float3 N;
             public float3 fn;
             public float vn_;
-
+            public Primitive primitive;
         }
 
         private List<Collision> collisions;
 
-        public override void CollectCollision(float dt)
+        public override void CollectCollision(float dt, Primitive primitive)
         {
             collisions.Clear();
             float3 surfaceN = new(0f, 1f, 0f);
@@ -150,7 +152,7 @@ namespace XPBD
 
                 // normal
                 restitutionCoef = (math.abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;
-                float3 dvn = c.N * (-vn + math.min(0.0f, -restitutionCoef * c.vn_));
+                float3 dvn = c.N * (-vn + math.max(0.0f, -restitutionCoef * c.vn_));
                 vel[c.index] += dvn;
             }
         }
@@ -175,10 +177,36 @@ namespace XPBD
 
         }
 
+        #region IGrabbable
+        public override void StartGrab(Vector3 grabPos)
+        {
+
+        }
+
+        public override void MoveGrabbed(Vector3 grabPos)
+        { }
+
+        public override void EndGrab(Vector3 grabPos, Vector3 vel)
+        { }
+
+        public override void IsRayHittingBody(Ray ray, out CustomHit hit)
+        {
+            hit = null;
+        }
+
+        public override Vector3 GetGrabbedPos()
+        {
+            return Vector3.zero;
+        }
+        #endregion
+
         private void Awake()
         {
             visMesh.Initialize();
             physicMesh.Initialize();
+            material = visMesh.meshRenderer.material;
+            shader1 = material.shader;
+            shader2 = Shader.Find("Custom/NewUnlitShader");
             Initialize();
             //ID = BackEnd.AddXPBDSoftBody(visMesh.state, physicMesh.state, transform.position, transform.rotation, mass, mu, lambda);
             //Debug.Log(ID);
@@ -188,6 +216,24 @@ namespace XPBD
         {
             Simulation.get.AddBody(this);
             Debug.Log("SoftBody Start");
+        }
+
+        private void Update()
+        {
+            //if (Input.GetKeyDown(KeyCode.Space))
+            //{
+            //    if (material.shader == shader1)
+            //    {
+            //        material.shader = shader2;
+            //        Vector4 vector = UnityEngine.Random.insideUnitSphere;
+            //        //vector.w = 1;
+            //        material.SetVector("_MarcoNormal", vector);
+            //    }
+            //    else
+            //    {
+            //        material.shader = shader1;
+            //    }
+            //}
         }
 
 
@@ -206,6 +252,8 @@ namespace XPBD
 
         private void Initialize()
         {
+            bodyType = BodyType.Soft;
+
             VerticesNum = physicMesh.mesh.vertices.Length;
             TetsNum = physicMesh.tets.Length / 4;
 
@@ -425,6 +473,8 @@ namespace XPBD
             }
         }
 
+
+        #region IJob
         [BurstCompile]
         private struct PreSolveJob : IJobParallelFor
         {
@@ -628,6 +678,7 @@ namespace XPBD
                 visPos[index] += pos[id3] * b3;
             }
         }
+        #endregion
     }
 
 }

@@ -4,11 +4,20 @@ using UnityEngine;
 
 namespace XPBD
 {
-    public abstract class Body : MonoBehaviour
+    public abstract class Body : MonoBehaviour, IGrabbable
     {
+        public enum BodyType
+        {
+            None,
+            Rigid,
+            Soft
+        };
         //public int ID;
+        public BodyType bodyType = BodyType.None;
         public float mass = 1f;
         public bool UseGravity = true;
+        public bool EnableContact = true;
+        protected bool isGrabbed = false;
 
         public float InvMass
         {
@@ -20,7 +29,7 @@ namespace XPBD
             }
         }
 
-        public virtual void CollectCollision(float dt)
+        public virtual void CollectCollision(float dt, Primitive primitive)
         {
             Debug.Log("Body CollectCollision");
         }
@@ -44,6 +53,17 @@ namespace XPBD
         {
             Debug.Log("Body EndFrame");
         }
+
+        // IGrabbable methods
+        public abstract void StartGrab(Vector3 grabPos);
+
+        public abstract void MoveGrabbed(Vector3 grabPos);
+
+        public abstract void EndGrab(Vector3 grabPos, Vector3 vel);
+
+        public abstract void IsRayHittingBody(Ray ray, out CustomHit hit);
+
+        public abstract Vector3 GetGrabbedPos();
     }
 }
 

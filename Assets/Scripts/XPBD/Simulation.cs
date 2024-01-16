@@ -11,10 +11,18 @@ namespace XPBD
         public static Simulation get;
         public int substeps = 10;
         public Vector3 gravity = new(0, -9.81f, 0);
+        private List<Primitive> primitives;
         private List<Body> bodies;
         private List<Constraint> constraints;
-        private Thread _workerThread;
+        private List<CollisionConstraint> collisions;
 
+        private Grabber grabber;
+
+
+        public void AddPrimitive(Primitive p)
+        {
+            primitives.Add(p);
+        }
         public void AddBody(Body b)
         {
             bodies.Add(b);
@@ -32,32 +40,69 @@ namespace XPBD
                 return;
             }
             get = this;
+            primitives = new List<Primitive>();
             bodies = new List<Body>();
             constraints = new List<Constraint>();
-            //BackEnd.XPBDSimInit();
-            Debug.Log("Simulation Awake");
+            collisions = new List<CollisionConstraint>();
+
+            grabber = new Grabber(Camera.main);
+
+            // BackEnd.XPBDSimInit();
+            // Debug.Log("Simulation Awake");
         }
 
         private void FixedUpdate()
         {
-            //if (_workerThread != null && !_workerThread.IsAlive)
-            //    PostExecuteThread();
-            //if (_workerThread == null)
-            //    ExecuteThread(Time.fixedDeltaTime);
-
-            //BackEnd.XPBDSimUpdate(Time.fixedDeltaTime, substeps);
-            //Debug.Log("Simulation Update");
             float dt = Time.fixedDeltaTime;
             SimulationUpdate(dt, substeps);
+        }
+
+        private void Update()
+        {
+            grabber.MoveGrab();
+        }
+
+        private void LateUpdate()
+        {
+            if (Input.GetMouseButtonDown(0))
+            {
+                List<IGrabbable> temp = new List<IGrabbable>(bodies);
+
+                grabber.StartGrab(temp);
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                grabber.EndGrab();
+            }
         }
 
         private void SimulationUpdate(float dt, int substeps)
         {
             float sdt = dt / substeps;
+            //foreach (Body body in bodies)
+            //    foreach (Primitive primitive in primitives)
+            //        body.CollectCollision(dt, primitive);
+            collisions.Clear();
             foreach (Body body in bodies)
-                body.CollectCollision(dt);
+            {
+                if (!body.EnableContact)
+                    continue;
 
-            //Debug.Log("Loop substep start");
+                if(body.bodyType == Body.BodyType.Rigid)
+                {
+                    Rigid rigid = (Rigid) body;
+                    collisions.AddRange(CollisionDetect.RigidCollision(rigid));
+                }
+                else
+                {
+                    foreach (Primitive primitive in primitives)
+                    {
+                        collisions.AddRange(CollisionDetect.CollectCollision(body, primitive, dt));
+                    }
+                }
+            }
+
             for (int step = 0; step < substeps; ++step)
             {
                 foreach (Body body in bodies)
@@ -69,42 +114,25 @@ namespace XPBD
                 foreach (Constraint C in constraints)
                     C.SolveConstraint(sdt);
 
+                foreach (CollisionConstraint collision in collisions)
+                    collision.SolveCollision(sdt);
+
                 foreach (Body body in bodies)
                     body.PostSolve(sdt);
 
                 foreach (Body body in bodies)
                     body.VelocitySolve(sdt);
+
+                foreach (CollisionConstraint collision in collisions)
+                    collision.VelocitySolve(sdt);
             }
             foreach (Body body in bodies)
                 body.EndFrame();
-            //Debug.Log("Loop substep end");
-        }
-        private void ExecuteThread(float dt)
-        {
-            Assert.IsTrue(_workerThread == null);
-
-            //_workerThread = new Thread(() => { BackEnd.XPBDSimUpdate(dt, substeps); });
-            _workerThread = new Thread(() => { SimulationUpdate(dt, substeps); });
-            _workerThread.Name = "SimWorker";
-            _workerThread.Start();
-        }
-
-        private void PostExecuteThread()
-        {
-            Assert.IsTrue(!_workerThread.IsAlive);
-
-            _workerThread.Join();
-            _workerThread = null;
         }
 
         private void OnDestroy()
         {
-            if (_workerThread != null)
-            {
-                _workerThread.Join();
-                _workerThread = null;
-            }
-            BackEnd.XPBDSimDelete();
+            // BackEnd.XPBDSimDelete();
             Debug.Log("Simulation Destroy");
         }
     }

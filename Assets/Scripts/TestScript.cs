@@ -5,16 +5,30 @@ using Unity.Mathematics;
 
 public class TestScript : MonoBehaviour
 {
-    void Start()
-    {
-        float4 newfloat4 = new(3,6,4,2);
-        for (int i = 0; i < 4; ++i)
-            Debug.Log(newfloat4[i]);
+    private List<ContactPoint> contactPoints;
+    
 
-        Debug.Log(newfloat4.x);
-        Debug.Log(newfloat4.y);
-        Debug.Log(newfloat4.z);
-        Debug.Log(newfloat4.w);
+    public void Awake()
+    {
+        contactPoints = new();
     }
 
+    private void OnCollisionEnter(Collision collision)
+    {
+        collision.GetContacts(contactPoints);
+    }
+
+    public void OnDrawGizmos()
+    {
+        if (contactPoints == null)
+            return;
+        foreach(var cp in contactPoints)
+        {
+            Vector3 point = cp.point;
+            Vector3 normal = cp.normal;
+
+            Gizmos.DrawSphere(point, 0.05f);
+            Gizmos.DrawRay(point, normal);
+        }
+    }
 }
