@@ -11,12 +11,18 @@ namespace XPBD
         private Primitive primitive;
         private int index;
 
-        public float frictionCoef;
+        public float4 frictionCoef;
         public float restitutionCoef;
         public float3 q;   //Contact point
         public float3 N;   //Surface normal
         private float3 fn;
         public float3 vn_;
+
+        public float3 T;    //Surface tangent
+        public float3 B;    //Surface bitangent
+
+        private float tangentCoef = 0f;
+        private float bitangentCoef = 0f;
 
         public MyCollision(Body b, Primitive p, int i = -1)
         {
@@ -45,27 +51,10 @@ namespace XPBD
         {
             SoftBody soft = (SoftBody)body;
 
-            //if (!Util.IsInsideCollider(primitive.collider, soft.Pos[index]))
-            //    return;
-
-            //float3 direction = soft.Pos[index] - soft.prevPos[index];
-            //Ray ray = new Ray(soft.prevPos[index], direction);
-            //RaycastHit hit;
-
-            //if (primitive.collider.Raycast(ray, out hit, math.length(direction)))
-            //{
-            //    q = hit.point;
-            //    N = hit.normal;
-            //}
-            //else    // Ray inside or too short
-            //{
-            //    q = primitive.collider.ClosestPoint(soft.Pos[index]);
-            //    N = math.normalizesafe(q - soft.Pos[index], float3.zero);
-            //}
-            vn_ = math.dot(N, soft.vel[index]);
+            vn_ = math.dot(N, soft.Vel[index]);
 
             float C = math.dot(soft.Pos[index] - q, N);
-            if (C >= 0.0f)
+            if (C > Util.EPSILON)
                 return;
 
             float alpha = 0.0f;
@@ -77,34 +66,57 @@ namespace XPBD
             soft.Pos[index] += p * w1;
 
             float3 dp = soft.Pos[index] - soft.prevPos[index];
-            float3 dp_t = dp - math.dot(dp, N) * N;
 
-            float C2 = math.length(dp_t);
-            if (C2 <= 1e-6f)
-                return;
+            // tangent friction
+            float dp_t = math.dot(dp, T);
+            float C_T = math.abs(dp_t);
+            if (C_T > Util.EPSILON)
+            {
+                float dlambda_t = -dp_t / (w1 + w2 + alpha);
+                tangentCoef = (dp_t > 0f) ? frictionCoef[0] : frictionCoef[2];
+                //dlambda_t = math.min(dlambda_t, dlambda * tangentCoef);
+                dlambda_t = math.max(-frictionCoef[2] * dlambda, math.min(dlambda_t, frictionCoef[0] * dlambda));
+                float3 p_t = dlambda_t * T;
+                soft.Pos[index] += p_t * w1;
+            }
 
-            float dlambda_t = -C2 / (w1 + w2 + alpha);
-            dlambda_t = math.min(dlambda_t, dlambda * frictionCoef);
-            float3 p2 = dlambda_t * math.normalizesafe(dp_t, float3.zero);
-            soft.Pos[index] += p2 * w1;
+            // bitangent friction
+            float dp_b = math.dot(dp, B);
+            float C_B = math.abs(dp_b);
+            if (C_B > Util.EPSILON)
+            {
+                float dlambda_b = -dp_b / (w1 + w2 + alpha);
+                bitangentCoef = (dp_b > 0f) ? frictionCoef[1] : frictionCoef[3];
+                //dlambda_b = math.min(dlambda_b, dlambda * bitangentCoef);
+                dlambda_b = math.max(-frictionCoef[3] * dlambda, math.min(dlambda_b, frictionCoef[1] * dlambda));
+                float3 p_b = dlambda_b * B;
+                soft.Pos[index] += p_b * w1;
+            }
+
         }
 
         private void SolveSoftBodyVelcity(float dt)
         {
             SoftBody soft = (SoftBody)body;
 
-            float3 v = soft.vel[index];
+            float3 v = soft.Vel[index];
             float vn = math.dot(N, v);
-            float3 vt = v - vn * N;
+            float normalImpulse = dt * math.length(fn);
 
-            // tangent
-            float3 dvt = -math.normalizesafe(vt, float3.zero) * math.min(dt * frictionCoef * math.length(fn), math.length(vt));
-            soft.vel[index] += dvt;
+            //// tangent
+            //float vt = math.dot(v, T);
+            //float3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
+            //soft.Vel[index] += dvt;
+            //
+            //// bitangent
+            //float vb = math.dot(v, B);
+            //float3 dvb = -math.sign(vb) * math.min(normalImpulse * bitangentCoef, math.abs(vb)) * B;
+            //soft.Vel[index] += dvb;
 
             // normal
             restitutionCoef = (math.abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;
             float3 dvn = N * (-vn + math.max(0.0f, -restitutionCoef * vn_));
-            soft.vel[index] += dvn;
+            soft.Vel[index] += dvn;
 
         }
 
@@ -126,6 +138,16 @@ namespace XPBD
             string result = body.ToString() + "\n";
             result += primitive.ToString() + "\n";
             result += index + "\n";
+            result += frictionCoef + "\n";
+            result += tangentCoef + "\n";
+            result += bitangentCoef + "\n";
+            result += restitutionCoef + "\n";
+            result += q + "\n";
+            result += N + "\n";
+            result += T + "\n";
+            result += B + "\n";
+            result += fn + "\n";
+            result += vn_ + "\n";
             result += base.ToString();
             return result;
         }

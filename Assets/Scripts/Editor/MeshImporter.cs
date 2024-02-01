@@ -63,8 +63,6 @@ public class MeshImporter : ScriptedImporter
             mesh.SetVertices(V);
             mesh.SetIndices(F, MeshTopology.Triangles, 0);
             mesh.SetNormals(N);
-            //tetMesh.tets = new int[TSize * 4];
-            //tetMesh.tets = T.ToArray();
 
             mesh.MarkDynamic(); 
             mesh.MarkModified();

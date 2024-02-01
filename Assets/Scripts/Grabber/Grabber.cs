@@ -14,6 +14,8 @@ public class Grabber
 
     //When we have grabbed a mesh by using ray-triangle itersection we identify the closest vertex. The distance from camera to this vertex is constant so we can move it around without doing another ray-triangle itersection  
     private float distanceToGrabPos;
+    //The value of sin(Angle), Angle is the angle between camera forward vector and ray
+    private float rayAngle;
 
     //To give the mesh a velocity when we release it
     private Vector3 lastGrabPos;
@@ -41,14 +43,13 @@ public class Grabber
 
         foreach (IGrabbable body in bodies)
         {
+            if (!body.Grabbable)
+                continue;
+
             body.IsRayHittingBody(ray, out CustomHit hit);
 
             if (hit != null)
             {
-                //Debug.Log("Ray hit");
-
-                //Debug.Log(hit.distance);
-
                 if (hit.distance < maxDist)
                 {
                     closestBody = body;
@@ -58,12 +59,7 @@ public class Grabber
                     closestHit = hit;
                 }
             }
-            else
-            {
-                //Debug.Log("Ray missed");
-            }
         }
-
         if (closestBody != null)
         {
             grabbedBody = closestBody;
@@ -73,8 +69,10 @@ public class Grabber
 
             lastGrabPos = closestHit.location;
 
+            rayAngle = Mathf.Abs(Vector3.Dot(ray.direction, mainCamera.transform.forward));
+
             //distanceToGrabPos = (ray.origin - hit.location).magnitude;
-            distanceToGrabPos = closestHit.distance;
+            distanceToGrabPos = closestHit.distance * rayAngle;
         }
     }
 
@@ -88,7 +86,9 @@ public class Grabber
         //A ray from the mouse into the scene
         Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
 
-        Vector3 vertexPos = ray.origin + ray.direction * distanceToGrabPos;
+        rayAngle = Mathf.Abs(Vector3.Dot(ray.direction, mainCamera.transform.forward));
+
+        Vector3 vertexPos = ray.origin + ray.direction * distanceToGrabPos / rayAngle;
 
         //Cache the old pos before we assign it
         lastGrabPos = grabbedBody.GetGrabbedPos();
@@ -109,7 +109,7 @@ public class Grabber
         //A ray from the mouse into the scene
         Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
 
-        Vector3 grabPos = ray.origin + ray.direction * distanceToGrabPos;
+        Vector3 grabPos = ray.origin + ray.direction * distanceToGrabPos / rayAngle;
 
         float vel = (grabPos - lastGrabPos).magnitude / Time.deltaTime;
 

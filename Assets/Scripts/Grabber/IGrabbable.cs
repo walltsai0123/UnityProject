@@ -4,6 +4,7 @@ using UnityEngine;
 
 public interface IGrabbable
 {
+    public bool Grabbable { get; }
     public void StartGrab(Vector3 grabPos);
 
     public void MoveGrabbed(Vector3 grabPos);

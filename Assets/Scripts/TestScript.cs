@@ -2,33 +2,57 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
+using XPBD;
 
 public class TestScript : MonoBehaviour
 {
-    private List<ContactPoint> contactPoints;
-    
+    [SerializeField] SoftBody softBody;
+    public float accel;
+    public float3 dir;
+    private bool started = false;
 
-    public void Awake()
+    private void Start()
     {
-        contactPoints = new();
+        started = true;
+
+        Color color = Color.yellow;
+        Vector4 v = color;
+
+        Debug.Log(color);
+        Debug.Log(v.x);
+        Debug.Log(v.y);
+        Debug.Log(v.z);
+        Debug.Log(v.w);
     }
-
-    private void OnCollisionEnter(Collision collision)
+    private void Update()
     {
-        collision.GetContacts(contactPoints);
-    }
-
-    public void OnDrawGizmos()
-    {
-        if (contactPoints == null)
-            return;
-        foreach(var cp in contactPoints)
+        float3 final = float3.zero;
+        if (Input.GetKey(KeyCode.UpArrow))
         {
-            Vector3 point = cp.point;
-            Vector3 normal = cp.normal;
-
-            Gizmos.DrawSphere(point, 0.05f);
-            Gizmos.DrawRay(point, normal);
+            final += new float3(0, 0, 1);
         }
+        if (Input.GetKey(KeyCode.DownArrow))
+        {
+            final += new float3(0, 0, -1);
+        }
+        if (Input.GetKey(KeyCode.LeftArrow))
+        {
+            final += new float3(-1, 0, 0);
+        }
+        if (Input.GetKey(KeyCode.RightArrow))
+        {
+            final += new float3(1, 0, 0);
+        }
+
+        dir = final;
+
+        softBody.fext = final * accel;
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!started)
+            return;
+        DrawArrow.ForGizmo(softBody.Pos[0], dir * accel, Color.red);
     }
 }

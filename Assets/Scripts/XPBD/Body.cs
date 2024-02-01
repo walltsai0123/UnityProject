@@ -18,7 +18,9 @@ namespace XPBD
         public bool UseGravity = true;
         public bool EnableContact = true;
         protected bool isGrabbed = false;
-
+        public bool grabbable = true;
+        protected bool isStarted = false;
+        
         public float InvMass
         {
             get 
@@ -29,10 +31,11 @@ namespace XPBD
             }
         }
 
-        public virtual void CollectCollision(float dt, Primitive primitive)
+        public virtual void ClearCollision()
         {
-            Debug.Log("Body CollectCollision");
+            Debug.Log("Body ClearCollision");
         }
+
         public virtual void PreSolve(float dt, Vector3 gravity)
         {
             Debug.Log("Body PreSolve");
@@ -55,6 +58,7 @@ namespace XPBD
         }
 
         // IGrabbable methods
+        public bool Grabbable => grabbable;
         public abstract void StartGrab(Vector3 grabPos);
 
         public abstract void MoveGrabbed(Vector3 grabPos);

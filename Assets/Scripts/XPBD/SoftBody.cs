@@ -13,7 +13,6 @@ namespace XPBD
         public VisMesh visMesh;
         public PhysicMesh physicMesh;
         private Material material;
-        private Shader shader1, shader2;
 
         public float mu = 10f, lambda = 1000f;
         public bool showTet = false;
@@ -22,11 +21,12 @@ namespace XPBD
         // Simulation Data NativeArray
         public NativeArray<float3> Pos;
         public NativeArray<float3> prevPos;
-        public NativeArray<float3> vel;
+        public NativeArray<float3> Vel;
         private NativeArray<int4> tets;
         public NativeArray<float> invMass;
         private NativeArray<float> restVolumes;
         private NativeArray<float3x3> invDm;
+        public float3 fext { get; set; }
 
         // Skinning Info
         private NativeArray<float3> visPos;
@@ -41,51 +41,17 @@ namespace XPBD
 
         private JobHandle jobHandle;
 
-        private struct Collision
-        {
-            public int index;
-            public float frictionCoef;
-            public float3 q;
-            public float3 N;
-            public float3 fn;
-            public float vn_;
-            public Primitive primitive;
-        }
+        private List<MyCollision> collisions;
 
-        private List<Collision> collisions;
+        // Grabber info
+        public int grabId { get; private set; }
+        private float grabInvMass;
 
-        public override void CollectCollision(float dt, Primitive primitive)
+        public override void ClearCollision()
         {
-            collisions.Clear();
-            float3 surfaceN = new(0f, 1f, 0f);
-            for (int i = 0; i < VerticesNum; ++i)
-            {
-                float3 predPos = Pos[i] + vel[i] * dt;
-                if (predPos.y <= 0.0f)
-                {
-                    Collision newCollision = new();
-                    newCollision.index = i;
-                    newCollision.N = surfaceN;
-                    newCollision.vn_ = math.dot(surfaceN, vel[i]);
-                    newCollision.frictionCoef = 0.4f;
-                    newCollision.fn = float3.zero;
-                    if (Pos[i].y > 0.0f)
-                    {
-                        float3 ray = predPos - Pos[i];
-                        float coef = -Pos[i].y / ray.y;
-                        float3 q = Pos[i] + coef * ray;
-                        newCollision.q = q;
-                    }
-                    else if (Pos[i].y <= 0.0f)
-                    {
-                        float3 q = predPos;
-                        q.y = 0.0f;
-                        newCollision.q = q;
-                    }
-                    collisions.Add(newCollision);
-                }
-            }
+            
         }
+        
 
         public override void PreSolve(float dt, Vector3 gravity)
         {
@@ -96,10 +62,10 @@ namespace XPBD
             PreSolveJob preSolveJob = new PreSolveJob
             {
                 dt = dt,
-                gravity = g,
+                gravity = g + fext,
                 pos = Pos,
                 prevPos = prevPos,
-                vel = vel,
+                vel = Vel,
                 invMass = invMass
             };
             jobHandle = preSolveJob.Schedule(VerticesNum, 1, jobHandle);
@@ -121,7 +87,6 @@ namespace XPBD
             };
             jobHandle = solveElementJob.Schedule(TetsNum, jobHandle);
             jobHandle.Complete();
-            SolveCollision(dt);
         }
 
         public override void PostSolve(float dt)
@@ -132,29 +97,12 @@ namespace XPBD
                 if (invMass[i] == 0)
                     continue;
 
-                vel[i] = (Pos[i] - prevPos[i]) / dt;
+                Vel[i] = (Pos[i] - prevPos[i]) / dt;
             }
         }
 
         public override void VelocitySolve(float dt)
         {
-            float restitutionCoef;
-            for (int i = 0; i < collisions.Count; i++)
-            {
-                Collision c = collisions[i];
-                float3 v = vel[c.index];
-                float vn = math.dot(c.N, v);
-                float3 vt = v - vn * c.N;
-
-                // tangent
-                float3 dvt = -math.normalizesafe(vt, float3.zero) * math.min(dt * c.frictionCoef * math.length(c.fn), math.length(vt));
-                vel[c.index] += dvt;
-
-                // normal
-                restitutionCoef = (math.abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;
-                float3 dvn = c.N * (-vn + math.max(0.0f, -restitutionCoef * c.vn_));
-                vel[c.index] += dvn;
-            }
         }
         public override void EndFrame()
         {
@@ -180,33 +128,78 @@ namespace XPBD
         #region IGrabbable
         public override void StartGrab(Vector3 grabPos)
         {
+            //Find the closest vertex to the pos on a triangle in the mesh
+            float minD2 = float.MaxValue;
+            float3 gPos = grabPos;
+            grabId = -1;
 
+            for (int i = 0; i < VerticesNum; i++)
+            {
+
+                float d2 = math.lengthsq(gPos - Pos[i]);
+
+                if (d2 < minD2)
+                {
+                    minD2 = d2;
+                    grabId = i;
+                }
+            }
+
+            //We have found a vertex
+            if (grabId >= 0)
+            {
+                //Save the current innverted mass
+                grabInvMass = invMass[grabId];
+
+                //Set the inverted mass to 0 to mark it as fixed
+                invMass[grabId] = 0f;
+
+                //Set the position of the vertex to the position where the ray hit the triangle
+                Pos[grabId] = grabPos;
+            }
         }
 
         public override void MoveGrabbed(Vector3 grabPos)
-        { }
+        {
+            if (grabId >= 0)
+            {
+                Pos[grabId] = grabPos;
+            }
+        }
 
         public override void EndGrab(Vector3 grabPos, Vector3 vel)
-        { }
+        {
+            if (grabId >= 0)
+            {
+                //Set the mass to whatever mass it was before we grabbed it
+                invMass[grabId] = grabInvMass;
+
+                this.Vel[grabId] = vel;
+            }
+
+            grabId = -1;
+        }
 
         public override void IsRayHittingBody(Ray ray, out CustomHit hit)
         {
-            hit = null;
+            float3[] vertices = Pos.ToArray();
+            int[] triangles = physicMesh.mesh.triangles;
+
+            Intersection.IsRayHittingMesh(ray, vertices, triangles, out hit);
         }
 
         public override Vector3 GetGrabbedPos()
         {
-            return Vector3.zero;
+            return Pos[grabId];
         }
         #endregion
 
+        #region Monobehaviour
         private void Awake()
         {
             visMesh.Initialize();
             physicMesh.Initialize();
             material = visMesh.meshRenderer.material;
-            shader1 = material.shader;
-            shader2 = Shader.Find("Custom/NewUnlitShader");
             Initialize();
             //ID = BackEnd.AddXPBDSoftBody(visMesh.state, physicMesh.state, transform.position, transform.rotation, mass, mu, lambda);
             //Debug.Log(ID);
@@ -218,30 +211,11 @@ namespace XPBD
             Debug.Log("SoftBody Start");
         }
 
-        private void Update()
-        {
-            //if (Input.GetKeyDown(KeyCode.Space))
-            //{
-            //    if (material.shader == shader1)
-            //    {
-            //        material.shader = shader2;
-            //        Vector4 vector = UnityEngine.Random.insideUnitSphere;
-            //        //vector.w = 1;
-            //        material.SetVector("_MarcoNormal", vector);
-            //    }
-            //    else
-            //    {
-            //        material.shader = shader1;
-            //    }
-            //}
-        }
-
-
         private void OnDestroy()
         {
             if (Pos.IsCreated) Pos.Dispose();
             if (prevPos.IsCreated) prevPos.Dispose();
-            if (vel.IsCreated) vel.Dispose();
+            if (Vel.IsCreated) Vel.Dispose();
             if (invMass.IsCreated) invMass.Dispose();
             if (tets.IsCreated) tets.Dispose();
             if (restVolumes.IsCreated) restVolumes.Dispose();
@@ -249,6 +223,7 @@ namespace XPBD
             if (visPos.IsCreated) visPos.Dispose();
             if (skinningInfo.IsCreated) skinningInfo.Dispose();
         }
+        #endregion
 
         private void Initialize()
         {
@@ -259,7 +234,7 @@ namespace XPBD
 
             Pos = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
             prevPos = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
-            vel = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
+            Vel = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
             invMass = new NativeArray<float>(VerticesNum, Allocator.Persistent);
 
             tets = new NativeArray<int4>(TetsNum, Allocator.Persistent);
@@ -270,7 +245,7 @@ namespace XPBD
             for (int i = 0; i < VerticesNum; ++i)
             {
                 Pos[i] = prevPos[i] = physicMesh.mesh.vertices[i];
-                vel[i] = v0;
+                Vel[i] = v0;
                 invMass[i] = 0f;
             }
             for (int i = 0; i < TetsNum; ++i)
@@ -328,8 +303,6 @@ namespace XPBD
             startPos = transform.position;
             transform.position = Vector3.zero;
             Translate(startPos);
-
-            collisions = new List<Collision>();
         }
 
         private void ComputeSkinningInfo()
@@ -429,39 +402,6 @@ namespace XPBD
             //    str += skinningInfo[i] + "\n";
             //}
             //Debug.Log("skinningInfo:\n" + str);
-        }
-
-        private void SolveCollision(float dt)
-        {
-            for (int i = 0; i < collisions.Count; i++)
-            {
-                Collision c = collisions[i];
-                float C = math.dot(Pos[c.index] - c.q, c.N);
-                if (C >= 0.0f)
-                    continue;
-
-                float alpha = 0.0f;
-                float w1 = invMass[c.index];
-                float w2 = 0.0f;
-                float dlambda = -C / (w1 + w2 + alpha);
-                float3 p = dlambda * c.N;
-                c.fn = p / (dt * dt);
-                collisions[i] = c;
-                Pos[c.index] += p * w1;
-
-
-                float3 dp = Pos[c.index] - prevPos[c.index];
-                float3 dp_t = dp - math.dot(dp, c.N) * c.N;
-
-                float C2 = math.length(dp_t);
-                if (C2 <= 1e-6f)
-                    continue;
-
-                float dlambda_t = -C2 / (w1 + w2 + alpha);
-                dlambda_t = math.min(dlambda_t, dlambda * c.frictionCoef);
-                float3 p2 = dlambda_t * math.normalizesafe(dp_t, float3.zero);
-                Pos[c.index] += p2 * w1;
-            }
         }
 
         private void Translate(float3 moveDist)

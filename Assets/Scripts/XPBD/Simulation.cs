@@ -14,10 +14,14 @@ namespace XPBD
         private List<Primitive> primitives;
         private List<Body> bodies;
         private List<Constraint> constraints;
+
+        // Collision
+        private CollisionDetect collisionDetect;
         private List<CollisionConstraint> collisions;
 
         private Grabber grabber;
-
+        private bool pause = false;
+        private bool stepOnce = false;
 
         public void AddPrimitive(Primitive p)
         {
@@ -36,30 +40,45 @@ namespace XPBD
             if (get)
             {
                 Debug.LogWarning("Simulation instance already exists.");
-                enabled = false;
+                Destroy(gameObject);
                 return;
             }
             get = this;
             primitives = new List<Primitive>();
             bodies = new List<Body>();
             constraints = new List<Constraint>();
+            collisionDetect = new CollisionDetect();
             collisions = new List<CollisionConstraint>();
 
             grabber = new Grabber(Camera.main);
 
             // BackEnd.XPBDSimInit();
-            // Debug.Log("Simulation Awake");
+            Debug.Log("Simulation Awake");
         }
 
         private void FixedUpdate()
         {
+            if (pause && !stepOnce)
+                return;
             float dt = Time.fixedDeltaTime;
             SimulationUpdate(dt, substeps);
+
+            //Clear step once flag
+            stepOnce = false;
         }
 
         private void Update()
         {
             grabber.MoveGrab();
+
+            if (Input.GetKeyDown(KeyCode.P))
+            {
+                pause = !pause;
+            }
+            if (Input.GetKeyDown(KeyCode.N))
+            {
+                stepOnce = true;
+            }
         }
 
         private void LateUpdate()
@@ -79,30 +98,11 @@ namespace XPBD
 
         private void SimulationUpdate(float dt, int substeps)
         {
+            //collisions.Clear();
+            collisionDetect.CollectCollision(bodies, primitives, dt);
+            collisions = collisionDetect.Collisions;
+
             float sdt = dt / substeps;
-            //foreach (Body body in bodies)
-            //    foreach (Primitive primitive in primitives)
-            //        body.CollectCollision(dt, primitive);
-            collisions.Clear();
-            foreach (Body body in bodies)
-            {
-                if (!body.EnableContact)
-                    continue;
-
-                if(body.bodyType == Body.BodyType.Rigid)
-                {
-                    Rigid rigid = (Rigid) body;
-                    collisions.AddRange(CollisionDetect.RigidCollision(rigid));
-                }
-                else
-                {
-                    foreach (Primitive primitive in primitives)
-                    {
-                        collisions.AddRange(CollisionDetect.CollectCollision(body, primitive, dt));
-                    }
-                }
-            }
-
             for (int step = 0; step < substeps; ++step)
             {
                 foreach (Body body in bodies)
@@ -128,6 +128,9 @@ namespace XPBD
             }
             foreach (Body body in bodies)
                 body.EndFrame();
+
+            //foreach (CollisionConstraint collision in collisions)
+            //    Debug.Log(collision.ToString());
         }
 
         private void OnDestroy()

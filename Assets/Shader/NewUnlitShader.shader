@@ -1,11 +1,3 @@
-// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
-
-// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
-
-// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
-
-// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
-
 Shader "Custom/NewUnlitShader"
 {
 	Properties{
@@ -14,9 +6,8 @@ Shader "Custom/NewUnlitShader"
 		// default to dummy "flat surface" normalmap
 		_BumpMap("Normal Map", 2D) = "bump" {}
 
-		_MarcoNormal("Marco Normal", Vector) = (0, 1, 0, 1)
-		_TangentVector("Tangent vector", Vector) = (1, 0, 0, 1)
-		_BitangentVector("Bitangent vector", Vector) = (0, 0, 1, 1)
+		_TangentVector("Tangent vector", Vector) = (0, 1, 0, 0)
+		_BitangentVector("Bitangent vector", Vector) = (0, 0, 1, 0)
 	}
 	SubShader
 	{
@@ -25,7 +16,7 @@ Shader "Custom/NewUnlitShader"
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
-			// include file that contains UnityObjectToWorldNormal helper function
+			// include file that contains UnityObjectTom helper function
 			#include "UnityCG.cginc"
 
 			// vertex input: position, normal
@@ -45,13 +36,14 @@ Shader "Custom/NewUnlitShader"
 				half3 tspace2 : TEXCOORD3; // tangent.z, bitangent.z, normal.z
 				// texture coordinate for the normal map
 				float2 uv : TEXCOORD4;
+				float3 normal : TEXCOORD5;
 
 				float4 pos : SV_POSITION;
-				fixed4 color : COLOR;
 			};
 
 
 			float4 _MainTex_ST;
+			
 
 			// vertex shader: takes object space normal as input too
 			v2f vert(appdata v)
@@ -69,35 +61,47 @@ Shader "Custom/NewUnlitShader"
 				o.tspace1 = half3(wTangent.y, wBitangent.y, wNormal.y);
 				o.tspace2 = half3(wTangent.z, wBitangent.z, wNormal.z);
 				o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-
-				o.color.xyz = v.normal * 0.5 + 0.5;
-				o.color.w = 1.0;
+				o.normal = wNormal;
 				return o;
 			}
 
 			sampler2D _BumpMap;
+			half4 _TangentVector;
+			half4 _BitangentVector;
 
 			fixed4 frag(v2f i) : SV_Target
 			{
+				
 				// sample the normal map, and decode from the Unity encoding
 				half3 tnormal = UnpackNormal(tex2D(_BumpMap, i.uv));
-				// transform normal from tangent to world space
-				half3 worldNormal;
-				worldNormal.x = dot(i.tspace0, tnormal);
-				worldNormal.y = dot(i.tspace1, tnormal);
-				worldNormal.z = dot(i.tspace2, tnormal);
 
-				// rest the same as in previous shader
-				half3 worldViewDir = normalize(UnityWorldSpaceViewDir(i.worldPos));
-				half3 worldRefl = reflect(-worldViewDir, worldNormal);
-				half4 skyData = UNITY_SAMPLE_TEXCUBE(unity_SpecCube0, worldRefl);
-				half3 skyColor = DecodeHDR(skyData, unity_SpecCube0_HDR);
+				// micro normal vector
+				half3 m;
+				m.x = dot(i.tspace0, tnormal);
+				m.y = dot(i.tspace1, tnormal);
+				m.z = dot(i.tspace2, tnormal);
 
+				half3 d1 = normalize(_TangentVector.xyz);
+				half3 d2 = normalize(_BitangentVector.xyz);
+				half3 d3 = -d1;
+				half3 d4 = -d2;
+
+				half theta = acos(dot(i.normal, m));
+				half P = 2 * UNITY_INV_PI * tan(theta);
+
+				half3 m_prime = m - dot(m, i.normal) * i.normal;
+				m_prime = normalize(m_prime);
+
+				half S1 = max(0, dot(m_prime, d1));
+				half S2 = max(0, dot(m_prime, d2));
+				half S3 = max(0, dot(m_prime, d3));
+				half S4 = max(0, dot(m_prime, d4));
 
 				fixed4 c = 0;
-				c.rgb = skyColor;
-
-				c.rgb = worldNormal * 0.5 + 0.5;
+				c.r = S1 * P;
+				c.g = S2 * P;
+				c.b = S3 * P;
+				c.a = S4 * P;
 				return c;
 			}
 			ENDCG

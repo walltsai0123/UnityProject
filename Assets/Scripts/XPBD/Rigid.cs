@@ -8,7 +8,7 @@ namespace XPBD
     public class Rigid : Body
     {
         public enum eGeometryType { kSphere, kBox, kCylinder, kNone };
-        private Rigidbody m_rigidbody;
+        public Rigidbody m_rigidbody { get; private set; }
         public Collider m_Collider { get; private set; }
         //public bool Fixed = false;
         public float3 Position { get; set; }
@@ -30,14 +30,9 @@ namespace XPBD
 
         public eGeometryType geometryType = eGeometryType.kNone;
 
-        private List<ContactPoint> contactPoints;
-
-        public List<RigidCollision> rigidCollisions;
-
-        private float grabMass;
 
         #region Body
-        public override void CollectCollision(float dt, Primitive primitive)
+        public override void ClearCollision()
         {
         }
 
@@ -45,15 +40,11 @@ namespace XPBD
         {
             if (isGrabbed)
                 return;
-            if(UseGravity)
-            {
-                float3 g = gravity;
-                fext += mass * g;
-            }
-            //Tau = float3.zero;
+
+            float3 g = (UseGravity) ? gravity : float3.zero;
 
             prevPos = Position;
-            vel += dt * InvMass * fext;
+            vel += dt * InvMass * (fext + g);
             Position += dt * vel;
 
             float3x3 I = math.mul(math.mul(new float3x3(Rotation), InertiaBody), new float3x3(math.conjugate(Rotation)));
@@ -65,6 +56,8 @@ namespace XPBD
             Omega.value *= 0.5f * dt;
             quaternion dq = math.mul(Omega, Rotation);
             Rotation = math.normalize(Rotation.value + dq.value);
+
+            ClearForce();
         }
 
         public override void Solve(float dt)
@@ -84,6 +77,7 @@ namespace XPBD
 
             omega = new float3(dqf.x, dqf.y, dqf.z);
             if (dqf.w < 0f) omega *= -1;
+
         }
         public override void VelocitySolve(float dt)
         {
@@ -92,8 +86,8 @@ namespace XPBD
         }
         public override void EndFrame()
         {
-            ClearForce();
-            rigidCollisions.Clear();
+            
+            //rigidCollisions.Clear();
             transform.SetPositionAndRotation(Position, Rotation);
         }
         #endregion
@@ -102,37 +96,26 @@ namespace XPBD
         private void Awake()
         {
             Initialized();
-            contactPoints = new();
-            rigidCollisions = new();
             Debug.Log("Rigid Awake");
         }
 
         private void Start()
         {
             Simulation.get.AddBody(this);
+            isStarted = true;
         }
 
-        private void OnCollisionEnter(Collision collision)
+        private void OnDrawGizmos()
         {
-            AddCollision(collision);
-        }
-        private void OnCollisionStay(Collision collision)
-        {
-            AddCollision(collision);
-        }
-
-        private void OnDrawGizmosSelected()
-        {
-            if (contactPoints == null)
+            if (!isStarted)
                 return;
-            foreach (var cp in contactPoints)
-            {
-                Vector3 point = cp.point;
-                Vector3 normal = cp.normal;
-
-                Gizmos.DrawSphere(point, 0.05f);
-                Gizmos.DrawRay(point, normal);
-            }
+            //Collider collider = GetComponent<Collider>();
+            //Bounds bounds = collider.bounds;
+            //bounds.Expand(2f * math.length(vel) * 0.02f);
+            //Gizmos.color = Color.red;
+            //Gizmos.DrawWireCube(collider.bounds.center, collider.bounds.size);
+            //Gizmos.color = Color.blue;
+            //Gizmos.DrawWireCube(bounds.center, bounds.size);
         }
 
         #endregion
@@ -172,24 +155,6 @@ namespace XPBD
         {
             fext = float3.zero;
             Tau = float3.zero;
-        }
-
-        private void AddCollision(Collision collision)
-        {
-            if (isGrabbed)
-                return;
-            if (collision.collider.gameObject.CompareTag("Primitive"))
-            {
-                collision.GetContacts(contactPoints);
-
-                Primitive primitive = collision.collider.gameObject.GetComponent<Primitive>();
-
-                //rigidCollisions.Add(new(this, primitive, contactPoints[0]));
-                foreach (var cp in contactPoints)
-                {
-                    rigidCollisions.Add(new(this, primitive, cp));
-                }
-            }
         }
 
         #region IGrabbable
