@@ -152,7 +152,7 @@ namespace XPBD
                 body.EndFrame();
 
             stepTimer.Toc();
-            stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+            // stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
         }
 
         private void OnDestroy()

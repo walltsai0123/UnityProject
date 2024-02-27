@@ -95,8 +95,8 @@ namespace XPBD
             CalculateTextureFriction(cam1.renderTexture);
             computeCoefTimer.Toc();
 
-            renderTimer.Report("Render contact patch", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
-            computeCoefTimer.Report("Compute Coef", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+            //renderTimer.Report("Render contact patch", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+            //computeCoefTimer.Report("Compute Coef", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
         }
 
         private void SoftBodyCollision(SoftBody soft, Primitive primitive, float dt)

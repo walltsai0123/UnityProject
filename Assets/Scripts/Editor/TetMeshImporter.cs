@@ -4,36 +4,17 @@ using UnityEditor.AssetImporters;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-[ScriptedImporter(1, "mmesh")]
-public class MeshImporter : ScriptedImporter
+
+[ScriptedImporter(1, "tetmesh")]
+public class TetMeshImporter : ScriptedImporter
 {
     public override void OnImportAsset(AssetImportContext ctx)
     {
         #region Create Imported GameObject
-        var gameObject = new GameObject();
-        ctx.AddObjectToAsset("Main Object", gameObject);
-        ctx.SetMainObject(gameObject);
+        var tetrahedronMesh = ScriptableObject.CreateInstance<TetrahedronMesh>();
+        ctx.AddObjectToAsset("main", tetrahedronMesh);
+        ctx.SetMainObject(tetrahedronMesh);
 
-        var mesh = new Mesh();
-        var startIndex = ctx.assetPath.LastIndexOf("/") + 1;
-        var length = ctx.assetPath.LastIndexOf(".") - startIndex;
-        var meshName = (startIndex >= 0 && length > 0) ? ctx.assetPath.Substring(startIndex, length) : "imported-mesh";
-        mesh.name = meshName;
-        ctx.AddObjectToAsset("Mesh", mesh);
-
-        var meshFilter = gameObject.AddComponent<MeshFilter>();
-        meshFilter.mesh = mesh;
-
-        var meshRenderer = gameObject.AddComponent<MeshRenderer>();
-        var newMaterial = new Material(Shader.Find("Standard"));
-        ctx.AddObjectToAsset("Material", newMaterial);
-        meshRenderer.material = newMaterial;
-
-        //var tetMesh = gameObject.AddComponent<TetMesh>();
-        //tetMesh.tetFileName = ctx.assetPath;
-
-        var physicMesh = gameObject.AddComponent<XPBD.PhysicMesh>();
-        
         #endregion
 
         #region Load Mesh
@@ -57,30 +38,13 @@ public class MeshImporter : ScriptedImporter
             NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref F, AtomicSafetyHandle.Create());
             NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref T, AtomicSafetyHandle.Create());
 #endif
-            mesh.SetVertexBufferParams(VSize, BackEnd.VertexBufferLayout);
-            mesh.SetIndexBufferParams(3 * FSize, IndexFormat.UInt32);
-
-            mesh.SetVertices(V);
-            mesh.SetIndices(F, MeshTopology.Triangles, 0);
-            mesh.SetNormals(N);
-
-            mesh.MarkDynamic(); 
-            mesh.MarkModified();
-            mesh.RecalculateBounds();
-
-            physicMesh.tets = new int[TSize * 4];
-            physicMesh.tets = T.ToArray();
-
-            var tetrahedronMesh = ScriptableObject.CreateInstance<TetrahedronMesh>();
-            tetrahedronMesh.vertices = new Vector3 [VSize];
+            
+            tetrahedronMesh.vertices = new Vector3[VSize];
             tetrahedronMesh.vertices = V.ToArray();
             tetrahedronMesh.faces = new int[FSize * 3];
             tetrahedronMesh.faces = F.ToArray();
             tetrahedronMesh.tets = new int[TSize * 4];
             tetrahedronMesh.tets = T.ToArray();
-
-            ctx.AddObjectToAsset("script object", tetrahedronMesh);
-
 
             V.Dispose();
             N.Dispose();

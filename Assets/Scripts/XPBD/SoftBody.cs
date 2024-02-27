@@ -5,14 +5,23 @@ using Unity.Collections;
 using Unity.Burst;
 using System.Collections.Generic;
 using System;
+using UnityEngine.Assertions;
 
 namespace XPBD
 {
-    public unsafe class SoftBody : Body
+    [RequireComponent(typeof(MeshRenderer), typeof(MeshFilter))]
+    public class SoftBody : Body
     {
-        public VisMesh visMesh;
-        public PhysicMesh physicMesh;
-        private Material material;
+        //public VisMesh visMesh;
+        //public PhysicMesh physicMesh;
+        public TetrahedronMesh tetrahedronMesh;
+
+        private MeshRenderer meshRenderer;
+        private MeshFilter meshFilter;
+        private Mesh visualMesh;
+        private Mesh tetMesh;
+        private Material visualMaterial;
+        public Material wireframeMaterial;
 
         public float mu = 10f, lambda = 1000f;
         public bool showTet = false;
@@ -47,6 +56,7 @@ namespace XPBD
         public int grabId { get; private set; }
         private float grabInvMass;
 
+        #region Body
         public override void ClearCollision()
         {
             
@@ -106,10 +116,9 @@ namespace XPBD
         }
         public override void EndFrame()
         {
-            physicMesh.Show(showTet);
-            visMesh.Show(showVis);
-
-            physicMesh.UpdateMesh(Pos);
+            //physicMesh.Show(showTet);
+            //visMesh.Show(showVis);
+            //physicMesh.UpdateMesh(Pos);
 
             UpdateVisMeshJob updateVisMeshJob = new UpdateVisMeshJob
             {
@@ -121,9 +130,32 @@ namespace XPBD
             jobHandle = updateVisMeshJob.Schedule(visPos.Length, 1, jobHandle);
             jobHandle.Complete();
 
-            visMesh.UpdateMesh(visPos);
+            //visMesh.UpdateMesh(visPos);
 
+            visualMesh.SetVertices(visPos);
+            visualMesh.RecalculateBounds();
+            visualMesh.RecalculateNormals();
+            visualMesh.RecalculateTangents();
+
+            tetMesh.SetVertices(Pos);
+            tetMesh.RecalculateBounds();
+            tetMesh.RecalculateNormals();
+            tetMesh.RecalculateTangents();
+
+            if (showTet)
+            {
+                meshFilter.mesh = tetMesh;
+                meshRenderer.material = wireframeMaterial;
+            }
+            else
+            {
+                meshFilter.mesh = visualMesh;
+                meshRenderer.material = visualMaterial;
+            }
+                
         }
+
+        #endregion
 
         #region IGrabbable
         public override void StartGrab(Vector3 grabPos)
@@ -183,7 +215,8 @@ namespace XPBD
         public override void IsRayHittingBody(Ray ray, out CustomHit hit)
         {
             float3[] vertices = Pos.ToArray();
-            int[] triangles = physicMesh.mesh.triangles;
+            //int[] triangles = physicMesh.mesh.triangles;
+            int[] triangles = tetrahedronMesh.faces;
 
             Intersection.IsRayHittingMesh(ray, vertices, triangles, out hit);
         }
@@ -197,12 +230,15 @@ namespace XPBD
         #region Monobehaviour
         private void Awake()
         {
-            visMesh.Initialize();
-            physicMesh.Initialize();
-            material = visMesh.meshRenderer.material;
-            Initialize();
-            //ID = BackEnd.AddXPBDSoftBody(visMesh.state, physicMesh.state, transform.position, transform.rotation, mass, mu, lambda);
-            //Debug.Log(ID);
+            //visMesh.Initialize();
+            //physicMesh.Initialize();
+
+            Assert.IsNotNull(tetrahedronMesh);
+
+            InitializeMesh();
+            //InitializePhysics();
+
+            InitializePhysics2();
             Debug.Log("SoftBody Awake");
         }
         private void Start()
@@ -225,12 +261,33 @@ namespace XPBD
         }
         #endregion
 
-        private void Initialize()
+        private void InitializeMesh()
+        {
+            meshFilter = GetComponent<MeshFilter>();
+            meshRenderer = GetComponent<MeshRenderer>();
+
+            visualMesh = meshFilter.mesh;
+
+            // Create tetmesh from tetrahedron data
+            tetMesh = new Mesh();
+            tetMesh.name = gameObject.name + "_tetmesh";
+            tetMesh.SetVertices(tetrahedronMesh.vertices);
+            tetMesh.SetIndices(tetrahedronMesh.faces, MeshTopology.Triangles, 0);
+            tetMesh.MarkDynamic();
+            tetMesh.MarkModified();
+            tetMesh.RecalculateBounds();
+            tetMesh.RecalculateNormals();
+
+            // Set materials
+            visualMaterial = meshRenderer.material;
+
+        }
+        private void InitializePhysics2()
         {
             bodyType = BodyType.Soft;
 
-            VerticesNum = physicMesh.mesh.vertices.Length;
-            TetsNum = physicMesh.tets.Length / 4;
+            VerticesNum = tetrahedronMesh.vertices.Length;
+            TetsNum = tetrahedronMesh.tets.Length / 4;
 
             Pos = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
             prevPos = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
@@ -244,16 +301,16 @@ namespace XPBD
             // Initialize NativeArrays
             for (int i = 0; i < VerticesNum; ++i)
             {
-                Pos[i] = prevPos[i] = physicMesh.mesh.vertices[i];
+                Pos[i] = prevPos[i] = tetrahedronMesh.vertices[i];
                 Vel[i] = v0;
                 invMass[i] = 0f;
             }
             for (int i = 0; i < TetsNum; ++i)
             {
-                int id0 = physicMesh.tets[4 * i + 0];
-                int id1 = physicMesh.tets[4 * i + 1];
-                int id2 = physicMesh.tets[4 * i + 2];
-                int id3 = physicMesh.tets[4 * i + 3];
+                int id0 = tetrahedronMesh.tets[4 * i + 0];
+                int id1 = tetrahedronMesh.tets[4 * i + 1];
+                int id2 = tetrahedronMesh.tets[4 * i + 2];
+                int id3 = tetrahedronMesh.tets[4 * i + 3];
 
                 tets[i] = new int4(id0, id1, id2, id3);
             }
@@ -296,8 +353,8 @@ namespace XPBD
             }
 
             // Visual embedded mesh
-            visPos = new NativeArray<float3>(visMesh.mesh.vertexCount, Allocator.Persistent);
-            ComputeSkinningInfo();
+            visPos = new NativeArray<float3>(visualMesh.vertexCount, Allocator.Persistent);
+            ComputeSkinningInfo2();
 
             // Move to starting position
             startPos = transform.position;
@@ -305,12 +362,12 @@ namespace XPBD
             Translate(startPos);
         }
 
-        private void ComputeSkinningInfo()
+        private void ComputeSkinningInfo2()
         {
-            int numVisVerts = visMesh.mesh.vertexCount;
+            int numVisVerts = visualMesh.vertexCount;
 
             Hash hash = new Hash(0.15f, numVisVerts);
-            hash.Create(visMesh.mesh.vertices);
+            hash.Create(visualMesh.vertices);
 
             skinningInfo = new NativeArray<float4>(numVisVerts, Allocator.Persistent);
             for (int i = 0; i < skinningInfo.Length; ++i)
@@ -324,8 +381,8 @@ namespace XPBD
             float3 tetCenter = float3.zero;
             float3x3 mat = float3x3.zero;
             float4 bary = float4.zero;
-            float averageEdge = 0f;
-            for(int i = 0; i < TetsNum; ++i)
+            //float averageEdge = 0f;
+            for (int i = 0; i < TetsNum; ++i)
             {
                 // Compute bounding sphere for tet
                 tetCenter = float3.zero;
@@ -372,7 +429,7 @@ namespace XPBD
                     if (minDist[id] <= 0f)
                         continue;
 
-                    float3 visVert = visMesh.mesh.vertices[id];
+                    float3 visVert = visualMesh.vertices[id];
                     if (math.lengthsq(visVert - tetCenter) > rMax * rMax)
                         continue;
 
@@ -392,7 +449,7 @@ namespace XPBD
                     }
                 }
             }
-            averageEdge /= TetsNum;
+            // averageEdge /= TetsNum;
             // Debug.Log("averageEdge " + averageEdge);
 
             // Print skinningInfo
