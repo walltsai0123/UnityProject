@@ -11,13 +11,13 @@ namespace XPBD
         private Primitive primitive;
         private int index;
 
-        public float4 frictionCoef;
+        //public float4 frictionCoef;
         public float restitutionCoef;
         public float3 q;   //Contact point
-        public float3 N;   //Surface normal
         private float3 fn;
         public float3 vn_;
 
+        public float3 N;   //Surface normal
         public float3 T;    //Surface tangent
         public float3 B;    //Surface bitangent
 

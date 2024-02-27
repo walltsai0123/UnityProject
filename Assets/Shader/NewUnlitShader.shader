@@ -71,7 +71,6 @@ Shader "Custom/NewUnlitShader"
 
 			fixed4 frag(v2f i) : SV_Target
 			{
-				
 				// sample the normal map, and decode from the Unity encoding
 				half3 tnormal = UnpackNormal(tex2D(_BumpMap, i.uv));
 

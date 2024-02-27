@@ -75,7 +75,7 @@ Camera:
     m_Bits: 4294967295
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
-  m_TargetDisplay: 1
+  m_TargetDisplay: 7
   m_TargetEye: 3
   m_HDR: 1
   m_AllowMSAA: 1
@@ -96,4 +96,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa1f5166ace68d94aac2fa36db743292, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  layer: 0
   shader: {fileID: 4800000, guid: 3e4c55cb6732c5d49889373c91b02064, type: 3}
+  renderTexture: {fileID: 0}

@@ -14,15 +14,6 @@ public class TestScript : MonoBehaviour
     private void Start()
     {
         started = true;
-
-        Color color = Color.yellow;
-        Vector4 v = color;
-
-        Debug.Log(color);
-        Debug.Log(v.x);
-        Debug.Log(v.y);
-        Debug.Log(v.z);
-        Debug.Log(v.w);
     }
     private void Update()
     {

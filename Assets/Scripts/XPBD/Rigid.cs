@@ -44,7 +44,8 @@ namespace XPBD
             float3 g = (UseGravity) ? gravity : float3.zero;
 
             prevPos = Position;
-            vel += dt * InvMass * (fext + g);
+            vel += dt * InvMass * fext;
+            vel += dt * g;
             Position += dt * vel;
 
             float3x3 I = math.mul(math.mul(new float3x3(Rotation), InertiaBody), new float3x3(math.conjugate(Rotation)));

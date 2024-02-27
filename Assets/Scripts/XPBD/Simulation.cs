@@ -23,6 +23,12 @@ namespace XPBD
         private bool pause = false;
         private bool stepOnce = false;
 
+        private int totalContacts = 0;
+        private int totalSimLoops = 0;
+
+        // Timer
+        //Timer stepTimer;
+
         public void AddPrimitive(Primitive p)
         {
             primitives.Add(p);
@@ -58,13 +64,13 @@ namespace XPBD
 
         private void FixedUpdate()
         {
-            if (pause && !stepOnce)
-                return;
-            float dt = Time.fixedDeltaTime;
-            SimulationUpdate(dt, substeps);
+            //if (pause && !stepOnce)
+            //    return;
+            //float dt = Time.fixedDeltaTime;
+            //SimulationUpdate(dt, substeps);
 
-            //Clear step once flag
-            stepOnce = false;
+            ////Clear step once flag
+            //stepOnce = false;
         }
 
         private void Update()
@@ -79,6 +85,14 @@ namespace XPBD
             {
                 stepOnce = true;
             }
+
+            if (pause && !stepOnce)
+                return;
+            float dt = Time.deltaTime;
+            SimulationUpdate(dt, substeps);
+
+            //Clear step once flag
+            stepOnce = false;
         }
 
         private void LateUpdate()
@@ -98,9 +112,17 @@ namespace XPBD
 
         private void SimulationUpdate(float dt, int substeps)
         {
+            Timer stepTimer = new(); stepTimer.Tic();
             //collisions.Clear();
             collisionDetect.CollectCollision(bodies, primitives, dt);
             collisions = collisionDetect.Collisions;
+
+            if(collisions.Count > 0)
+            {
+                totalContacts += collisions.Count;
+                totalSimLoops++;
+            }
+            
 
             float sdt = dt / substeps;
             for (int step = 0; step < substeps; ++step)
@@ -129,13 +151,15 @@ namespace XPBD
             foreach (Body body in bodies)
                 body.EndFrame();
 
-            //foreach (CollisionConstraint collision in collisions)
-            //    Debug.Log(collision.ToString());
+            stepTimer.Toc();
+            stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
         }
 
         private void OnDestroy()
         {
             // BackEnd.XPBDSimDelete();
+            if (totalSimLoops > 0)
+                Debug.Log("Average contacts: " + totalContacts / totalSimLoops);
             Debug.Log("Simulation Destroy");
         }
     }

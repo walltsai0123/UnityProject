@@ -11,31 +11,29 @@ public class CollisionCamera : MonoBehaviour
     public int layer;
     [SerializeField] Shader shader;
     public RenderTexture renderTexture;
-    private int display;
 
     void Start()
     {
         Cam = GetComponent<Camera>();
         Cam.cullingMask = 1 << layer;
-        if(shader != null)
-            Cam.SetReplacementShader(shader, "");
-        display = Cam.targetDisplay;
-
+        //if(shader != null)
+        //    Cam.SetReplacementShader(shader, "");
+        Assert.IsTrue(shader != null);
         Assert.IsTrue(renderTexture != null);
+
+        renderTexture.Release();
     }
 
     public void RenderToTexture()
     {
-        Cam.targetTexture = renderTexture;
+        //Cam.targetTexture = renderTexture;
+        //Cam.Render();
+        //Cam.targetTexture = null;
+        Cam.RenderWithShader(shader, "");
     }
 
-    public void RenderToDisplay()
+    public void SetViewPort(float x, float y, float w, float h)
     {
-        Cam.targetTexture = null;
-    }
-
-    public void Render()
-    {
-        Cam.Render();
+        Cam.pixelRect = new Rect(x, y, w, h);
     }
 }

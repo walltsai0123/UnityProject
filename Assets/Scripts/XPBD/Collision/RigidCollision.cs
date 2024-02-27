@@ -17,7 +17,7 @@ namespace XPBD
         float lambda_n = 0f;
         float lambda_t = 0f;
 
-        float frictionCoef = 0.4f;
+        new float frictionCoef = 0.4f;
         float restitutionCoef = 0.25f;
         float vn_;
 
