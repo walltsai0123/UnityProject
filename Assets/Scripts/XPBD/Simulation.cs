@@ -26,6 +26,8 @@ namespace XPBD
         private int totalContacts = 0;
         private int totalSimLoops = 0;
 
+        public bool UseNeoHookeanMaterial = true;
+
         // Timer
         //Timer stepTimer;
 
@@ -60,17 +62,6 @@ namespace XPBD
 
             // BackEnd.XPBDSimInit();
             Debug.Log("Simulation Awake");
-        }
-
-        private void FixedUpdate()
-        {
-            //if (pause && !stepOnce)
-            //    return;
-            //float dt = Time.fixedDeltaTime;
-            //SimulationUpdate(dt, substeps);
-
-            ////Clear step once flag
-            //stepOnce = false;
         }
 
         private void Update()

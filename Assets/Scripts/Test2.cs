@@ -3,32 +3,19 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-[RequireComponent(typeof(MeshRenderer), typeof(MeshFilter))]
 public class Test2 : MonoBehaviour
 {
-    public TetrahedronMesh tetmesh;
-
-    private MeshFilter meshFilter;
-    public Mesh mesh { get; private set; }
-    public MeshRenderer meshRenderer { get; private set; }
-
     private void Start()
     {
-        if (tetmesh == null)
-            return;
+        Vector2Int v1 = new(1, 2);
+        Vector2Int v2 = new(1, 2);
 
-        meshFilter = GetComponent<MeshFilter>();
-        mesh = meshFilter.mesh;
-        meshRenderer = GetComponent<MeshRenderer>();
-        meshRenderer.material = new Material(Shader.Find("Standard"));
+        HashSet<Vector2Int> vector2Ints = new HashSet<Vector2Int>();
+        vector2Ints.Add(v1);
+        vector2Ints.Add(v2);
 
-        mesh.SetVertices(tetmesh.vertices);
-        mesh.SetIndices(tetmesh.faces, MeshTopology.Triangles, 0);
-        mesh.MarkDynamic();
-        mesh.MarkModified();
-        mesh.RecalculateBounds();
-        mesh.RecalculateNormals();
-
-        Debug.Log(mesh.normals.Length);
+        Debug.Log(vector2Ints.Count);
+        foreach (var v in vector2Ints)
+            Debug.Log(v);
     }
 }

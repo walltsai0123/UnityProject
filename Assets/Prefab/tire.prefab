@@ -104,7 +104,6 @@ MonoBehaviour:
   EnableContact: 0
   grabbable: 0
   v0: {x: 0, y: 0, z: 0}
-  geometryType: 2
 --- !u!54 &3806346073084710603
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -164,6 +163,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8174872596640538779}
+  - component: {fileID: 9051494650249104081}
   m_Layer: 0
   m_Name: tire
   m_TagString: Untagged
@@ -188,6 +188,20 @@ Transform:
   - {fileID: 7343988575711932178}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &9051494650249104081
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5801679952954441588}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 230ae5c514a4c444295132a5660ffe44, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rim: {fileID: 1682568921469600946}
+  rubber: {fileID: 5344519272011532534}
 --- !u!1001 &6835947509563440012
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -286,11 +300,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bodyType: 0
-  mass: 20
+  mass: 12
   UseGravity: 1
   EnableContact: 1
   grabbable: 1
-  tetrahedronMesh: {fileID: -6750239444755058063, guid: ab97cac55293f3441b9fc32e01d1a779, type: 3}
+  tetrahedronMesh: {fileID: -6750239444755058063, guid: b8f86316a918a784d9a8a34c363a9d37, type: 3}
   wireframeMaterial: {fileID: 2100000, guid: 6833a623d1b4df54abdfe933a1483a27, type: 2}
   mu: 3000
   lambda: 3000000

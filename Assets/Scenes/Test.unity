@@ -136,6 +136,7 @@ GameObject:
   - component: {fileID: 173264202}
   - component: {fileID: 173264201}
   - component: {fileID: 173264200}
+  - component: {fileID: 173264205}
   m_Layer: 0
   m_Name: Plane
   m_TagString: Untagged
@@ -226,7 +227,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 173264199}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!4 &173264204
 Transform:
   m_ObjectHideFlags: 0
@@ -237,11 +238,25 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 50, y: 2, z: 50}
+  m_LocalScale: {x: 20, y: 1, z: 20}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &173264205
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 173264199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7602153f42a9934ea7b60bc95fbd8f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  normal: {x: 0, y: 1, z: 0}
+  center: {x: 0, y: 0, z: 0}
 --- !u!1 &565776521
 GameObject:
   m_ObjectHideFlags: 0
@@ -699,13 +714,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1604191934}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 5.91, z: 0}
+  m_LocalRotation: {x: 0.5735764, y: 0, z: 0, w: 0.8191521}
+  m_LocalPosition: {x: 0, y: 5, z: -1.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 70, y: 0, z: 0}
 --- !u!114 &1604191938
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1033,7 +1048,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc74fca1879105f4291617d80d1385d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  substeps: 10
+  substeps: 20
   gravity: {x: 0, y: -9.81, z: 0}
 --- !u!4 &2047814475
 Transform:
@@ -1183,6 +1198,22 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1682568921469600946, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: v0.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2879937252382375008, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5344519272011532534, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: mu
+      value: 5000
+      objectReference: {fileID: 0}
+    - target: {fileID: 5344519272011532534, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: lambda
+      value: 5000000
+      objectReference: {fileID: 0}
     - target: {fileID: 5801679952954441588, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Name
       value: tire

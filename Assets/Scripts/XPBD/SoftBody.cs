@@ -25,7 +25,7 @@ namespace XPBD
 
         public float mu = 10f, lambda = 1000f;
         public bool showTet = false;
-        public bool showVis = true;
+        //public bool showVis = true;
 
         // Simulation Data NativeArray
         public NativeArray<float3> Pos;
@@ -35,6 +35,10 @@ namespace XPBD
         public NativeArray<float> invMass;
         private NativeArray<float> restVolumes;
         private NativeArray<float3x3> invDm;
+        private NativeArray<int2> edges;
+        private NativeArray<float> restEdgeLengths;
+
+        private NativeArray<int3> volIdOrder;
         public float3 fext { get; set; }
 
         // Skinning Info
@@ -43,6 +47,8 @@ namespace XPBD
 
         public int VerticesNum { get; private set; }
         public int TetsNum { get; private set; }
+
+        private int EdgesNum;
 
         private float3 startPos;
         [SerializeField]
@@ -55,13 +61,13 @@ namespace XPBD
         // Grabber info
         public int grabId { get; private set; }
         private float grabInvMass;
+        
 
         #region Body
         public override void ClearCollision()
         {
             
         }
-        
 
         public override void PreSolve(float dt, Vector3 gravity)
         {
@@ -84,19 +90,40 @@ namespace XPBD
 
         public override void Solve(float dt)
         {
-            SolveElementJob solveElementJob = new SolveElementJob
+            if(Simulation.get.UseNeoHookeanMaterial)
             {
-                dt = dt,
-                mu = this.mu,
-                lambda = this.lambda,
-                pos = this.Pos,
-                tets = this.tets,
-                restVolumes = this.restVolumes,
-                invDm = this.invDm,
-                invMass = this.invMass
-            };
-            jobHandle = solveElementJob.Schedule(TetsNum, jobHandle);
-            jobHandle.Complete();
+                SolveElementJob solveElementJob = new SolveElementJob
+                {
+                    dt = dt,
+                    mu = this.mu,
+                    lambda = this.lambda,
+                    pos = this.Pos,
+                    tets = this.tets,
+                    restVolumes = this.restVolumes,
+                    invDm = this.invDm,
+                    invMass = this.invMass
+                };
+                jobHandle = solveElementJob.Schedule(jobHandle);
+                jobHandle.Complete();
+            }
+            else
+            {
+                SolveElementJob2 solveElementJob2 = new SolveElementJob2
+                {
+                    dt = dt,
+                    mu = this.mu,
+                    lambda = this.lambda,
+                    pos = this.Pos,
+                    edges = this.edges,
+                    tets = this.tets,
+                    restEdgeLengths = this.restEdgeLengths,
+                    restVolumes = this.restVolumes,
+                    invMass = this.invMass,
+                    volIdOrder = this.volIdOrder
+                };
+                jobHandle = solveElementJob2.Schedule(jobHandle);
+                jobHandle.Complete();
+            }
         }
 
         public override void PostSolve(float dt)
@@ -258,6 +285,10 @@ namespace XPBD
             if (invDm.IsCreated) invDm.Dispose();
             if (visPos.IsCreated) visPos.Dispose();
             if (skinningInfo.IsCreated) skinningInfo.Dispose();
+
+            if (edges.IsCreated) edges.Dispose();
+            if (restEdgeLengths.IsCreated) restEdgeLengths.Dispose();
+            if (volIdOrder.IsCreated) volIdOrder.Dispose();
         }
         #endregion
 
@@ -288,6 +319,7 @@ namespace XPBD
 
             VerticesNum = tetrahedronMesh.vertices.Length;
             TetsNum = tetrahedronMesh.tets.Length / 4;
+            EdgesNum = tetrahedronMesh.edges.Length / 2;
 
             Pos = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
             prevPos = new NativeArray<float3>(VerticesNum, Allocator.Persistent);
@@ -297,6 +329,15 @@ namespace XPBD
             tets = new NativeArray<int4>(TetsNum, Allocator.Persistent);
             restVolumes = new NativeArray<float>(TetsNum, Allocator.Persistent);
             invDm = new NativeArray<float3x3>(TetsNum, Allocator.Persistent);
+
+            edges = new NativeArray<int2>(EdgesNum, Allocator.Persistent);
+            restEdgeLengths = new NativeArray<float>(EdgesNum, Allocator.Persistent);
+
+            volIdOrder = new NativeArray<int3>(4, Allocator.Persistent);
+            volIdOrder[0] = new(1, 3, 2);
+            volIdOrder[1] = new(0, 2, 3);
+            volIdOrder[2] = new(0, 3, 1);
+            volIdOrder[3] = new(0, 1, 2);
 
             // Initialize NativeArrays
             for (int i = 0; i < VerticesNum; ++i)
@@ -318,6 +359,14 @@ namespace XPBD
             {
                 restVolumes[i] = 0f;
                 invDm[i] = float3x3.identity;
+            }
+            for(int i = 0; i < EdgesNum; ++i)
+            {
+                int id0 = tetrahedronMesh.edges[2 * i + 0];
+                int id1 = tetrahedronMesh.edges[2 * i + 1];
+
+                edges[i] = new int2(id0, id1);
+                restEdgeLengths[i] = math.length(Pos[id0] - Pos[id1]);
             }
 
             // Rest volume
@@ -499,7 +548,7 @@ namespace XPBD
         }
 
         [BurstCompile]
-        private struct SolveElementJob : IJobFor
+        private struct SolveElementJob : IJob
         {
             public float dt;
             public float mu;
@@ -518,15 +567,15 @@ namespace XPBD
 
             private float3x4 gradients;
             private float3x3 F, dF;
-            public void Execute(int index)
+            public void Execute()
             {
-                //for (int index = 0; index < tets.Length; ++index)
-                //{
-                //    SolveDeviatoric(index);
-                //    SolveVolumetric(index);
-                //}
-                SolveDeviatoric(index);
-                SolveVolumetric(index);
+                for (int index = 0; index < tets.Length; ++index)
+                {
+                    SolveDeviatoric(index);
+                    SolveVolumetric(index);
+                }
+                //SolveDeviatoric(index);
+                //SolveVolumetric(index);
             }
 
             private float3x3 GetDeformationGradient(int tetIndex)
@@ -638,6 +687,173 @@ namespace XPBD
                 pos[id1] += dlambda * invMass[id1] * gradients.c1;
                 pos[id2] += dlambda * invMass[id2] * gradients.c2;
                 pos[id3] += dlambda * invMass[id3] * gradients.c3;
+            }
+        }
+
+        [BurstCompile]
+        private struct SolveElementJob2 : IJob
+        {
+            public float dt;
+            public float mu;
+            public float lambda;
+
+            public NativeArray<float3> pos;
+
+            [ReadOnly]
+            public NativeArray<int2> edges;
+            [ReadOnly]
+            public NativeArray<int4> tets;
+            [ReadOnly]
+            public NativeArray<float> restEdgeLengths;
+            [ReadOnly]
+            public NativeArray<float> restVolumes;
+            [ReadOnly]
+            public NativeArray<float> invMass;
+
+            private float3x4 gradients;
+
+            public NativeArray<int3> volIdOrder;
+
+            public void Execute()
+            {
+                SolveEdges();
+                SolveVolumes();
+            }
+
+            private void SolveEdges()
+            {
+                float compliance = 1f / mu;
+                float alpha = compliance / (dt * dt);
+
+                //For each edge
+                for (int i = 0; i < edges.Length; ++i)
+                {
+                    //2 vertices per edge in the data structure, so multiply by 2 to get the correct vertex index
+                    int id0 = edges[i].x;
+                    int id1 = edges[i].y;
+
+                    float w0 = invMass[id0];
+                    float w1 = invMass[id1];
+
+                    float wTot = w0 + w1;
+
+                    //This edge is fixed so dont simulate
+                    if (wTot < Util.EPSILON)
+                        continue;
+
+                    //x0-x1
+                    //The result is stored in grads array
+                    float3 id0_minus_id1 = pos[id0] - pos[id1];
+
+                    //sqrMargnitude(x0-x1)
+                    float l = math.length(id0_minus_id1);
+
+                    //If they are at the same pos we get a divisio by 0 later so ignore
+                    if (l < Util.EPSILON)
+                    {
+                        continue;
+                    }
+
+                    //(x0-x1) * (1/|x0-x1|) = gradC
+                    float3 gradC = id0_minus_id1 / l;
+
+                    float l_rest = restEdgeLengths[i];
+
+                    float C = l - l_rest;
+
+                    //lambda because |grad_Cn|^2 = 1 because if we move a particle 1 unit, the distance between the particles also grows with 1 unit, and w = w0 + w1
+                    float lambda = -C / (wTot + alpha);
+
+                    //Move the vertices x = x + deltaX where deltaX = lambda * w * gradC
+                    pos[id0] += lambda * w0 * gradC;
+                    pos[id1] += -lambda * w1 * gradC;
+                }
+            }
+
+            private void SolveVolumes()
+            {
+                float compliance = 1f / lambda;
+                float alpha = compliance / (dt * dt);
+
+                for (int i = 0; i < tets.Length; ++i)
+                {
+                    float wTimesGrad = 0f;
+
+                    //Foreach vertex in the tetra
+                    for (int j = 0; j < 4; j++)
+                    {
+                        int idThis = tets[i][j];
+
+                        //The 3 opposite vertices ids
+                        int id0 = tets[i][volIdOrder[j][0]];
+                        int id1 = tets[i][volIdOrder[j][1]];
+                        int id2 = tets[i][volIdOrder[j][2]];
+
+                        //(x4 - x2)
+                        float3 id1_minus_id0 = pos[id1] - pos[id0];
+                        //(x3 - x2)
+                        float3 id2_minus_id0 = pos[id2] - pos[id0];
+
+                        //(x4 - x2)x(x3 - x2)
+                        float3 cross = math.cross(id1_minus_id0, id2_minus_id0);
+
+                        //Multiplying by 1/6 in the denominator is the same as multiplying by 6 in the numerator
+                        //Im not sure why hes doing it... maybe because alpha should not be affected by it?  
+                        float3 gradC = cross * (1f / 6f);
+
+                        gradients[j] = gradC;
+
+                        //w1 * |grad_C1|^2
+                        wTimesGrad += invMass[idThis] * math.lengthsq(gradC);
+                    }
+
+                    //All vertices are fixed so dont simulate
+                    if (wTimesGrad <= Util.EPSILON)
+                    {
+                        continue;
+                    }
+
+                    float vol = GetTetVolume(i);
+                    float restVol = restVolumes[i];
+
+                    float C = vol - restVol;
+
+                    //The guy in the video is dividing by 6 in the code but multiplying in the video
+                    //C *= 6f;
+
+                    float lambda = -C / (wTimesGrad + alpha);
+
+                    //Move each vertex
+                    for (int j = 0; j < 4; j++)
+                    {
+                        int id = tets[i][j];
+
+                        //Move the vertices x = x + deltaX where deltaX = lambda * w * gradC
+                        pos[id] += lambda * invMass[id] * gradients[j];
+                    }
+                }
+
+            }
+
+            private float GetTetVolume(int index)
+            {
+                //The 4 vertices belonging to this tetra 
+                int id0 = tets[index][0];
+                int id1 = tets[index][1];
+                int id2 = tets[index][2];
+                int id3 = tets[index][3];
+
+                float3 a = pos[id0];
+                float3 b = pos[id1];
+                float3 c = pos[id2];
+                float3 d = pos[id3];
+
+                float3 d0 = b - a;
+                float3 d1 = c - a;
+                float3 d2 = d - a;
+
+                float volume = math.dot(math.cross(d1, d2), d0) * (1f / 6f);
+                return volume;
             }
         }
 

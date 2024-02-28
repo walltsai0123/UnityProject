@@ -2,7 +2,13 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public abstract class Geometry : MonoBehaviour
+namespace XPBD
 {
-    public abstract bool Raycast(Ray ray);
+    public abstract class Geometry : MonoBehaviour
+    {
+        public abstract Vector3 ClosestSurfacePoint(Vector3 point, out Vector3 surfaceNormal);
+        public abstract bool IsInside(Vector3 point);
+        public abstract bool Raycast(Ray ray, out RaycastHit hit, float maxDistance);
+    }
 }
+

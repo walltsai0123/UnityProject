@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEditor.AssetImporters;
@@ -45,6 +47,7 @@ public class TetMeshImporter : ScriptedImporter
             tetrahedronMesh.faces = F.ToArray();
             tetrahedronMesh.tets = new int[TSize * 4];
             tetrahedronMesh.tets = T.ToArray();
+            tetrahedronMesh.edges = CalculateMeshEdges(tetrahedronMesh.tets).ToArray();
 
             V.Dispose();
             N.Dispose();
@@ -52,6 +55,46 @@ public class TetMeshImporter : ScriptedImporter
             T.Dispose();
         }
         #endregion
+    }
+
+    private List<int> CalculateMeshEdges(int [] tets)
+    {
+        HashSet<Vector2Int> Set = new HashSet<Vector2Int>();
+
+        for(int i = 0; i < tets.Length; i += 4)
+        {
+            int [] ids = new int[4];
+            ids[0] = tets[i + 0];
+            ids[1] = tets[i + 1];
+            ids[2] = tets[i + 2];
+            ids[3] = tets[i + 3];
+
+            Array.Sort(ids);
+
+            Vector2Int e0 = new(ids[0], ids[1]);
+            Vector2Int e1 = new(ids[0], ids[2]);
+            Vector2Int e2 = new(ids[0], ids[3]);
+            Vector2Int e3 = new(ids[1], ids[2]);
+            Vector2Int e4 = new(ids[1], ids[3]);
+            Vector2Int e5 = new(ids[2], ids[3]);
+
+            Set.Add(e0);
+            Set.Add(e1);
+            Set.Add(e2);
+            Set.Add(e3);
+            Set.Add(e4);
+            Set.Add(e5);
+        }
+
+        List<int> result = new();
+
+        foreach(var edge in Set)
+        {
+            result.Add(edge[0]);
+            result.Add(edge[1]);
+        };
+
+        return result;
     }
 
 }

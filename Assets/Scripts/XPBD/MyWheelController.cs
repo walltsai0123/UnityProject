@@ -18,6 +18,7 @@ namespace XPBD
         public float brakingForce = 300f;
         public float maxTurnAngle = 15f;
 
+        [SerializeField]
         private float currentAccel = 0f;
         private float currentBrakeForce = 0f;
         private float currentTurnAngle = 0f;
@@ -65,8 +66,6 @@ namespace XPBD
 
             frontLeft.SteerAngle = currentTurnAngle;
             frontRight.SteerAngle = currentTurnAngle;
-
-            //rack.fext = currentTurnAngle * 100f * Axis;
 
             fLHinge.targetAngle = currentTurnAngle;
             fRHinge.targetAngle = currentTurnAngle;

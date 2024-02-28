@@ -8,6 +8,7 @@ namespace XPBD
     public class Primitive : MonoBehaviour
     {
         public new Collider collider { get; private set; }
+        public Geometry Geometry { get; private set; }
         public Vector3 defaultNormal = Vector3.up;
         private bool isStarted = false;
 
@@ -18,7 +19,10 @@ namespace XPBD
         {
             gameObject.tag = "Primitive";
             collider = GetComponent<Collider>();
+            Geometry = GetComponent<Geometry>();
             Simulation.get.AddPrimitive(this);
+
+            Debug.Log(Geometry);
         }
 
         private void Start()
@@ -28,11 +32,11 @@ namespace XPBD
 
         private void OnDrawGizmos()
         {
-            if (!isStarted)
-                return;
+            //if (!isStarted)
+            //    return;
 
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireCube(collider.bounds.center, collider.bounds.size);
+            //Gizmos.color = Color.red;
+            //Gizmos.DrawWireCube(collider.bounds.center, collider.bounds.size);
         }
     }
 }

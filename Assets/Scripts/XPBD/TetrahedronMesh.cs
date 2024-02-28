@@ -8,4 +8,5 @@ public class TetrahedronMesh : ScriptableObject
     public Vector3[] vertices;
     public int[] faces;
     public int[] tets;
+    public int[] edges;
 }

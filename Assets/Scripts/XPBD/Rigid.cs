@@ -7,7 +7,6 @@ namespace XPBD
     [RequireComponent(typeof(Rigidbody))]
     public class Rigid : Body
     {
-        public enum eGeometryType { kSphere, kBox, kCylinder, kNone };
         public Rigidbody m_rigidbody { get; private set; }
         public Collider m_Collider { get; private set; }
         //public bool Fixed = false;
@@ -28,7 +27,6 @@ namespace XPBD
         [SerializeField] 
         private Vector3 v0 = Vector3.zero;
 
-        public eGeometryType geometryType = eGeometryType.kNone;
 
 
         #region Body
@@ -40,6 +38,15 @@ namespace XPBD
         {
             if (isGrabbed)
                 return;
+
+            // Inverse mass is 0, which means it's fixed
+            if (InvMass < Util.EPSILON)
+            {
+                vel = float3.zero;
+                omega = float3.zero;
+                return;
+            }
+                
 
             float3 g = (UseGravity) ? gravity : float3.zero;
 
@@ -58,7 +65,7 @@ namespace XPBD
             quaternion dq = math.mul(Omega, Rotation);
             Rotation = math.normalize(Rotation.value + dq.value);
 
-            ClearForce();
+            
         }
 
         public override void Solve(float dt)
@@ -87,7 +94,7 @@ namespace XPBD
         }
         public override void EndFrame()
         {
-            
+            ClearForce();
             //rigidCollisions.Clear();
             transform.SetPositionAndRotation(Position, Rotation);
         }
