@@ -266,7 +266,7 @@ namespace XPBD
             //InitializePhysics();
 
             InitializePhysics2();
-            Debug.Log("SoftBody Awake");
+            //Debug.Log("SoftBody Awake");
         }
         private void Start()
         {

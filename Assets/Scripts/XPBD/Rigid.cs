@@ -12,18 +12,34 @@ namespace XPBD
         //public bool Fixed = false;
         public float3 Position { get; set; }
         public quaternion Rotation { get; set; }
+
+        // Linear velocity
         public float3 vel { get; set; }
+
+        // Angular velocity
         public float3 omega { get; set; }
+
+        // Linear force
         public float3 fext { get; set; }
+
+        // Angular force (torque)
         public float3 Tau { get; set; }
 
+        // Inertia and inverse inertia in the local body frame
         public float3x3 InertiaBody { get; private set; }
         public float3x3 InertiaBodyInv { get; private set; }
-
+        public float3x3 InertiaInv
+        {
+            get
+            {
+                return math.mul(new float3x3(Rotation), math.mul(InertiaBodyInv, new float3x3(math.conjugate(Rotation))));
+            }
+        }
         // Previous position and rotation
         public float3 prevPos { get; private set; }
         public quaternion prevRot { get; private set; }
 
+        // Initial linear velocity
         [SerializeField] 
         private Vector3 v0 = Vector3.zero;
 
@@ -64,8 +80,6 @@ namespace XPBD
             Omega.value *= 0.5f * dt;
             quaternion dq = math.mul(Omega, Rotation);
             Rotation = math.normalize(Rotation.value + dq.value);
-
-            
         }
 
         public override void Solve(float dt)
@@ -104,7 +118,7 @@ namespace XPBD
         private void Awake()
         {
             Initialized();
-            Debug.Log("Rigid Awake");
+            //Debug.Log("Rigid Awake");
         }
 
         private void Start()

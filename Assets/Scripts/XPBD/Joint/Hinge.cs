@@ -8,11 +8,8 @@ using Unity.Jobs;
 namespace XPBD
 {
     [RequireComponent(typeof(Rigid))]
-    public class Hinge : Constraint
+    public class Hinge : Joint
     {
-        private Rigid thisBody;
-        public Rigid attachedBody;
-
         public Vector3 anchor;
         public Vector3 axis = Vector3.right;
         public bool targetOn = false;
@@ -28,94 +25,102 @@ namespace XPBD
         {
             SolveAngularConstraint(dt);
             SolvePositionConstraint(dt);
-
         }
 
         private void SolveAngularConstraint(float dt)
         {
             // Hinge axis align
-            float3 A1 = math.rotate(thisBody.Rotation, math.rotate(math.conjugate(q1), axisA));
-            float3 A2 = math.rotate(attachedBody.Rotation, math.rotate(math.conjugate(q2), axisA));
+            float3 A1 = math.rotate(body1.Rotation, math.rotate(math.conjugate(q1), axisA));
+            float3 A2 = math.rotate(body2.Rotation, math.rotate(math.conjugate(q2), axisA));
             float3 dq_hinge = math.cross(A2, A1);
+            //float3 dq_hinge = math.cross(A1, A2);
 
-            NativeArray<AngularConstraintData> angularConstraintDatas = new NativeArray<AngularConstraintData>(1, Allocator.TempJob);
-            angularConstraintDatas[0] = new AngularConstraintData(thisBody, attachedBody);
-            AngularConstraintJob angularConstraintJob = new AngularConstraintJob
-            {
-                Datas = angularConstraintDatas,
-                dq = dq_hinge,
-                angle = 0f,
-                compliance = 0f,
-                dt = dt
-            };
-            jobHandle = angularConstraintJob.Schedule();
-            jobHandle.Complete();
+            SolveAngularConstraint(dt, dq_hinge, 0f, 0f);
+
+            //NativeArray<AngularConstraintData> angularConstraintDatas = new NativeArray<AngularConstraintData>(1, Allocator.TempJob);
+            //angularConstraintDatas[0] = new AngularConstraintData(body1, body2);
+            //AngularConstraintJob angularConstraintJob = new AngularConstraintJob
+            //{
+            //    Datas = angularConstraintDatas,
+            //    dq = dq_hinge,
+            //    angle = 0f,
+            //    compliance = 0f,
+            //    dt = dt
+            //};
+            //jobHandle = angularConstraintJob.Schedule();
+            //jobHandle.Complete();
             
-            thisBody.Rotation = angularConstraintDatas[0].q1;
-            attachedBody.Rotation = angularConstraintDatas[0].q2;
+            //body1.Rotation = angularConstraintDatas[0].q1;
+            //body2.Rotation = angularConstraintDatas[0].q2;
 
             // Target angle
             if(targetOn)
             {
                 targetAngle %= 360f;
                 float targetAngleRadian = math.radians(targetAngle);
-                A1 = math.rotate(thisBody.Rotation, math.rotate(math.conjugate(q1), axisA));
-                A2 = math.rotate(attachedBody.Rotation, math.rotate(math.conjugate(q2), axisA));
-                float3 B1 = math.rotate(thisBody.Rotation, math.rotate(math.conjugate(q1), axisB));
-                float3 B2 = math.rotate(attachedBody.Rotation, math.rotate(math.conjugate(q2), axisB));
+                A1 = math.rotate(body1.Rotation, math.rotate(math.conjugate(q1), axisA));
+                A2 = math.rotate(body2.Rotation, math.rotate(math.conjugate(q2), axisA));
+                float3 B1 = math.rotate(body1.Rotation, math.rotate(math.conjugate(q1), axisB));
+                float3 B2 = math.rotate(body2.Rotation, math.rotate(math.conjugate(q2), axisB));
                 float3 bTarget = math.rotate(quaternion.AxisAngle(math.normalize(A1), targetAngleRadian), B1);
                 float3 dq_target = math.cross(B2, bTarget);
-                angularConstraintDatas[0] = new AngularConstraintData(thisBody, attachedBody);
+                //float3 dq_target = math.cross(bTarget, B2);
 
-                angularConstraintJob = new AngularConstraintJob
-                {
-                    Datas = angularConstraintDatas,
-                    dq = dq_target,
-                    angle = 0f,
-                    compliance = 0f,
-                    dt = dt
-                };
-                jobHandle = angularConstraintJob.Schedule();
-                jobHandle.Complete();
+                SolveAngularConstraint(dt, dq_target, 0f, 0f);
 
-                thisBody.Rotation = angularConstraintDatas[0].q1;
-                attachedBody.Rotation = angularConstraintDatas[0].q2;
+
+                //angularConstraintDatas[0] = new AngularConstraintData(body1, body2);
+
+                //angularConstraintJob = new AngularConstraintJob
+                //{
+                //    Datas = angularConstraintDatas,
+                //    dq = dq_target,
+                //    angle = 0f,
+                //    compliance = 0f,
+                //    dt = dt
+                //};
+                //jobHandle = angularConstraintJob.Schedule();
+                //jobHandle.Complete();
+
+                //body1.Rotation = angularConstraintDatas[0].q1;
+                //body2.Rotation = angularConstraintDatas[0].q2;
             }
 
-
-            angularConstraintDatas.Dispose();
+            //angularConstraintDatas.Dispose();
         }
         private void SolvePositionConstraint(float dt)
         {
-            NativeArray<PositionConstraintData> positionConstraintDatas = new NativeArray<PositionConstraintData>(1, Allocator.TempJob);
-            positionConstraintDatas[0] = new PositionConstraintData(thisBody, attachedBody, r1, r2);
+            //NativeArray<PositionConstraintData> positionConstraintDatas = new NativeArray<PositionConstraintData>(1, Allocator.TempJob);
+            //positionConstraintDatas[0] = new PositionConstraintData(body1, body2, r1, r2);
 
-            float3 R1 = thisBody.Position + math.rotate(thisBody.Rotation, r1);
-            float3 R2 = attachedBody.Position + math.rotate(attachedBody.Rotation, r2);
+            float3 R1 = body1.Position + math.rotate(body1.Rotation, r1);
+            float3 R2 = body2.Position + math.rotate(body2.Rotation, r2);
             float3 dx = R1 - R2;
 
-            PositionConstraintJob positionConstraintJob = new PositionConstraintJob
-            {
-                Datas = positionConstraintDatas,
-                dx = dx,
-                dmax = 0f,
-                compliance = 0f,
-                dt = dt
-            };
-            jobHandle = positionConstraintJob.Schedule();
-            jobHandle.Complete();
+            SolvePositionConstraint(dt, r1, r2, dx, 0f, 0f);
 
-            thisBody.Position = positionConstraintDatas[0].x1;
-            attachedBody.Position = positionConstraintDatas[0].x2;
-            thisBody.Rotation = positionConstraintDatas[0].q1;
-            attachedBody.Rotation = positionConstraintDatas[0].q2;
+            //PositionConstraintJob positionConstraintJob = new PositionConstraintJob
+            //{
+            //    Datas = positionConstraintDatas,
+            //    dx = dx,
+            //    dmax = 0f,
+            //    compliance = 0f,
+            //    dt = dt
+            //};
+            //jobHandle = positionConstraintJob.Schedule();
+            //jobHandle.Complete();
 
-            positionConstraintDatas.Dispose();
+            //body1.Position = positionConstraintDatas[0].x1;
+            //body2.Position = positionConstraintDatas[0].x2;
+            //body1.Rotation = positionConstraintDatas[0].q1;
+            //body2.Rotation = positionConstraintDatas[0].q2;
+
+            //positionConstraintDatas.Dispose();
         }
 
         private void Awake()
         {
-            thisBody = GetComponent<Rigid>();
+            body1 = GetComponent<Rigid>();
             Debug.Log("Hinge Awake");
         }
         void Start()
@@ -127,56 +132,52 @@ namespace XPBD
         void Initialize()
         {
             r1 = anchor;
-            float3 Anchor = thisBody.Position + math.rotate(thisBody.Rotation, r1);
-            r2 = math.rotate(math.conjugate(attachedBody.Rotation) ,Anchor - attachedBody.Position);
+            float3 Anchor = body1.Position + math.rotate(body1.Rotation, r1);
+            r2 = math.rotate(math.conjugate(body2.Rotation) ,Anchor - body2.Position);
 
-            q1 = thisBody.Rotation;
-            q2 = attachedBody.Rotation;
+            q1 = body1.Rotation;
+            q2 = body2.Rotation;
 
             // Calculate joint perpendicular unit axes
             axisA = math.normalize(axis);
-            axisB = math.cross(axisA, new float3(1, 0, 0));
-            if(math.length(axisB) < math.EPSILON)
-            {
-                axisB = -math.cross(axisA, new float3(0, 0, -1));
-            }
-            axisB = math.normalize(axisB);
+            axisB = Util.GetPerpendicularVector(axisA);
+            //axisB = math.cross(axisA, new float3(1, 0, 0));
+            //if(math.length(axisB) < math.EPSILON)
+            //{
+            //    axisB = -math.cross(axisA, new float3(0, 0, -1));
+            //}
+            //axisB = math.normalize(axisB);
             axisC = math.cross(axisA, axisB);
         }
 
         private void OnDrawGizmosSelected()
         {
-            if (attachedBody == null)
+            if (body2 == null)
                 return;
 
             Vector3 R1, R2, a1, a2;
-            Vector3 b1 = Vector3.zero, b2 = Vector3.zero;
+            Vector3 b1, b2;
 
-            if (thisBody == null)
+            if (body1 == null)
             {
                 R1 = transform.position + transform.rotation * anchor;
-                R2 = attachedBody.transform.position + attachedBody.transform.rotation * r2;
+                R2 = body2.transform.position + body2.transform.rotation * r2;
                 a1 = transform.TransformDirection(transform.InverseTransformDirection(axis)) * 1f;
-                a2 = attachedBody.transform.TransformDirection(attachedBody.transform.InverseTransformDirection(axis)) * 1f;
+                a2 = body2.transform.TransformDirection(body2.transform.InverseTransformDirection(axis)) * 1f;
 
-                Vector3 B = Vector3.Cross(axis, Vector3.right);
-                if(B.magnitude < 1E-6)
-                {
-                    B = -Vector3.Cross(axis, Vector3.back);
-                }
-                B.Normalize();
+                Vector3 B = Util.GetPerpendicularVector(axis);
 
                 b1 = transform.TransformDirection(transform.InverseTransformDirection(B)) * 1f;
-                b2 = attachedBody.transform.TransformDirection(attachedBody.transform.InverseTransformDirection(B)) * 1f;
+                b2 = body2.transform.TransformDirection(body2.transform.InverseTransformDirection(B)) * 1f;
             }
             else
             {
                 R1 = transform.position + transform.rotation * r1;
-                R2 = attachedBody.transform.position + attachedBody.transform.rotation * r2;
+                R2 = body2.transform.position + body2.transform.rotation * r2;
                 a1 = transform.TransformDirection(math.rotate(math.conjugate(q1), axisA)) * 1f;
-                a2 = attachedBody.transform.TransformDirection(math.rotate(math.conjugate(q2), axisA)) * 1f;
+                a2 = body2.transform.TransformDirection(math.rotate(math.conjugate(q2), axisA)) * 1f;
                 b1 = transform.TransformDirection(math.rotate(math.conjugate(q1), axisB)) * 1f;
-                b2 = attachedBody.transform.TransformDirection(math.rotate(math.conjugate(q2), axisB)) * 1f;
+                b2 = body2.transform.TransformDirection(math.rotate(math.conjugate(q2), axisB)) * 1f;
             }
 
             Gizmos.color = Color.green;
@@ -189,8 +190,6 @@ namespace XPBD
             DrawArrow.ForGizmo(R2, a2, Color.red);
             DrawArrow.ForGizmo(R1, b1, Color.blue);
             DrawArrow.ForGizmo(R2, b2, Color.blue);
-
-
         }
     }
 }

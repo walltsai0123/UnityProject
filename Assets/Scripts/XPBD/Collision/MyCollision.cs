@@ -31,7 +31,7 @@ namespace XPBD
             index = i;
             q = float3.zero;
             N = float3.zero;
-            frictionCoef = 0.4f;
+            frictionCoef = 0.8f;
             fn = float3.zero;
         }
 

@@ -63,7 +63,16 @@ namespace XPBD
             // BackEnd.XPBDSimInit();
             Debug.Log("Simulation Awake");
         }
+        private void FixedUpdate()
+        {
+            //if (pause && !stepOnce)
+            //    return;
+            //float dt = Time.deltaTime;
+            //SimulationUpdate(dt, substeps);
 
+            ////Clear step once flag
+            //stepOnce = false;
+        }
         private void Update()
         {
             grabber.MoveGrab();
@@ -79,7 +88,7 @@ namespace XPBD
 
             if (pause && !stepOnce)
                 return;
-            float dt = Time.deltaTime;
+            float dt = 1f / 60f;
             SimulationUpdate(dt, substeps);
 
             //Clear step once flag
@@ -135,6 +144,9 @@ namespace XPBD
 
                 foreach (Body body in bodies)
                     body.VelocitySolve(sdt);
+
+                foreach (Constraint C in constraints)
+                    C.SolveVelocities(sdt);
 
                 foreach (CollisionConstraint collision in collisions)
                     collision.VelocitySolve(sdt);

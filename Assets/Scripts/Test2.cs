@@ -1,21 +1,27 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 
-
+[ExecuteInEditMode()]
 public class Test2 : MonoBehaviour
 {
-    private void Start()
+    public Quaternion q1 = Quaternion.identity;
+    public Quaternion q2 = Quaternion.identity;
+    public Quaternion result = Quaternion.identity;
+    [Header("Angle axis")]
+    public Vector3 axis;
+    public float angle;
+
+    [Header("Rotate vector")]
+    public Vector3 vA;
+    public Vector3 vB;
+    private void Update()
     {
-        Vector2Int v1 = new(1, 2);
-        Vector2Int v2 = new(1, 2);
+        result = q1 * Quaternion.Inverse(q2);
+        result.ToAngleAxis(out angle, out axis);
 
-        HashSet<Vector2Int> vector2Ints = new HashSet<Vector2Int>();
-        vector2Ints.Add(v1);
-        vector2Ints.Add(v2);
-
-        Debug.Log(vector2Ints.Count);
-        foreach (var v in vector2Ints)
-            Debug.Log(v);
+        vB = Quaternion.Inverse(q2) * vA;
+        vB = math.rotate(math.conjugate(q2), vA);
     }
 }

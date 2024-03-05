@@ -15,6 +15,11 @@ namespace XPBD
             Debug.LogWarning("Base Constraint SolveConstraint");
         }
 
+        public virtual void SolveVelocities(float dt)
+        {
+            //Debug.LogWarning("Base Constraint SolveVelocities");
+        }
+
         protected struct PositionConstraintData
         {
             public float3 x1, x2;
@@ -37,6 +42,7 @@ namespace XPBD
                 IBodyInv2 = b2.InertiaBodyInv;
             }
         }
+
         [BurstCompile]
         protected struct PositionConstraintJob : IJob
         {
@@ -47,11 +53,6 @@ namespace XPBD
             public NativeArray<PositionConstraintData> Datas;
             public void Execute()
             {
-                //PositionConstraintData data = Datas[0];
-                //float3 R1 = math.rotate(Datas[0].q1, Datas[0].r1);
-                //float3 R2 = math.rotate(Datas[0].q2, Datas[0].r2);
-
-                //float3 dx = (Datas[0].x1 + R1) - (Datas[0].x2 + R2);
                 float C = math.length(dx) - dmax;
                 if (math.abs(C) < math.EPSILON)
                     return;
@@ -87,6 +88,60 @@ namespace XPBD
 
                 Datas[0] = data;
             }
+
+            public void Execute3()
+            {
+                // C = ||dx|| - dmax
+                float C = math.length(dx) - dmax;
+                // if C == 0; return
+                if (math.abs(C) < math.EPSILON)
+                    return;
+
+                PositionConstraintData data = Datas[0];
+                // n = dx / ||dx||
+                float3 n = math.normalize(dx);
+                // n1 = q1^-1 * n
+                // n2 = q2^-1 * n
+                float3 n1 = math.rotate(math.conjugate(data.q1), n);
+                float3 n2 = math.rotate(math.conjugate(data.q2), n);
+
+                // Inverse inertia in the local body frame
+                float3x3 I1inv = data.IBodyInv1;
+                float3x3 I2inv = data.IBodyInv2;
+
+                // r x n
+                float3 r1xn = math.cross(data.r1, n1);
+                float3 r2xn = math.cross(data.r2, n2);
+
+                // w + (r x n)^T * Iinv * (r x n)
+                float w1 = data.invMass1 + math.mul(r1xn, math.mul(I1inv, r1xn));
+                float w2 = data.invMass2 + math.mul(r2xn, math.mul(I2inv, r2xn));
+
+                float alpha = compliance / (dt * dt);
+                float dlambda = -C / (w1 + w2 + alpha);
+                float3 p = dlambda * n;
+
+                data.x1 += p * data.invMass1;
+                data.x2 -= p * data.invMass2;
+
+                // p in local body frame
+                float3 p1 = dlambda * n1;
+                float3 p2 = dlambda * n2;
+
+                // Iinv * (r x p)
+                float3 r1xp = math.mul(I1inv, math.cross(data.r1, p1));
+                float3 r2xp = math.mul(I2inv, math.cross(data.r2, p2));
+
+                // q_new = q + 0.5 * [Iinv * (r x p), 0] * q
+                quaternion Q1 = data.q1.value + math.mul(new quaternion(0.5f * new float4(r1xp, 0f)), data.q1).value;
+                quaternion Q2 = data.q2.value - math.mul(new quaternion(0.5f * new float4(r2xp, 0f)), data.q2).value;
+
+                // normalize q
+                data.q1 = math.normalizesafe(Q1, quaternion.identity);
+                data.q2 = math.normalizesafe(Q2, quaternion.identity);
+
+                Datas[0] = data;
+            }
         }
 
         protected struct AngularConstraintData
@@ -106,9 +161,6 @@ namespace XPBD
         [BurstCompile]
         protected struct AngularConstraintJob : IJob
         {
-            //public quaternion q1, q2;
-            //public float3x3 IBodyInv1, IBodyInv2;
-            
             public float3 dq;
             public float angle;
             public float compliance;
@@ -141,6 +193,51 @@ namespace XPBD
                 quaternion Q1 = data.q1.value + math.mul(new quaternion(0.5f * new float4(I1invP, 0f)), data.q1).value;
                 quaternion Q2 = data.q2.value - math.mul(new quaternion(0.5f * new float4(I2invP, 0f)), data.q2).value;
 
+                data.q1 = math.normalizesafe(Q1, quaternion.identity);
+                data.q2 = math.normalizesafe(Q2, quaternion.identity);
+
+                Datas[0] = data;
+            }
+
+            public void Execute1()
+            {
+                float C = math.length(dq) - angle;
+                if (C == 0f)
+                    return;
+
+                AngularConstraintData data = Datas[0];
+
+                // n = dq / ||dq||
+                float3 n = math.normalize(dq);
+                // n1 = q1^-1 * n
+                // n2 = q2^-1 * n
+                float3 n1 = math.rotate(math.conjugate(data.q1), n);
+                float3 n2 = math.rotate(math.conjugate(data.q2), n);
+
+                float3x3 I1inv = data.IBodyInv1;
+                float3x3 I2inv = data.IBodyInv2;
+
+                // w + n^T * Iinv * n
+                float w1 = math.mul(n1, math.mul(I1inv, n1));
+                float w2 = math.mul(n2, math.mul(I2inv, n2));
+
+                float alpha = compliance / (dt * dt);
+                float dlambda = -C / (w1 + w2 + alpha);
+                //float3 p = dlambda * n;
+
+                // p in local body frame
+                float3 p1 = dlambda * n1;
+                float3 p2 = dlambda * n2;
+
+                // Iinv * p
+                float3 I1invP = math.mul(I1inv, p1);
+                float3 I2invP = math.mul(I2inv, p2);
+
+                // q_new = q + 0.5 * [(Iinv * p), 0] * q
+                quaternion Q1 = data.q1.value + math.mul(new quaternion(0.5f * new float4(I1invP, 0f)), data.q1).value;
+                quaternion Q2 = data.q2.value - math.mul(new quaternion(0.5f * new float4(I2invP, 0f)), data.q2).value;
+
+                // normalize q
                 data.q1 = math.normalizesafe(Q1, quaternion.identity);
                 data.q2 = math.normalizesafe(Q2, quaternion.identity);
 

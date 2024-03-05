@@ -14,8 +14,6 @@ namespace XPBD
         private SoftBody thisBody;
         public Rigid attachedBody;
 
-        // public int ID1, ID2;
-
         private struct ParitilcPos
         {
             public int i;

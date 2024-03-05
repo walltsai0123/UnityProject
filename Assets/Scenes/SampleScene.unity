@@ -256,7 +256,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ca4e72e769c5e84e877521448f12ebb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 1726713350}
+  body2: {fileID: 1726713350}
   anchor: {x: 0.9115727, y: 0, z: 0}
   axis: {x: 0, y: 1, z: 0}
   targetOn: 1
@@ -273,7 +273,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ca4e72e769c5e84e877521448f12ebb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 1592366998}
+  body2: {fileID: 1592366998}
   anchor: {x: -0.9115727, y: 0, z: 0}
   axis: {x: 0, y: 1, z: 0}
   targetOn: 1
@@ -1084,7 +1084,7 @@ Transform:
   m_GameObject: {fileID: 751891100}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.132, z: 0}
+  m_LocalPosition: {x: 0, y: 2.3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1170,7 +1170,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bodyType: 0
-  mass: 100
+  mass: 2000
   UseGravity: 1
   EnableContact: 0
   grabbable: 0
@@ -1220,8 +1220,8 @@ MonoBehaviour:
   rearRight: {fileID: 1486211071}
   rack: {fileID: 156874448}
   accelration: 1000
-  brakingForce: 500
-  maxTurnAngle: 30
+  brakingForce: 1000
+  maxTurnAngle: 45
   currentAccel: 0
 --- !u!114 &914659461
 MonoBehaviour:
@@ -1235,12 +1235,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c12ef195779f7c4283bc50b375afe28, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 156874448}
+  body2: {fileID: 156874448}
   anchor: {x: -0.5, y: -0.6, z: 1.623}
   axis: {x: 0, y: 1, z: 0}
   min: 0.15
   max: 0.3
-  compliance: 0.000005
+  compliance: 0.000001
+  linearDamping: 0.5
+  angularDamping: 0
 --- !u!114 &914659462
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1253,12 +1255,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c12ef195779f7c4283bc50b375afe28, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 1145889775}
+  body2: {fileID: 1145889775}
   anchor: {x: 0.5, y: -0.6, z: -1.399}
   axis: {x: 0, y: 1, z: 0}
   min: 0.15
   max: 0.3
-  compliance: 0.000005
+  compliance: 0.000001
+  linearDamping: 0.5
+  angularDamping: 0
 --- !u!114 &914659463
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1271,12 +1275,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c12ef195779f7c4283bc50b375afe28, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 1145889775}
+  body2: {fileID: 1145889775}
   anchor: {x: -0.5, y: -0.6, z: -1.399}
   axis: {x: 0, y: 1, z: 0}
   min: 0.15
   max: 0.3
-  compliance: 0.000005
+  compliance: 0.000001
+  linearDamping: 0.5
+  angularDamping: 0
 --- !u!114 &914659464
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1289,12 +1295,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c12ef195779f7c4283bc50b375afe28, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 156874448}
+  body2: {fileID: 156874448}
   anchor: {x: 0.5, y: -0.6, z: 1.623}
   axis: {x: 0, y: 1, z: 0}
   min: 0.15
   max: 0.3
-  compliance: 0.000005
+  compliance: 0.000001
+  linearDamping: 0.5
+  angularDamping: 0
 --- !u!1001 &994736469
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1309,7 +1317,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 805353282393142731, guid: a489ed3e206481d4da6933df8d0ec63e, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1387558282561756333, guid: a489ed3e206481d4da6933df8d0ec63e, type: 3}
       propertyPath: m_Enabled
@@ -1555,7 +1563,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ca4e72e769c5e84e877521448f12ebb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 1925951840}
+  body2: {fileID: 1925951840}
   anchor: {x: 0.9115727, y: 0, z: 0}
   axis: {x: 1, y: 0, z: 0}
   targetOn: 0
@@ -1572,7 +1580,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ca4e72e769c5e84e877521448f12ebb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 1369960601}
+  body2: {fileID: 1369960601}
   anchor: {x: -0.9115727, y: 0, z: 0}
   axis: {x: 1, y: 0, z: 0}
   targetOn: 0
@@ -1748,6 +1756,57 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f67f9c14252484049968acd8fd63f56f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &1480214973
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1480214975}
+  - component: {fileID: 1480214974}
+  m_Layer: 0
+  m_Name: quaternion
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1480214974
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1480214973}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41c7d45383c37ad429b7cfc61d60b9be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  q1: {x: 0, y: 0, z: 0, w: 1}
+  q2: {x: 0, y: 0, z: 0.7071068, w: 0.7071068}
+  result: {x: 0, y: 0, z: -0.7071068, w: 0.7071068}
+  axis: {x: 0, y: 0, z: -1.0000001}
+  angle: 89.99999
+  vA: {x: 1, y: 0, z: 0}
+  vB: {x: -0.00000011920929, y: -1.0000001, z: 0}
+--- !u!4 &1480214975
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1480214973}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.38, y: 0.71665, z: -1.2762184}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1486211069
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1771,6 +1830,34 @@ PrefabInstance:
     - target: {fileID: 5801679952954441588, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Name
       value: RearRight
+      objectReference: {fileID: 0}
+    - target: {fileID: 7343988575711932178, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 7343988575711932178, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7343988575711932178, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7343988575711932178, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 7343988575711932178, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7343988575711932178, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7343988575711932178, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 90
       objectReference: {fileID: 0}
     - target: {fileID: 8174872596640538779, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1886,7 +1973,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ca4e72e769c5e84e877521448f12ebb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 2106183856}
+  body2: {fileID: 2106183856}
   anchor: {x: 0, y: 0, z: 0}
   axis: {x: 1, y: 0, z: 0}
   targetOn: 0
@@ -2140,7 +2227,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ca4e72e769c5e84e877521448f12ebb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachedBody: {fileID: 1650136677}
+  body2: {fileID: 1650136677}
   anchor: {x: 0, y: 0, z: 0}
   axis: {x: 1, y: 0, z: 0}
   targetOn: 0
@@ -2351,9 +2438,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc74fca1879105f4291617d80d1385d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  substeps: 10
+  substeps: 20
   gravity: {x: 0, y: -9.81, z: 0}
-  UseNeoHookeanMaterial: 0
+  UseNeoHookeanMaterial: 1
 --- !u!114 &2067624450 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 9051494650249104081, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
@@ -2387,3 +2474,4 @@ SceneRoots:
   - {fileID: 348771459}
   - {fileID: 677979646}
   - {fileID: 365985327}
+  - {fileID: 1480214975}

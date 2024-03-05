@@ -115,41 +115,26 @@ namespace XPBD
 
                 // Predicted position of particle
                 float3 predPos = soft.Pos[i] + soft.Vel[i] * dt;
-
-                if(geometry.IsInside(predPos))
-                //if (Util.IsInsideCollider(primitive.collider, predPos))
+                predPos = soft.Pos[i];
+                if (geometry.IsInside(predPos))
                 {
                     MyCollision newCollision = new(soft, primitive, i);
-                    //if (Util.IsInsideCollider(primitive.collider, soft.Pos[i]))
+
+                    //float3 direction = predPos - soft.Pos[i];
+                    //Ray ray = new Ray(soft.Pos[i], direction);
+                    //if (geometry.Raycast(ray, out RaycastHit hit, math.length(direction)))
                     //{
-                    //    newCollision.N = primitive.defaultNormal;
-                    //    float3 pointOutside = Vector3.Dot(primitive.defaultNormal, primitive.collider.bounds.size) * primitive.defaultNormal;
-                    //    pointOutside += soft.Pos[i];
-                    //    newCollision.q = primitive.collider.ClosestPoint(pointOutside);
-                    //}
-                    //else
-                    //{
-                    //    float3 direction = predPos - soft.Pos[i];
-                    //    Ray ray = new Ray(soft.Pos[i], direction);
-                    //    RaycastHit hit;
-                    //    primitive.collider.Raycast(ray, out hit, math.length(direction));
                     //    newCollision.q = hit.point;
                     //    newCollision.N = hit.normal;
                     //}
-                    float3 direction = predPos - soft.Pos[i];
-                    Ray ray = new Ray(soft.Pos[i], direction);
-                    if(false)
-                    //if (geometry.Raycast(ray, out RaycastHit hit, math.length(direction)))
-                    {
-                        //newCollision.q = hit.point;
-                        //newCollision.N = hit.normal;
-                    }
-                    else
-                    {
-                        newCollision.q = geometry.ClosestSurfacePoint(predPos, out Vector3 normal);
-                        newCollision.N = normal;
-                    }
-                    
+                    //else
+                    //{
+                    //    newCollision.q = geometry.ClosestSurfacePoint(predPos, out Vector3 normal);
+                    //    newCollision.N = normal;
+                    //}
+                    newCollision.q = geometry.ClosestSurfacePoint(predPos, out Vector3 normal);
+                    newCollision.N = normal;
+
                     // Calculate the Normal, Tangent, Bitangent vector of contact frame
                     float3 N = newCollision.N;
                     float3 up = math.cross(newCollision.N, new float3(1, 0, 0));
@@ -196,8 +181,8 @@ namespace XPBD
 
                     renderTimer.Resume();
 
-                    cam1.RenderToTexture();
-                    cam2.RenderToTexture();
+                    //cam1.RenderToTexture();
+                    //cam2.RenderToTexture();
 
                     renderTimer.Pause();
                     //float4 coefs = CalculateTextureFriction(cam1.renderTexture, cam2.renderTexture);

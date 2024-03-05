@@ -34,5 +34,24 @@ public static class Util
             SetLayerRecursive(child.gameObject, layer);
         }
     }
+
+    public static Vector3 GetPerpendicularVector(Vector3 v)
+    {
+        if (v.magnitude < EPSILON)
+            return Vector3.zero;
+
+        Vector3 A = v.normalized;
+        Vector3 B = Vector3.Cross(A, Vector3.right);
+
+        // check if A and B are parellel
+        // if parallel, do again with (0, 0, -1)
+        if (math.length(B) < math.EPSILON)
+        {
+            B = Vector3.Cross(A, Vector3.back);
+        }
+        B = math.normalize(B);
+
+        return B;
+    }
 }
 

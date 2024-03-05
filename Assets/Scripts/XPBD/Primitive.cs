@@ -10,7 +10,7 @@ namespace XPBD
         public new Collider collider { get; private set; }
         public Geometry Geometry { get; private set; }
         public Vector3 defaultNormal = Vector3.up;
-        private bool isStarted = false;
+        //private bool isStarted = false;
 
         public Vector3 Position => transform.position;
         public Quaternion Rotation => transform.rotation;
@@ -22,22 +22,9 @@ namespace XPBD
             Geometry = GetComponent<Geometry>();
             Simulation.get.AddPrimitive(this);
 
-            Debug.Log(Geometry);
+            //Debug.Log(Geometry);
         }
 
-        private void Start()
-        {
-            isStarted = true;
-        }
-
-        private void OnDrawGizmos()
-        {
-            //if (!isStarted)
-            //    return;
-
-            //Gizmos.color = Color.red;
-            //Gizmos.DrawWireCube(collider.bounds.center, collider.bounds.size);
-        }
     }
 }
 
