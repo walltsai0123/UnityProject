@@ -4,7 +4,8 @@ using UnityEngine.Rendering;
 
 public class BackEnd
 {
-    private const string DllName = "__cpp-interface";
+    //private const string DllName = "__cpp-interface";
+    private const string DllName = "cppdll";
 
     public static readonly VertexAttributeDescriptor[] VertexBufferLayout = new[]
     {

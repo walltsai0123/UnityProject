@@ -286,7 +286,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 78f2935de2bcf684b9089515b475b4bb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  softBody: {fileID: 576633771}
+  softBody: {fileID: 741000147}
   accel: 5
   dir:
     x: 0
@@ -307,17 +307,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &576633771 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 5344519272011532534, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
-  m_PrefabInstance: {fileID: 5166150069485593984}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1edca8d568eed3c4db3fe0fcfc66ec26, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &731351085
 GameObject:
   m_ObjectHideFlags: 0
@@ -423,6 +412,17 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &741000147 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3112915206818506839, guid: 39bac86b41747ef419efd92356661d53, type: 3}
+  m_PrefabInstance: {fileID: 7971118399155661420}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1edca8d568eed3c4db3fe0fcfc66ec26, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &928841311
 GameObject:
   m_ObjectHideFlags: 0
@@ -1050,6 +1050,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   substeps: 20
   gravity: {x: 0, y: -9.81, z: 0}
+  UseNeoHookeanMaterial: 1
+  targetFPS: 60
 --- !u!4 &2047814475
 Transform:
   m_ObjectHideFlags: 0
@@ -1204,7 +1206,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2879937252382375008, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Enabled
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5344519272011532534, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: mu
@@ -1217,6 +1219,10 @@ PrefabInstance:
     - target: {fileID: 5801679952954441588, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Name
       value: tire
+      objectReference: {fileID: 0}
+    - target: {fileID: 5801679952954441588, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8076468769220874345, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Height
@@ -1327,6 +1333,14 @@ PrefabInstance:
       propertyPath: lambda
       value: 100
       objectReference: {fileID: 0}
+    - target: {fileID: 3112915206818506839, guid: 39bac86b41747ef419efd92356661d53, type: 3}
+      propertyPath: tetrahedronMesh
+      value: 
+      objectReference: {fileID: -6750239444755058063, guid: 6c976f96a34668444977eef3362e63bd, type: 3}
+    - target: {fileID: 3112915206818506839, guid: 39bac86b41747ef419efd92356661d53, type: 3}
+      propertyPath: wireframeMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: e563d2611df3e984e92203420188c3ee, type: 2}
     - target: {fileID: 7110342494974649542, guid: 39bac86b41747ef419efd92356661d53, type: 3}
       propertyPath: m_Name
       value: SoftCube
@@ -1337,7 +1351,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7110342494974649542, guid: 39bac86b41747ef419efd92356661d53, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8214993469371166806, guid: 39bac86b41747ef419efd92356661d53, type: 3}
       propertyPath: m_Materials.Array.data[0]

@@ -28,6 +28,8 @@ namespace XPBD
 
         public bool UseNeoHookeanMaterial = true;
 
+        public int targetFPS = 60;
+
         // Timer
         //Timer stepTimer;
 
@@ -61,17 +63,12 @@ namespace XPBD
             grabber = new Grabber(Camera.main);
 
             // BackEnd.XPBDSimInit();
-            Debug.Log("Simulation Awake");
+            //Debug.Log("Simulation Awake");
         }
-        private void FixedUpdate()
+        private void Start()
         {
-            //if (pause && !stepOnce)
-            //    return;
-            //float dt = Time.deltaTime;
-            //SimulationUpdate(dt, substeps);
-
-            ////Clear step once flag
-            //stepOnce = false;
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = targetFPS;
         }
         private void Update()
         {
@@ -88,7 +85,7 @@ namespace XPBD
 
             if (pause && !stepOnce)
                 return;
-            float dt = 1f / 60f;
+            float dt = 1f / targetFPS;
             SimulationUpdate(dt, substeps);
 
             //Clear step once flag

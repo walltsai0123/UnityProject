@@ -121,7 +121,7 @@ namespace XPBD
         private void Awake()
         {
             body1 = GetComponent<Rigid>();
-            Debug.Log("Hinge Awake");
+            //Debug.Log("Hinge Awake");
         }
         void Start()
         {

@@ -25,7 +25,7 @@ namespace XPBD
         private readonly int rendertextureSize;
         private readonly int subTextureRowSize;
 
-        private const float nominal_friction = 0.1f;
+        private const float nominal_friction = 0f;
 
 
         //Timers
@@ -92,7 +92,7 @@ namespace XPBD
             renderTimer.Toc();
 
             computeCoefTimer.Tic();
-            //CalculateTextureFriction(cam1.renderTexture);
+            CalculateTextureFriction(cam1.renderTexture);
             computeCoefTimer.Toc();
 
             //renderTimer.Report("Render contact patch", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
@@ -181,8 +181,8 @@ namespace XPBD
 
                     renderTimer.Resume();
 
-                    //cam1.RenderToTexture();
-                    //cam2.RenderToTexture();
+                    cam1.RenderToTexture();
+                    cam2.RenderToTexture();
 
                     renderTimer.Pause();
                     //float4 coefs = CalculateTextureFriction(cam1.renderTexture, cam2.renderTexture);

@@ -70,7 +70,7 @@ namespace XPBD
             thisBody = GetComponent<SoftBody>();
             particlePos = new List<ParitilcPos>();
 
-            Debug.Log("Attach Awake");
+            //Debug.Log("Attach Awake");
         }
         private void Start()
         {

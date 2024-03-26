@@ -271,7 +271,7 @@ namespace XPBD
         private void Start()
         {
             Simulation.get.AddBody(this);
-            Debug.Log("SoftBody Start");
+            //Debug.Log("SoftBody Start");
         }
 
         private void OnDestroy()

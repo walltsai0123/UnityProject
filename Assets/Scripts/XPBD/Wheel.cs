@@ -30,12 +30,27 @@ namespace XPBD
             rim.Tau += MotorTorque * RotateAxis;
 
             // Apply brake torque
-            if (math.length(rim.omega) > math.EPSILON)
-            {
-                // Check angular velocity direction
-                float dir = (math.dot(rim.omega, RotateAxis)) < 0 ? 1f : -1f;
+            //if (math.length(rim.omega) > Util.EPSILON)
+            //{
+            //    // Check angular velocity direction
+            //    float dir = (math.dot(rim.omega, RotateAxis)) < 0 ? 1f : -1f;
 
-                rim.Tau += dir * brakeTorque * RotateAxis;
+            //    rim.Tau += dir * brakeTorque * RotateAxis;
+            //}
+
+            // Apply brake to veloctiy
+            if (math.length(rim.omega) > Util.EPSILON)
+            {
+                // Get angular velocity and rotate axis
+                float vel = math.length(rim.omega);
+                float3 axis = math.normalize(rim.omega);
+
+                // Get final angular veloctity
+                float final_vel = vel - brakeTorque;
+                if (final_vel < Util.EPSILON)
+                    final_vel = 0f;
+
+                rim.omega = final_vel * axis;
             }
 
         }
