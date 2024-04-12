@@ -7,8 +7,10 @@ namespace XPBD
 {
     public class Plane : Geometry
     {
-        public Vector3 normal = new(0,1,0);
-        public Vector3 center = new(0,0,0);
+        // We assume all the planes has the same attributes
+        private Vector3 normal = new(0,1,0);
+        private Vector3 center = new(0,0,0);
+        private Vector2 size = new(10, 10);
 
         public override Vector3 ClosestSurfacePoint(Vector3 point, out Vector3 surfaceNormal)
         {
@@ -21,9 +23,15 @@ namespace XPBD
         }
         public override bool IsInside(Vector3 point)
         {
+            // dp < 0 => under plane
             float dp = Vector3.Dot(point - center, normal);
+            Vector3 tangent = (point - center) - dp * normal;
 
-            return dp < 0f;
+            if (dp <= 0f)
+                if (Mathf.Abs(tangent.x) <= size.x / 2f && Mathf.Abs(tangent.z) <= size.y / 2f)
+                    return true;
+
+            return false;
         }
         public override bool Raycast(Ray ray, out RaycastHit hit, float maxDistance)
         {

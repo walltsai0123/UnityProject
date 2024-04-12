@@ -29,9 +29,9 @@ public class DrawArrow
         DrawArrowEnd(false, pos, direction, color, arrowHeadLength, arrowHeadAngle);
     }
 
-    private static void DrawArrowEnd(bool gizmos, Vector3 pos, Vector3 direction, Color color, float arrowHeadLength = 0.25f, float arrowHeadAngle = 20.0f)
+    private static void DrawArrowEnd(bool gizmos, Vector3 pos, Vector3 direction, Color color, float arrowHeadLength = 1f, float arrowHeadAngle = 20.0f)
     {
-        if(Vector3.Magnitude(direction) < Vector3.kEpsilon)
+        if(Vector3.Magnitude(direction) < Util.EPSILON)
         {
             //Debug.Log("Direction has zero length");
             return;
@@ -40,6 +40,8 @@ public class DrawArrow
         Vector3 left = Quaternion.LookRotation(direction) * Quaternion.Euler(-arrowHeadAngle, 0, 0) * Vector3.back;
         Vector3 up = Quaternion.LookRotation(direction) * Quaternion.Euler(0, arrowHeadAngle, 0) * Vector3.back;
         Vector3 down = Quaternion.LookRotation(direction) * Quaternion.Euler(0, -arrowHeadAngle, 0) * Vector3.back;
+
+        arrowHeadLength *= direction.magnitude; 
         if (gizmos)
         {
             Gizmos.color = color;

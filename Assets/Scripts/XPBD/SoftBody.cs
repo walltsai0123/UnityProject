@@ -56,7 +56,7 @@ namespace XPBD
 
         private JobHandle jobHandle;
 
-        private List<MyCollision> collisions;
+        public List<MyCollision> collisions;
 
         // Grabber info
         public int grabId { get; private set; }
@@ -66,7 +66,7 @@ namespace XPBD
         #region Body
         public override void ClearCollision()
         {
-            
+            collisions.Clear();
         }
 
         public override void PreSolve(float dt, Vector3 gravity)
@@ -181,7 +181,7 @@ namespace XPBD
             }
                 
         }
-
+        
         #endregion
 
         #region IGrabbable
@@ -271,7 +271,29 @@ namespace XPBD
         private void Start()
         {
             Simulation.get.AddBody(this);
+            isStarted = true;
             //Debug.Log("SoftBody Start");
+        }
+        private void OnDrawGizmos()
+        {
+            if (!isStarted)
+                return;
+
+            foreach(MyCollision collision in collisions)
+            {
+                DrawArrow.ForGizmo(collision.q, collision.T * collision.frictionCoef[0], Color.red);
+                DrawArrow.ForGizmo(collision.q, collision.B * collision.frictionCoef[1], Color.green);
+                DrawArrow.ForGizmo(collision.q, -collision.T * collision.frictionCoef[2], Color.blue);
+                DrawArrow.ForGizmo(collision.q, -collision.B * collision.frictionCoef[3], Color.black);
+
+                
+                //Debug.Log(collision.frictionCoef);
+                //Debug.Log(collision.T);
+                //Debug.Log(collision.B);
+
+            }
+            //if(collisions.Count > 0)
+            //    Debug.Log(collisions[0].frictionCoef);
         }
 
         private void OnDestroy()
@@ -409,6 +431,9 @@ namespace XPBD
             startPos = transform.position;
             transform.position = Vector3.zero;
             Translate(startPos);
+
+            // Init collision list
+            collisions = new List<MyCollision> ();
         }
 
         private void ComputeSkinningInfo2()

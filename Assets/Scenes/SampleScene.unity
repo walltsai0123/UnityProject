@@ -792,6 +792,67 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 230ae5c514a4c444295132a5660ffe44, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1001 &513571238
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -1000
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -91.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 860259631509764608, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4639855778524147110, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_Name
+      value: QuadCam
+      objectReference: {fileID: 0}
+    - target: {fileID: 6204347321281173244, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
+      propertyPath: m_TargetDisplay
+      value: 6
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
 --- !u!1 &628503662
 GameObject:
   m_ObjectHideFlags: 0
@@ -2424,3 +2485,4 @@ SceneRoots:
   - {fileID: 348771459}
   - {fileID: 677979646}
   - {fileID: 365985327}
+  - {fileID: 513571238}

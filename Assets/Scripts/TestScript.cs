@@ -10,6 +10,7 @@ public class TestScript : MonoBehaviour
     public float accel;
     public float3 dir;
     private bool started = false;
+    public Color color = Color.white;
 
     private void Start()
     {
@@ -37,6 +38,8 @@ public class TestScript : MonoBehaviour
 
         dir = final;
 
+        dir = math.normalizesafe(final, float3.zero);
+
         softBody.fext = final * accel;
     }
 
@@ -44,6 +47,6 @@ public class TestScript : MonoBehaviour
     {
         if (!started)
             return;
-        DrawArrow.ForGizmo(softBody.Pos[0], dir * accel, Color.red);
+        DrawArrow.ForGizmo(softBody.Pos[0], dir * accel, color);
     }
 }

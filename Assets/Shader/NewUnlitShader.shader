@@ -6,6 +6,11 @@ Shader "Custom/NewUnlitShader"
 		// default to dummy "flat surface" normalmap
 		_BumpMap("Normal Map", 2D) = "bump" {}
 
+		// height map texture and height scale
+		_Parallax ("Height Scale", Range (0.005, 0.08)) = 0.02
+        _ParallaxMap ("Height Map", 2D) = "black" {}
+		_Depth("Gravel Depth", Range (0.005, 1)) = 0.25
+
 		_TangentVector("Tangent vector", Vector) = (0, 1, 0, 0)
 		_BitangentVector("Bitangent vector", Vector) = (0, 0, 1, 0)
 	}
@@ -66,10 +71,13 @@ Shader "Custom/NewUnlitShader"
 			}
 
 			sampler2D _BumpMap;
+			sampler2D _ParallaxMap;
+			float _Parallax;
+			float _Depth;
 			half4 _TangentVector;
 			half4 _BitangentVector;
 
-			fixed4 frag(v2f i) : SV_Target
+			half4 frag(v2f i) : SV_Target
 			{
 				// sample the normal map, and decode from the Unity encoding
 				half3 tnormal = UnpackNormal(tex2D(_BumpMap, i.uv));
@@ -79,14 +87,16 @@ Shader "Custom/NewUnlitShader"
 				m.x = dot(i.tspace0, tnormal);
 				m.y = dot(i.tspace1, tnormal);
 				m.z = dot(i.tspace2, tnormal);
+				m = normalize(m);
 
+				// ploughing friction model
 				half3 d1 = normalize(_TangentVector.xyz);
 				half3 d2 = normalize(_BitangentVector.xyz);
 				half3 d3 = -d1;
 				half3 d4 = -d2;
 
 				half theta = acos(dot(i.normal, m));
-				half P = 2 * UNITY_INV_PI * tan(theta);
+				float P = 2.0 * UNITY_INV_PI * tan(theta);
 
 				half3 m_prime = m - dot(m, i.normal) * i.normal;
 				m_prime = normalize(m_prime);
@@ -96,11 +106,19 @@ Shader "Custom/NewUnlitShader"
 				half S3 = max(0, dot(m_prime, d3));
 				half S4 = max(0, dot(m_prime, d4));
 
-				fixed4 c = 0;
+				// sample the height map
+				half h = tex2D (_ParallaxMap, i.uv).r * _Parallax;
+				// calculate sand velocity
+				half sand_vel = h / (0.15);
+				// calculate object velcity related to sand
+				half final_vel = 1.0 - sand_vel;
+				float4 c = 0;
 				c.r = S1 * P;
 				c.g = S2 * P;
 				c.b = S3 * P;
 				c.a = S4 * P;
+				
+				c *= final_vel;
 				return c;
 			}
 			ENDCG

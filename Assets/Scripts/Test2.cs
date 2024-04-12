@@ -6,22 +6,10 @@ using UnityEngine;
 [ExecuteInEditMode()]
 public class Test2 : MonoBehaviour
 {
-    public Quaternion q1 = Quaternion.identity;
-    public Quaternion q2 = Quaternion.identity;
-    public Quaternion result = Quaternion.identity;
-    [Header("Angle axis")]
-    public Vector3 axis;
-    public float angle;
-
-    [Header("Rotate vector")]
-    public Vector3 vA;
-    public Vector3 vB;
+    public Color color = Color.black;
+    public Vector4 vector;
     private void Update()
     {
-        result = q1 * Quaternion.Inverse(q2);
-        result.ToAngleAxis(out angle, out axis);
-
-        vB = Quaternion.Inverse(q2) * vA;
-        vB = math.rotate(math.conjugate(q2), vA);
+        vector = color;
     }
 }

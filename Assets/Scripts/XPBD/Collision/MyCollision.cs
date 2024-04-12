@@ -8,7 +8,7 @@ namespace XPBD
     public class MyCollision : CollisionConstraint
     {
         private Body body;
-        private Primitive primitive;
+        public Primitive primitive;
         private int index;
 
         //public float4 frictionCoef;
@@ -31,7 +31,7 @@ namespace XPBD
             index = i;
             q = float3.zero;
             N = float3.zero;
-            frictionCoef = 0.8f;
+            frictionCoef = 0.4f;
             fn = float3.zero;
         }
 
@@ -103,15 +103,15 @@ namespace XPBD
             float vn = math.dot(N, v);
             float normalImpulse = dt * math.length(fn);
 
-            //// tangent
-            //float vt = math.dot(v, T);
-            //float3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
-            //soft.Vel[index] += dvt;
-            //
-            //// bitangent
-            //float vb = math.dot(v, B);
-            //float3 dvb = -math.sign(vb) * math.min(normalImpulse * bitangentCoef, math.abs(vb)) * B;
-            //soft.Vel[index] += dvb;
+            // tangent
+            float vt = math.dot(v, T);
+            float3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
+            soft.Vel[index] += dvt;
+
+            // bitangent
+            float vb = math.dot(v, B);
+            float3 dvb = -math.sign(vb) * math.min(normalImpulse * bitangentCoef, math.abs(vb)) * B;
+            soft.Vel[index] += dvb;
 
             // normal
             restitutionCoef = (math.abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;

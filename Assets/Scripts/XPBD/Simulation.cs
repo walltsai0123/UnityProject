@@ -16,6 +16,7 @@ namespace XPBD
         private List<Constraint> constraints;
 
         // Collision
+        public bool UseTextureFriction = true;
         private CollisionDetect collisionDetect;
         private List<CollisionConstraint> collisions;
 
@@ -36,6 +37,7 @@ namespace XPBD
         public void AddPrimitive(Primitive p)
         {
             primitives.Add(p);
+            //Debug.Log(primitives.Count);
         }
         public void AddBody(Body b)
         {
