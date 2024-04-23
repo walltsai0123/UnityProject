@@ -441,7 +441,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbd8dea4cb9b3ff40933acc7a9d0cf96, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  defaultNormal: {x: 0, y: 1, z: 0}
 --- !u!65 &348771456
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -540,8 +539,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7602153f42a9934ea7b60bc95fbd8f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  normal: {x: 0, y: 1, z: 0}
-  center: {x: 0, y: 0, z: 0}
 --- !u!1001 &365985327
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -595,13 +592,17 @@ PrefabInstance:
       value: CollisionCamera (1)
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetDisplay
       value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetTexture
       value: 
-      objectReference: {fileID: 8400000, guid: 506bc0d22b6540e44abe5f15beb7be61, type: 2}
+      objectReference: {fileID: 0}
     - target: {fileID: 8794195776678169174, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: renderTexture
       value: 
@@ -998,13 +999,17 @@ PrefabInstance:
       value: CollisionCamera
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetDisplay
       value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetTexture
       value: 
-      objectReference: {fileID: 8400000, guid: 506bc0d22b6540e44abe5f15beb7be61, type: 2}
+      objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_BackGroundColor.b
       value: 0
@@ -2450,6 +2455,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   substeps: 20
   gravity: {x: 0, y: -9.81, z: 0}
+  UseTextureFriction: 1
+  textureFrictionShader: {fileID: 4800000, guid: 3e4c55cb6732c5d49889373c91b02064, type: 3}
   UseNeoHookeanMaterial: 1
   targetFPS: 60
 --- !u!114 &2067624450 stripped

@@ -22,8 +22,6 @@ namespace XPBD
             cellEntries = new int[maxNumObjects];
             queryIds = new int[maxNumObjects];
             querySize = 0;
-
-            //Debug.Log("maxNumObjects " + maxNumObjects);
         }
 
         public void Create(Vector3[] pos)
@@ -56,25 +54,10 @@ namespace XPBD
                 cellStart[h]--;
                 cellEntries[cellStart[h]] = i;
             }
-
-            //string str = string.Empty;
-            //for (int i = 0; i < cellStart.Length - 1; ++i)
-            //{
-            //    str += i + ", " + (cellStart[i+1] - cellStart[i]) + "\n";
-            //}
-            //Debug.Log("cellStart:\n" + str);
-            //str = string.Empty;
-            //for (int i = 0; i < cellEntries.Length; ++i)
-            //{
-            //    str += i + ", " + cellEntries[i] + "\n";
-            //}
-            //Debug.Log("cellEntries:\n" + str);
         }
 
         public void Query(Vector3 pos, float maxDist)
         {
-            // Debug.Log("pos " + pos);
-            // Debug.Log("maxDist " + maxDist);
             int x0 = intCoord(pos[0] - maxDist);
             int y0 = intCoord(pos[1] - maxDist);
             int z0 = intCoord(pos[2] - maxDist);
@@ -85,10 +68,6 @@ namespace XPBD
 
             querySize = 0;
 
-            //Debug.Log("x0 x1 " + x0 + " " + x1);
-            //Debug.Log("y0 y1 " + y0 + " " + y1);
-            //Debug.Log("z0 z1 " + z0 + " " + z1);
-
             for (int xi = x0; xi <= x1; xi++)
             {
                 for (int yi = y0; yi <= y1; yi++)
@@ -98,13 +77,9 @@ namespace XPBD
                         int h = hashCoords(xi, yi, zi);
                         var start = cellStart[h];
                         var end = cellStart[h + 1];
-                        //Debug.Log("start " + start);
-                        //Debug.Log("end " + end);
 
                         for (var i = start; i < end; i++)
                         {
-                            //Debug.Log("querySize " + querySize);
-                            //Debug.Log("cellEntries[i] " + cellEntries[i]);
                             queryIds[querySize] = cellEntries[i];
                             querySize++;
 

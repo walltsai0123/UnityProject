@@ -118,7 +118,7 @@ Shader "Custom/NewUnlitShader"
 				c.b = S3 * P;
 				c.a = S4 * P;
 				
-				c *= final_vel;
+				//c *= final_vel;
 				return c;
 			}
 			ENDCG

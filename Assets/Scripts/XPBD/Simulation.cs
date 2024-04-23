@@ -17,6 +17,7 @@ namespace XPBD
 
         // Collision
         public bool UseTextureFriction = true;
+        public Shader textureFrictionShader;
         private CollisionDetect collisionDetect;
         private List<CollisionConstraint> collisions;
 
@@ -61,11 +62,10 @@ namespace XPBD
             constraints = new List<Constraint>();
             collisionDetect = new CollisionDetect();
             collisions = new List<CollisionConstraint>();
+            if (textureFrictionShader == null)
+                textureFrictionShader = Shader.Find("Custom/NewUnlitShader");
 
             grabber = new Grabber(Camera.main);
-
-            // BackEnd.XPBDSimInit();
-            //Debug.Log("Simulation Awake");
         }
         private void Start()
         {

@@ -404,7 +404,7 @@ Transform:
   m_GameObject: {fileID: 731351085}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1000, y: 0, z: 0.552}
+  m_LocalPosition: {x: 1000, y: 0, z: 0.52}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -656,7 +656,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: far clip plane
-      value: 0.1
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetDisplay
@@ -665,10 +665,14 @@ PrefabInstance:
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetTexture
       value: 
-      objectReference: {fileID: 8400000, guid: 506bc0d22b6540e44abe5f15beb7be61, type: 2}
+      objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: orthographic size
       value: 0.02
+      objectReference: {fileID: 0}
+    - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
+      propertyPath: m_BackGroundColor.a
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_BackGroundColor.b
@@ -725,7 +729,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!81 &1604191935
 AudioListener:
   m_ObjectHideFlags: 0
@@ -1047,6 +1051,7 @@ MonoBehaviour:
   substeps: 20
   gravity: {x: 0, y: -9.81, z: 0}
   UseTextureFriction: 1
+  textureFrictionShader: {fileID: 4800000, guid: 3e4c55cb6732c5d49889373c91b02064, type: 3}
   UseNeoHookeanMaterial: 1
   targetFPS: 60
 --- !u!4 &2047814475
@@ -1118,7 +1123,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4639855778524147110, guid: 72f6d13e35cd45341b9ea0cd90d27a0e, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1191,7 +1196,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: far clip plane
-      value: 0.1
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
+      propertyPath: m_RenderingPath
+      value: -1
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetDisplay
@@ -1200,10 +1209,14 @@ PrefabInstance:
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_TargetTexture
       value: 
-      objectReference: {fileID: 8400000, guid: 506bc0d22b6540e44abe5f15beb7be61, type: 2}
+      objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: orthographic size
       value: 0.02
+      objectReference: {fileID: 0}
+    - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
+      propertyPath: m_OcclusionCulling
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8278242618329581800, guid: 3955ef0d7efb74d4d9251233b9ee1635, type: 3}
       propertyPath: m_BackGroundColor.a
@@ -1268,11 +1281,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2879937252382375008, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Enabled
-      value: 1
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3551149159404446783, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 5344519272011532534, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: mu
-      value: 5000
+      value: 2000
       objectReference: {fileID: 0}
     - target: {fileID: 5344519272011532534, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: lambda
@@ -1284,7 +1301,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5801679952954441588, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5801679952954441588, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 7211227363891841147, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 8076468769220874345, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Height
@@ -1292,7 +1317,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8174872596640538779, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: 1.22
       objectReference: {fileID: 0}
     - target: {fileID: 8174872596640538779, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_LocalPosition.y
@@ -1427,6 +1452,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8527149213830531456, guid: 39bac86b41747ef419efd92356661d53, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 9f4e97438878e3047b82f13cd88e6642, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1437,12 +1466,12 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1604191937}
-  - {fileID: 1641473100}
-  - {fileID: 2047814475}
-  - {fileID: 1026189582}
   - {fileID: 2706164679393402917}
   - {fileID: 4349622876648997336}
   - {fileID: 1519728336}
+  - {fileID: 1641473100}
+  - {fileID: 2047814475}
+  - {fileID: 1026189582}
   - {fileID: 7971118399155661420}
   - {fileID: 565776523}
   - {fileID: 731351089}

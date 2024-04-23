@@ -1,0 +1,103 @@
+//// Each #kernel tells which function to compile; you can have many kernels
+//#pragma kernel SolveDeviatoric
+
+//// Create a RenderTexture with enableRandomWrite flag and set it
+//// with cs.SetTexture
+//RWStructuredBuffer<float3> corr;
+//RWStructuredBuffer<float3> pos;
+
+//StructuredBuffer<float> invMass;
+//StructuredBuffer<int4> tets;
+//StructuredBuffer<int> restVolumes;
+//StructuredBuffer<float3x3> invDm;
+
+//float dt;
+//float mu;
+//float lambda;
+
+//float3x3 GetDeformationGradient(uint tetId)
+//{
+//    int id0 = tets[tetId].x;
+//    int id1 = tets[tetId].y;
+//    int id2 = tets[tetId].z;
+//    int id3 = tets[tetId].w;
+    
+//    float3x3 Ds = 0;
+//    Ds._m00_m10_m20 = pos[id1] - pos[id0];
+//    Ds._m01_m11_m21 = pos[id2] - pos[id0];
+//    Ds._m02_m12_m22 = pos[id3] - pos[id0];
+
+//    return Ds;
+//}
+//void ApplyToElement(uint i, float C, float compliance, float3x4 gradients)
+//{
+//    float weight = 0.0;
+//    int id0 = tets[i].x;
+//    int id1 = tets[i].y;
+//    int id2 = tets[i].z;
+//    int id3 = tets[i].w;
+
+//    weight += dot(gradients._m00_m10_m20, gradients._m00_m10_m20) * invMass[id0];
+//    weight += dot(gradients._m01_m11_m21, gradients._m01_m11_m21) * invMass[id1];
+//    weight += dot(gradients._m02_m12_m22, gradients._m02_m12_m22) * invMass[id2];
+//    weight += dot(gradients._m02_m12_m22, gradients._m02_m12_m22) * invMass[id3];
+
+//    if (weight == 0.0)
+//        return;
+
+//    float h2 = dt * dt;
+//    float alpha = compliance / h2;
+//    float dlambda = -C / (weight + alpha);
+
+//    id0 = tets[i].x;
+//    id1 = tets[i].y;
+//    id2 = tets[i].z;
+//    id3 = tets[i].w;
+//    pos[id0] += dlambda * invMass[id0] * gradients._m00_m10_m20;
+//    pos[id1] += dlambda * invMass[id1] * gradients._m01_m11_m21;
+//    pos[id2] += dlambda * invMass[id2] * gradients._m02_m12_m22;
+//    pos[id3] += dlambda * invMass[id3] * gradients._m02_m12_m22;
+
+//    float3 result = dlambda * invMass[id0] * gradients._m00_m10_m20;
+//    InterlockedAdd(corr[id0], result, corr[id0]);
+//}
+
+//[numthreads(64,1,1)]
+//void SolveDeviatoric(uint3 dispatchID : SV_DispatchThreadID)
+//{
+//	uint tetId = dispatchID.x;
+//	float compliance = 1.0 / mu / restVolumes[tetId];
+
+//    float3x3 F = GetDeformationGradient(tetId);
+
+//    float f1 = dot(F._m00_m10_m20, F._m00_m10_m20);
+//    float f2 = dot(F._m01_m11_m21, F._m01_m11_m21);
+//    float f3 = dot(F._m02_m12_m22, F._m02_m12_m22);
+//    float r_s = sqrt(f1 + f2 + f3);
+//    float C = r_s;
+
+//    if (C == 0.0)
+//        return;
+
+//    float r_s_inv = 1 / r_s;
+
+//    // gradients set zero
+//    float3x4 gradients = 0;
+
+//    gradients._m01_m11_m21 += r_s_inv * invDm[tetId]._m00 * F._m00_m10_m20;
+//    gradients._m01_m11_m21 += r_s_inv * invDm[tetId]._m01 * F._m01_m11_m21;
+//    gradients._m01_m11_m21 += r_s_inv * invDm[tetId]._m02 * F._m02_m12_m22;
+                                    
+//    gradients._m02_m12_m22 += r_s_inv * invDm[tetId]._m10 * F._m00_m10_m20;
+//    gradients._m02_m12_m22 += r_s_inv * invDm[tetId]._m11 * F._m01_m11_m21;
+//    gradients._m02_m12_m22 += r_s_inv * invDm[tetId]._m12 * F._m02_m12_m22;
+                                    
+//    gradients._m03_m13_m23 += r_s_inv * invDm[tetId]._m20 * F._m00_m10_m20;
+//    gradients._m03_m13_m23 += r_s_inv * invDm[tetId]._m21 * F._m01_m11_m21;
+//    gradients._m03_m13_m23 += r_s_inv * invDm[tetId]._m22 * F._m02_m12_m22;
+
+//    gradients._m00_m10_m20 = -gradients._m01_m11_m21 - gradients._m02_m12_m22 - gradients._m03_m13_m23;
+
+
+//    ApplyToElement(tetId, C, compliance, gradients);
+//}

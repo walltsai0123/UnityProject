@@ -1,0 +1,34 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<float4> Result;
+Texture2D<float4> image;
+float3 Dispatch;
+
+groupshared float4 TotalSum[256];
+
+[numthreads(16,16,1)]
+void CSMain(uint3 groupID : SV_GroupID, uint3 dispatchID : SV_DispatchThreadID, uint groupIndex : SV_GroupIndex)
+{
+    TotalSum[groupIndex] = image[dispatchID.xy];
+    GroupMemoryBarrierWithGroupSync();
+    
+    for (uint k = 128; k > 0; k >>= 1)
+    {
+        if (groupIndex < k)
+        {
+            TotalSum[groupIndex] += TotalSum[groupIndex + k];
+        }
+        GroupMemoryBarrierWithGroupSync();
+    }
+    
+    if (groupIndex == 0)
+    {
+        int index = groupID.x + groupID.y * Dispatch.x;
+        Result[index] = TotalSum[0];
+
+    }
+    
+}

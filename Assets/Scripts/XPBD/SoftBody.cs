@@ -6,22 +6,22 @@ using Unity.Burst;
 using System.Collections.Generic;
 using System;
 using UnityEngine.Assertions;
+using UnityEngine.UIElements;
 
 namespace XPBD
 {
     [RequireComponent(typeof(MeshRenderer), typeof(MeshFilter))]
     public class SoftBody : Body
     {
-        //public VisMesh visMesh;
-        //public PhysicMesh physicMesh;
-        public TetrahedronMesh tetrahedronMesh;
+        [SerializeField] TetrahedronMesh tetrahedronMesh;
 
         private MeshRenderer meshRenderer;
         private MeshFilter meshFilter;
-        private Mesh visualMesh;
+        public Mesh visualMesh;
         private Mesh tetMesh;
-        private Material visualMaterial;
-        public Material wireframeMaterial;
+        public Material visualMaterial { get; private set; }
+        public Material collisionMaterial { get; private set; }
+        [SerializeField] Material wireframeMaterial;
 
         public float mu = 10f, lambda = 1000f;
         public bool showTet = false;
@@ -55,6 +55,7 @@ namespace XPBD
         private Vector3 v0 = Vector3.zero;
 
         private JobHandle jobHandle;
+        //private ComputeShader computeShader = null;
 
         public List<MyCollision> collisions;
 
@@ -67,6 +68,8 @@ namespace XPBD
         public override void ClearCollision()
         {
             collisions.Clear();
+
+            collisionMaterial.CopyMatchingPropertiesFromMaterial(visualMaterial);
         }
 
         public override void PreSolve(float dt, Vector3 gravity)
@@ -92,6 +95,43 @@ namespace XPBD
         {
             if(Simulation.get.UseNeoHookeanMaterial)
             {
+                //if (computeShader == null)
+                //    computeShader = Resources.Load<ComputeShader>("SoftBody");
+
+                //int kernel_SolveDeviatoric = computeShader.FindKernel("SolveDeviatoric");
+
+                //ComputeBuffer posBuffer = new(VerticesNum, sizeof(float) * 3, ComputeBufferType.Default);
+                //posBuffer.SetData(Pos);
+
+                //ComputeBuffer invMassBuffer = new(VerticesNum, sizeof(float), ComputeBufferType.Default);
+                //invMassBuffer.SetData(invMass);
+
+                //ComputeBuffer tetsBuffer = new(TetsNum, sizeof(int) * 4, ComputeBufferType.Default);
+                //tetsBuffer.SetData(tets);
+                //ComputeBuffer restVolumesBuffer = new(TetsNum, sizeof(int), ComputeBufferType.Default);
+                //restVolumesBuffer.SetData(restVolumes);
+                //ComputeBuffer invDmBuffer = new(TetsNum, sizeof(float) * 9, ComputeBufferType.Default);
+                //invDmBuffer.SetData(invDm);
+
+                //computeShader.SetFloat("dt", dt);
+                //computeShader.SetFloat("mu", mu);
+                //computeShader.SetFloat("lambda", lambda);
+
+                //computeShader.SetBuffer(kernel_SolveDeviatoric, "pos", posBuffer);
+                //computeShader.SetBuffer(kernel_SolveDeviatoric, "invMass", invMassBuffer);
+                //computeShader.SetBuffer(kernel_SolveDeviatoric, "tets", tetsBuffer);
+                //computeShader.SetBuffer(kernel_SolveDeviatoric, "restVolumes", restVolumesBuffer);
+                //computeShader.SetBuffer(kernel_SolveDeviatoric, "invDm", invDmBuffer);
+
+
+                //posBuffer.Release();
+                //invMassBuffer.Release();
+                //tetsBuffer.Release();
+                //restVolumesBuffer.Release();
+                //invDmBuffer.Release();
+
+                //computeShader.Dispatch(kernel_SolveDeviatoric, 1 + Mathf.FloorToInt(TetsNum / 64), 1, 1);
+
                 SolveElementJob solveElementJob = new SolveElementJob
                 {
                     dt = dt,
@@ -333,6 +373,7 @@ namespace XPBD
 
             // Set materials
             visualMaterial = meshRenderer.material;
+            collisionMaterial = new(Simulation.get.textureFrictionShader);
 
         }
         private void InitializePhysics2()

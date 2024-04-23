@@ -12,6 +12,9 @@ namespace XPBD
         //public Vector3 defaultNormal = Vector3.up;
         //private bool isStarted = false;
 
+        public Mesh mesh { get; private set; }
+        public Material material { get; private set; }
+        public Material collisionMaterial { get; private set; }
         public Vector3 Position => transform.position;
         public Quaternion Rotation => transform.rotation;
 
@@ -20,9 +23,16 @@ namespace XPBD
             gameObject.tag = "Primitive";
             collider = GetComponent<Collider>();
             Geometry = GetComponent<Geometry>();
+            mesh = GetComponent<MeshFilter>().mesh;
+            material = GetComponent<MeshRenderer>().material;
+            collisionMaterial = new(Simulation.get.textureFrictionShader);
             Simulation.get.AddPrimitive(this);
 
             //Debug.Log(Geometry);
+        }
+        public void UpdateCollisionMaterial()
+        {
+            collisionMaterial.CopyMatchingPropertiesFromMaterial(material);
         }
 
         public bool IsInside(Vector3 point)

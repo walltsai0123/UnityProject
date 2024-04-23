@@ -7,9 +7,9 @@ namespace XPBD
 {
     public class MyCollision : CollisionConstraint
     {
-        private Body body;
+        public SoftBody body;
         public Primitive primitive;
-        private int index;
+        public int index;
 
         //public float4 frictionCoef;
         public float restitutionCoef;
@@ -24,7 +24,7 @@ namespace XPBD
         private float tangentCoef = 0f;
         private float bitangentCoef = 0f;
 
-        public MyCollision(Body b, Primitive p, int i = -1)
+        public MyCollision(SoftBody b, Primitive p, int i = -1)
         {
             body = b;
             primitive = p;
