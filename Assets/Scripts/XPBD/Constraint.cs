@@ -10,6 +10,13 @@ namespace XPBD
 {
     public abstract class Constraint : MonoBehaviour
     {
+        //[SerializeField] protected float compliance = 0f;
+        protected float lambda = 0f;
+
+        public virtual void ResetLambda()
+        {
+            lambda = 0f;
+        }
         public virtual void SolveConstraint(float dt)
         {
             Debug.LogWarning("Base Constraint SolveConstraint");

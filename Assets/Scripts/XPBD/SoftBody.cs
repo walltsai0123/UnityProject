@@ -178,9 +178,6 @@ namespace XPBD
             }
         }
 
-        public override void VelocitySolve(float dt)
-        {
-        }
         public override void EndFrame()
         {
             //physicMesh.Show(showTet);
@@ -564,16 +561,6 @@ namespace XPBD
                     }
                 }
             }
-            // averageEdge /= TetsNum;
-            // Debug.Log("averageEdge " + averageEdge);
-
-            // Print skinningInfo
-            //string str = string.Empty;
-            //for (int i = 0; i < skinningInfo.Length; ++i)
-            //{
-            //    str += skinningInfo[i] + "\n";
-            //}
-            //Debug.Log("skinningInfo:\n" + str);
         }
 
         private void Translate(float3 moveDist)

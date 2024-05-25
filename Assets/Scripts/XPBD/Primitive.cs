@@ -4,60 +4,43 @@ using UnityEngine;
 
 namespace XPBD
 {
-    [RequireComponent(typeof(Collider))]
+    [RequireComponent(typeof(MeshRenderer), typeof(MeshFilter))]
     public class Primitive : MonoBehaviour
     {
-        public new Collider collider { get; private set; }
-        public Geometry Geometry { get; private set; }
-        //public Vector3 defaultNormal = Vector3.up;
-        //private bool isStarted = false;
+        public Geometry Geometry { get; protected set; }
 
-        public Mesh mesh { get; private set; }
-        public Material material { get; private set; }
+        public Mesh mesh { get; protected set; }
+        public Material material { get; protected set; }
         public Material collisionMaterial { get; private set; }
         public Vector3 Position => transform.position;
         public Quaternion Rotation => transform.rotation;
 
-        private void Awake()
+        public List<MyCollision> collisions { get; protected set; }
+
+        protected virtual void Awake()
         {
             gameObject.tag = "Primitive";
-            collider = GetComponent<Collider>();
             Geometry = GetComponent<Geometry>();
             mesh = GetComponent<MeshFilter>().mesh;
             material = GetComponent<MeshRenderer>().material;
-            collisionMaterial = new(Simulation.get.textureFrictionShader);
-            Simulation.get.AddPrimitive(this);
-
-            //Debug.Log(Geometry);
         }
+
+        protected virtual void Start()
+        {
+            collisions = new List<MyCollision>();
+            collisionMaterial = new(Simulation.get.textureFrictionShader);
+            Simulation.get.primitives.Add(this);
+        }
+
+        public virtual void Simulate(float dt) { }
+
+        public virtual void UpdateVisual() { }
+
+        public virtual void ApplyVelocity() { }
         public void UpdateCollisionMaterial()
         {
+            collisions.Clear();
             collisionMaterial.CopyMatchingPropertiesFromMaterial(material);
-        }
-
-        public bool IsInside(Vector3 point)
-        {
-            // Get local position
-            Vector3 local = transform.InverseTransformPoint(point);
-            //Debug.Log("Point:" + point);
-            //Debug.Log("Local:" + local);
-            return Geometry.IsInside(local);
-        }
-
-        public Vector3 ClosestSurfacePoint(Vector3 point, out Vector3 surfaceNormal)
-        {
-            // Get local position
-            Vector3 local = transform.InverseTransformPoint(point);
-
-            Vector3 result = Geometry.ClosestSurfacePoint(local, out surfaceNormal);
-
-            result = transform.TransformPoint(result);
-            surfaceNormal = transform.TransformDirection(surfaceNormal);
-
-            //Debug.Log("Point:" + result);
-            //Debug.Log("Normal:" + surfaceNormal);
-
-            return result;
         }
     }
 }

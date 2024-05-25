@@ -28,7 +28,6 @@ void CSMain(uint3 groupID : SV_GroupID, uint3 dispatchID : SV_DispatchThreadID, 
     {
         int index = groupID.x + groupID.y * Dispatch.x;
         Result[index] = TotalSum[0];
-
     }
     
 }

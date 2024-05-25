@@ -1,0 +1,207 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel HeightIntergration
+#pragma kernel CacheCopy
+#pragma kernel UpdateVelocity
+#pragma kernel ApplyFriction
+#pragma kernel UpdateTexture
+#pragma kernel Collision
+
+static const int NumThreads = 64;
+ 
+RWTexture2D<float4> Height_map;
+RWTexture2D<float4> Normal_map;
+
+RWStructuredBuffer<float> heights;
+RWStructuredBuffer<float> heights_cache;
+RWStructuredBuffer<float> u;
+RWStructuredBuffer<float> v;
+
+struct Contact
+{
+    int index;
+    float3 p;
+    float3 velocity;
+    float penetration;
+};
+
+RWStructuredBuffer<Contact> contacts;
+
+// Settings
+const float dt;
+const float gravity;
+const float mu;
+const float spacing;
+const uint numX;
+const uint numZ;
+
+[numthreads(NumThreads, 1, 1)]
+void HeightIntergration (uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x / numZ;
+    uint j = id.x % numZ;
+
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    if(i == 0 || j == 0 || i == numX - 1 || j == numZ - 1)
+    {
+        heights_cache[id.x] = heights[id.x];
+        return;
+    }
+
+	uint center = id.x;
+    uint left = id.x - numZ;
+    uint right = id.x + numZ;
+    uint bottom = id.x - 1;
+    uint top = id.x + 1;
+
+    float h = heights[center];
+
+    // neighbor cell height
+    float h_n = 0;
+
+    // right cell is boundary
+    h_n = (i + 1 >= numX - 1) ? h : heights[right];
+    float U0 = max(u[right], 0.0) * h + min(u[right], 0.0) * h_n;
+
+    // left cell is boundary
+    h_n = (i - 1 == 0) ? h : heights[left];
+    float U1 = max(u[center], 0.0) * h_n + min(u[center], 0.0) * h;
+
+    // up cell is boundary
+    h_n = (j + 1 >= numZ - 1) ? h : heights[top];
+    float U2 = max(v[top], 0.0) * h + min(v[top], 0.0) * h_n;
+
+    // down cell is boundary
+    h_n = (j - 1 == 0) ? h : heights[bottom];
+    float U3 = max(v[center], 0.0) * h_n + min(v[center], 0.0) * h;
+
+
+    heights[id.x] = max(h - (dt / spacing) * (U0 - U1 + U2 - U3), 0);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void CacheCopy(uint id : SV_DispatchThreadID)
+{
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    heights[id.x] = heights_cache[id.x];
+}
+
+[numthreads(NumThreads, 1, 1)]
+void UpdateVelocity(uint id : SV_DispatchThreadID)
+{
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    uint i = id.x / numZ;
+    uint j = id.x % numZ;
+
+    if(i == 0 || j == 0 || i == numX - 1 || j == numZ - 1)
+        return;
+
+    float g = abs(gravity);
+    int center = i * numZ + j;
+    int left = (i - 1) * numZ + j;
+    int down = i * numZ + j - 1;
+
+    float h_L = (i == 1) ? heights[center] : heights[left];
+    float h_D = (j == 1) ? heights[center] : heights[down];
+
+    float u_temp = u[center] - (dt * g / spacing) * (heights[center] - h_L);
+    float v_temp = v[center] - (dt * g / spacing) * (heights[center] - h_D);
+
+    float maxVel = 0.5 * spacing / dt;
+
+    u[center] = clamp(u_temp, -maxVel, maxVel);
+    v[center] = clamp(v_temp, -maxVel, maxVel);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void ApplyFriction(uint id : SV_DispatchThreadID)
+{
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    uint i = id.x / numZ;
+    uint j = id.x % numZ;
+
+    if(i == 0 || j == 0 || i == numX - 1 || j == numZ - 1)
+        return;
+
+    int center = i * numZ + j;
+    int right = (i + 1) * numZ + j;
+    int top = i * numZ + j + 1;
+    
+    float g = abs(gravity);
+    float friction = mu * g;
+    u[right] *= max((abs(u[right]) - dt * friction) / abs(u[right]), 0);
+    v[top] *= max((abs(v[top]) - dt * friction) / abs(v[top]), 0);
+}
+
+[numthreads(8, 8, 1)]
+void UpdateTexture(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x * numZ + id.y;
+    if(index >= numX * numZ)
+        return;
+
+    Height_map[id.xy] = heights[index];
+
+    uint i = id.x; 
+    uint j = id.y;
+
+    Normal_map[id.xy] = float4(0.5, 0.5, 1.0, 1.0);
+    if(i == 0 || j == 0 || i == numX - 1 || j == numZ - 1)
+        return;
+
+
+    uint left = index - numZ;
+    uint right = index + numZ;
+    uint bottom = index - 1;
+    uint top = index + 1;
+
+    float x = -(heights[right] - heights[left]) / (2 * spacing);
+    float y = -(heights[top] - heights[bottom]) / (2 * spacing);
+    float3 normal = normalize(float3(x, y, 1));
+
+    Normal_map[id.xy] = float4(0.5 + 0.5 * normal, 1);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void Collision(uint id : SV_DispatchThreadID)
+{
+    int index = contacts[id.x].index;
+    float h = min(heights[index], contacts[id.x].penetration);
+    float hSand = max(heights[index] - h, 0);
+    float H = h + hSand;
+
+    uint center = index;
+    uint right = index + numZ;
+    uint top = index + 1;
+
+    float3 nS = h * contacts[id.x].velocity;
+    float nSand1 = hSand * u[right];
+    float nSand2 = hSand * u[center]; 
+    float nSand3 = hSand * v[top]; 
+    float nSand4 = hSand * v[center];
+
+    float w = nS.y / 4;
+     
+    float ur_temp = u[right] + (nS.x + nSand1 + w) / H;
+    float uc_temp = u[center] + (nS.x + nSand2 + w) / H;
+    float vt_temp = v[top] + (nS.z + nSand3 + w) / H;
+    float vc_temp = v[center] + (nS.z + nSand4 + w) / H;
+
+    float maxVel = 0.5 * spacing / dt;
+
+    u[right] = clamp(ur_temp, -maxVel, maxVel);
+    u[center] = clamp(uc_temp, -maxVel, maxVel);
+    v[top] = clamp(vt_temp, -maxVel, maxVel);
+    v[center] = clamp(vc_temp, -maxVel, maxVel);
+}

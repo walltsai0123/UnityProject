@@ -17,7 +17,7 @@ namespace XPBD
         private float3 fn;
         public float3 vn_;
 
-        public float3 N;   //Surface normal
+        public float3 N;    //Surface normal
         public float3 T;    //Surface tangent
         public float3 B;    //Surface bitangent
 
@@ -103,6 +103,9 @@ namespace XPBD
             float vn = math.dot(N, v);
             float normalImpulse = dt * math.length(fn);
 
+            if (normalImpulse < Util.EPSILON)
+                return;
+
             // tangent
             float vt = math.dot(v, T);
             float3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
@@ -117,7 +120,6 @@ namespace XPBD
             restitutionCoef = (math.abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;
             float3 dvn = N * (-vn + math.max(0.0f, -restitutionCoef * vn_));
             soft.Vel[index] += dvn;
-
         }
 
         public void PrintData()

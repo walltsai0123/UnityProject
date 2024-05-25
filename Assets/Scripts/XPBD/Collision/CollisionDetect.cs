@@ -2,21 +2,18 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
-using UnityEditor;
-using System.Drawing;
-using UnityEngine.Experimental.Rendering;
-using System.Linq;
-using UnityEngine.UIElements;
+using System;
+using UnityEngine.Rendering;
 
 namespace XPBD
 {
-    public class CollisionDetect
+    public class CollisionDetect : IDisposable
     {
         private CollisionCamera cam1;
         private CollisionCamera cam2;
-        private int Layer1;
-        private int Layer2;
-        private int originLayer;
+        //private int Layer1;
+        //private int Layer2;
+        //private int originLayer;
 
         private const string tangentVector = "_TangentVector";
         private const string bitangentVector = "_BitangentVector";
@@ -33,13 +30,18 @@ namespace XPBD
         private const float kA = 1f;
         private const float kB = 1f;
 
+        int kernel;
         private ComputeShader computeShader;
+        private ComputeBuffer computeBuffer;
         private Vector4 [] FrictionCoefCache;
+        AsyncGPUReadbackRequest req;
+        bool coefSet;
 
         //Timers
         Timer renderTimer = new();
         //Timer computeCoefTimer = new();
         Timer computeCoefTimer2 = new();
+        Timer readbackTimer = new();
 
         public CollisionDetect()
         {
@@ -52,12 +54,12 @@ namespace XPBD
             collisions = new List<CollisionConstraint>();
 
             // Set camera culling mask
-            Layer1 = LayerMask.NameToLayer("CollisionObject1");
-            Layer2 = LayerMask.NameToLayer("CollisionObject2");
-            originLayer = LayerMask.NameToLayer("Default");
+            //Layer1 = LayerMask.NameToLayer("CollisionObject1");
+            //Layer2 = LayerMask.NameToLayer("CollisionObject2");
+            //originLayer = LayerMask.NameToLayer("Default");
 
-            cam1.layer = Layer1;
-            cam2.layer = Layer2;
+            //cam1.layer = Layer1;
+            //cam2.layer = Layer2;
 
             // Get framebuffer size and subtexture size
             rendertextureSize = cam1.renderTexture.width;
@@ -71,6 +73,17 @@ namespace XPBD
             Debug.Log(subtextureSize);
 
             computeShader = Resources.Load<ComputeShader>("FrictionCoef");
+            computeBuffer = new ComputeBuffer(FrictionCoefCache.Length, sizeof(float) * 4);
+
+            kernel = computeShader.FindKernel("CSMain");
+
+            computeShader.SetTexture(kernel, "image", cam1.renderTexture);
+            computeShader.SetBuffer(kernel, "Result", computeBuffer);
+            computeShader.SetVector("Dispatch", new Vector4(subTextureRowSize, subTextureRowSize, 1));
+        }
+        public void Dispose()
+        {
+            computeBuffer.Release();
         }
 
         public void CollectCollision(List<Body> bodies, List<Primitive> primitives, float dt)
@@ -129,6 +142,43 @@ namespace XPBD
                 computeCoefTimer2.Report("Compute Coef2", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
             }
         }
+        public void SetFrictionCoef()
+        {
+            if (coefSet)
+                return;
+
+            readbackTimer.Tic();
+
+            if (!req.done)
+            {
+                req.WaitForCompletion();
+            }
+
+            if (req.hasError)
+            {
+                computeBuffer.GetData(FrictionCoefCache);
+            }
+            else
+            {
+                FrictionCoefCache = req.GetData<Vector4>().ToArray();
+            }
+            readbackTimer.Toc();
+            //readbackTimer.Report("read back: ", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+            for (int i = 0; i < collisions.Count; ++i)
+            {
+                Vector4 mu1 = FrictionCoefCache[2 * i];
+                Vector4 mu2 = FrictionCoefCache[2 * i + 1];
+                float validPixels = subtextureSize * subtextureSize;
+
+                mu1 /= validPixels;
+                mu2 /= validPixels;
+
+                collisions[i].frictionCoef = kA * mu1 + kB * mu2;
+                collisions[i].frictionCoef += nominal_friction;
+            }
+
+            coefSet = true;
+        }
 
         private void SoftBodyCollision(SoftBody soft, Primitive primitive, float dt)
         {
@@ -143,10 +193,10 @@ namespace XPBD
                 // Predicted position of particle
                 float3 predPos = soft.Pos[i] + soft.Vel[i] * dt;
                 predPos = soft.Pos[i];
-                if (primitive.IsInside(predPos))
+                if (geometry.IsInside(predPos))
                 {
                     MyCollision newCollision = new(soft, primitive, i);
-                    newCollision.q = primitive.ClosestSurfacePoint(predPos, out Vector3 normal);
+                    newCollision.q = geometry.ClosestSurfacePoint(predPos, out Vector3 normal);
                     newCollision.N = normal;
 
                     // Calculate the Normal, Tangent, Bitangent vector of contact frame
@@ -207,6 +257,7 @@ namespace XPBD
 
                     collisions.Add(newCollision);
                     soft.collisions.Add(newCollision);
+                    primitive.collisions.Add(newCollision);
                 }
             }
 
@@ -240,7 +291,6 @@ namespace XPBD
                 int col1 = subtextureNum1 % subTextureRowSize;
                 int x1 = subtextureSize * col1;
                 int y1 = subtextureSize * row1;
-                //cam1.SetViewPort(x1, y1, subtextureSize, subtextureSize);
                 cam1.SetViewPort((float)col1 / subTextureRowSize, (float)row1 / subTextureRowSize, WH, WH);
 
                 // Set cam2 viewport
@@ -248,7 +298,6 @@ namespace XPBD
                 int col2 = subtextureNum2 % subTextureRowSize;
                 int x2 = subtextureSize * col2;
                 int y2 = subtextureSize * row2;
-                //cam2.SetViewPort(x2, y2, subtextureSize, subtextureSize);
                 cam2.SetViewPort((float)col2 / subTextureRowSize, (float)row2 / subTextureRowSize, WH, WH);
 
                 /*Shader.SetGlobalFloat("_Depth", 0.25f);
@@ -274,11 +323,6 @@ namespace XPBD
 
                 cam1.DrawToTexture(collision.body.visualMesh, collision.body.collisionMaterial, collision.body.transform.localToWorldMatrix);
                 cam2.DrawToTexture(collision.primitive.mesh, collision.primitive.collisionMaterial, collision.primitive.transform.localToWorldMatrix);
-
-                //mat2.shader = originShader;
-                //mat1.shader = originShader;
-
-
             }
         }
         private void CalculateTextureFriction(RenderTexture renderTexture)
@@ -353,32 +397,11 @@ namespace XPBD
 
         private void CalculateTextureFrictionGPU(RenderTexture renderTexture)
         {
-            int kernel = computeShader.FindKernel("CSMain");
-
-            ComputeBuffer computeBuffer = new ComputeBuffer(FrictionCoefCache.Length, sizeof(float) * 4, ComputeBufferType.Default);
-
-            computeBuffer.SetData(FrictionCoefCache);
-            computeShader.SetTexture(kernel, "image", renderTexture);
-            computeShader.SetBuffer(kernel, "Result", computeBuffer);
-            computeShader.SetVector("Dispatch", new Vector4(subTextureRowSize, subTextureRowSize, 1));
-            
             computeShader.Dispatch(kernel, subTextureRowSize, subTextureRowSize, 1);
-            computeBuffer.GetData(FrictionCoefCache);
 
-            for (int i = 0; i < collisions.Count; ++i)
-            {
-                Vector4 mu1 = FrictionCoefCache[2 * i];
-                Vector4 mu2 = FrictionCoefCache[2 * i + 1];
-                float validPixels = subtextureSize * subtextureSize;
+            req = AsyncGPUReadback.Request(computeBuffer, computeBuffer.stride * collisions.Count * 2, 0);
 
-                mu1 /= validPixels;
-                mu2 /= validPixels;
-
-                collisions[i].frictionCoef = kA * mu1 + kB * mu2;
-                collisions[i].frictionCoef += nominal_friction;
-            }
-
-            computeBuffer.Release();
+            coefSet = false;
         }
     }
 }

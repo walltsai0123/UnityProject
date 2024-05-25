@@ -8,24 +8,30 @@ namespace XPBD
     public class Plane : Geometry
     {
         // We assume all the planes has the same attributes
-        private Vector3 normal = new(0,1,0);
-        private Vector3 center = new(0,0,0);
-        private Vector2 size = new(10, 10);
+        public Vector3 normal = new(0,1,0);
+        public Vector3 center = new(0,0,0);
+        public Vector2 size = new(10, 10);
 
         public override Vector3 ClosestSurfacePoint(Vector3 point, out Vector3 surfaceNormal)
         {
-            surfaceNormal = normal;
+            // transform to local
+            Vector3 local = transform.InverseTransformPoint(point);
 
-            float t = -Vector3.Dot(normal, point - center);
-            Vector3 result = point + t * normal;
+            float t = -Vector3.Dot(normal, local - center);
+            Vector3 result = local + t * normal;
 
+            // transform back to world
+            result = transform.TransformPoint(result);
+            surfaceNormal = transform.TransformDirection(normal);
             return result;
         }
         public override bool IsInside(Vector3 point)
         {
+            Vector3 local = transform.InverseTransformPoint(point);
+
             // dp < 0 => under plane
-            float dp = Vector3.Dot(point - center, normal);
-            Vector3 tangent = (point - center) - dp * normal;
+            float dp = Vector3.Dot(local - center, normal);
+            Vector3 tangent = (local - center) - dp * normal;
 
             if (dp <= 0f)
                 if (Mathf.Abs(tangent.x) <= size.x / 2f && Mathf.Abs(tangent.z) <= size.y / 2f)
@@ -72,6 +78,11 @@ namespace XPBD
             return true;
         }
 
+        private void OnDrawGizmosSelected()
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(transform.position, new Vector3(size.x, 0f, size.y));
+        }
     }
 }
 

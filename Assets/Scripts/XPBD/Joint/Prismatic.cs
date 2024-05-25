@@ -10,8 +10,8 @@ namespace XPBD
     [RequireComponent(typeof(Rigid))]
     public class Prismatic : Joint
     {
-        public Vector3 anchor;
-        public Vector3 axis = Vector3.up;
+        [SerializeField] Vector3 anchor;
+        [SerializeField] Vector3 axis = Vector3.up;
 
         [SerializeField, Min(0f)]
         private float min = 0f;
@@ -20,27 +20,26 @@ namespace XPBD
         [SerializeField, Min(0f)]
         private float compliance = 0f;
 
-        [SerializeField, Range(0f, 1f)]
+        [SerializeField, Min(0f)]
         private float linearDamping = 0f;
 
-        [SerializeField, Range(0f, 1f)]
+        [SerializeField, Min(0f)]
         private float angularDamping = 0f;
 
+        // Local perpendicular axes of body1
         private float3 axisA, axisB, axisC;
         private float3 r1, r2;
         private quaternion q1, q2;
 
-        private JobHandle jobHandle;
-
         public override void SolveConstraint(float dt)
         {
-            SolveAngularConstraint(dt);
-            SolvePositionConstraint(dt);
+            SolveAngularConstraint2(dt);
+            SolvePositionConstraint2(dt);
         }
         public override void SolveVelocities(float dt)
         {
-            float3 dv = (body2.vel - body1.vel) * math.min(linearDamping, 1);
-            float3 domega = (body2.omega - body1.omega) * math.min(angularDamping, 1);
+            float3 dv = (body2.vel - body1.vel) * math.min(linearDamping * dt, 1);
+            float3 domega = (body2.omega - body1.omega) * math.min(angularDamping * dt, 1);
 
             // linear part
             float3 p = dv / (body1.InvMass + body2.InvMass);
@@ -51,6 +50,9 @@ namespace XPBD
             float3 n = math.normalizesafe(domega, float3.zero);
             float w1 = math.mul(n, math.mul(body1.InertiaInv, n));
             float w2 = math.mul(n, math.mul(body2.InertiaInv, n));
+
+            if(w1 + w2 <= Util.EPSILON)
+                return;
             p = domega / (w1 + w2);
             body1.omega += math.mul(body1.InertiaInv, p);
             body2.omega -= math.mul(body2.InertiaInv, p);
@@ -63,30 +65,9 @@ namespace XPBD
             float3 dq = 2f * math.mul(Q1, math.conjugate(Q2)).value.xyz;
 
             SolveAngularConstraint(dt, dq, 0f, 0f);
-
-            //NativeArray<AngularConstraintData> angularConstraintDatas = new NativeArray<AngularConstraintData>(1, Allocator.TempJob);
-            //angularConstraintDatas[0] = new AngularConstraintData(body1, body2);
-            //AngularConstraintJob angularConstraintJob = new AngularConstraintJob
-            //{
-            //    Datas = angularConstraintDatas,
-            //    dq = dq,
-            //    angle = 0f,
-            //    compliance = 0f,
-            //    dt = dt
-            //};
-            //jobHandle = angularConstraintJob.Schedule();
-            //jobHandle.Complete();
-
-            //body1.Rotation = angularConstraintDatas[0].q1;
-            //body2.Rotation = angularConstraintDatas[0].q2;
-
-            //angularConstraintDatas.Dispose();
         }
         private void SolvePositionConstraint(float dt)
         {
-            //NativeArray<PositionConstraintData> positionConstraintDatas = new NativeArray<PositionConstraintData>(1, Allocator.TempJob);
-            //positionConstraintDatas[0] = new PositionConstraintData(body1, body2, r1, r2);
-
             float3 R1 = body1.Position + math.rotate(body1.Rotation, r1);
             float3 R2 = body2.Position + math.rotate(body2.Rotation, r2);
             float3 Dr = R1 - R2;
@@ -114,31 +95,64 @@ namespace XPBD
             Dx += AxisC * dc;
 
             SolvePositionConstraint(dt, r1, r2, Dx, 0f, compliance);
-
-            //PositionConstraintJob positionConstraintJob = new PositionConstraintJob
-            //{
-            //    Datas = positionConstraintDatas,
-            //    dx = Dx,
-            //    dmax = 0f,
-            //    compliance = compliance,
-            //    dt = dt
-            //};
-            //jobHandle = positionConstraintJob.Schedule();
-            //jobHandle.Complete();
-
-            //body1.Position = positionConstraintDatas[0].x1;
-            //body2.Position = positionConstraintDatas[0].x2;
-            //body1.Rotation = positionConstraintDatas[0].q1;
-            //body2.Rotation = positionConstraintDatas[0].q2;
-
-            //positionConstraintDatas.Dispose();
         }
 
+        private void SolveAngularConstraint2(float dt)
+        {
+            quaternion Q1 = math.mul(body1.Rotation, math.conjugate(q1));
+            quaternion Q2 = math.mul(body2.Rotation, math.conjugate(q2));
+            float3 dq = 2f * math.mul(Q1, math.conjugate(Q2)).value.xyz;
 
+            AngularConstraint angularConstraint = new AngularConstraint(body1, body2);
+            angularConstraint.GetDeltaLambda(dt, 0f, 0f, dq);
+        }
+
+        private void SolvePositionConstraint2(float dt)
+        {
+            float3 R1 = body1.Position + math.rotate(body1.Rotation, r1);
+            float3 R2 = body2.Position + math.rotate(body2.Rotation, r2);
+            float3 Dr = R1 - R2;
+            float3 Dx = float3.zero;
+
+            float3 AxisA = math.rotate(body1.Rotation, axisA);
+            float3 AxisB = math.rotate(body1.Rotation, axisB);
+            float3 AxisC = math.rotate(body1.Rotation, axisC);
+
+            if (max < min)
+                max = min;
+            // Axis A
+            float da = math.dot(Dr, AxisA);
+            if (da < min)
+                Dx += AxisA * (da - min);
+            if (da > max)
+                Dx += AxisA * (da - max);
+
+            PositionConstraint positionConstraint = new PositionConstraint(body1, body2, r1, r2);
+            positionConstraint.GetDeltaLambda(dt, compliance, 0f, Dx);
+
+            ////Axis B
+            //float db = math.dot(Dr, AxisB);
+            //Dx += AxisB * db;
+
+            ////Axis C
+            //float dc = math.dot(Dr, AxisC);
+            //Dx += AxisC * dc;
+
+            R1 = body1.Position + math.rotate(body1.Rotation, r1);
+            R2 = body2.Position + math.rotate(body2.Rotation, r2);
+            Dr = R1 - R2;
+            Dx = float3.zero;
+            AxisA = math.rotate(body1.Rotation, axisA);
+
+            float3 d_bc = Dr - math.dot(Dr, AxisA) * AxisA;
+            Dx += d_bc;
+
+            PositionConstraint positionConstraint2 = new PositionConstraint(body1, body2, r1, r2);
+            positionConstraint2.GetDeltaLambda(dt, 0f, 0f, Dx);
+        }
         private void Awake()
         {
             body1 = GetComponent<Rigid>();
-            //Debug.Log("Prismatic Awake");
         }
         void Start()
         {
@@ -158,13 +172,11 @@ namespace XPBD
             // Calculate joint perpendicular unit axes
             axisA = math.normalize(axis);
             axisB = Util.GetPerpendicularVector(axisA);
-            //axisB = math.cross(axisA, new float3(1, 0, 0));
-            //if (math.length(axisB) < math.EPSILON)
-            //{
-            //    axisB = -math.cross(axisA, new float3(0, 0, -1));
-            //}
-            //axisB = math.normalize(axisB);
             axisC = math.cross(axisA, axisB);
+
+            axisA = math.rotate(math.conjugate(body1.Rotation), axisA);
+            axisB = math.rotate(math.conjugate(body1.Rotation), axisB);
+            axisC = math.rotate(math.conjugate(body1.Rotation), axisC);
         }
 
         private void OnDrawGizmosSelected()

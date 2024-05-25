@@ -101,11 +101,6 @@ namespace XPBD
             if (dqf.w < 0f) omega *= -1;
 
         }
-        public override void VelocitySolve(float dt)
-        {
-            if (isGrabbed)
-                return;
-        }
         public override void EndFrame()
         {
             ClearForce();
@@ -131,13 +126,6 @@ namespace XPBD
         {
             if (!isStarted)
                 return;
-            //Collider collider = GetComponent<Collider>();
-            //Bounds bounds = collider.bounds;
-            //bounds.Expand(2f * math.length(vel) * 0.02f);
-            //Gizmos.color = Color.red;
-            //Gizmos.DrawWireCube(collider.bounds.center, collider.bounds.size);
-            //Gizmos.color = Color.blue;
-            //Gizmos.DrawWireCube(bounds.center, bounds.size);
         }
 
         #endregion

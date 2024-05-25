@@ -11,7 +11,7 @@ Shader "Custom/NewUnlitShader"
         _ParallaxMap ("Height Map", 2D) = "black" {}
 		_Depth("Gravel Depth", Range (0.005, 1)) = 0.25
 
-		_TangentVector("Tangent vector", Vector) = (0, 1, 0, 0)
+		_TangentVector("Tangent vector", Vector) = (1, 0, 0, 0)
 		_BitangentVector("Bitangent vector", Vector) = (0, 0, 1, 0)
 	}
 	SubShader

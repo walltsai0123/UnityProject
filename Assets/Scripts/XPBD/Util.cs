@@ -4,7 +4,7 @@ using UnityEngine;
 using Unity.Mathematics;
 public static class Util
 {
-    public const float EPSILON = 1e-5f;
+    public readonly static float EPSILON = 1e-10f;
     public static bool IsInsideCollider(Collider collider, float3 point)
     {
         float3 center;

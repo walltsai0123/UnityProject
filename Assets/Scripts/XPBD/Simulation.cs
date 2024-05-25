@@ -9,9 +9,11 @@ namespace XPBD
     public class Simulation : MonoBehaviour
     {
         public static Simulation get;
-        public int substeps = 10;
+        public int substeps = 20;
         public Vector3 gravity = new(0, -9.81f, 0);
-        private List<Primitive> primitives;
+
+        // Simulation objects and constraints
+        public List<Primitive> primitives { get; private set; }
         private List<Body> bodies;
         private List<Constraint> constraints;
 
@@ -22,8 +24,8 @@ namespace XPBD
         private List<CollisionConstraint> collisions;
 
         private Grabber grabber;
-        private bool pause = false;
-        private bool stepOnce = false;
+        public bool pause = false;
+        public bool stepOnce = false;
 
         private int totalContacts = 0;
         private int totalSimLoops = 0;
@@ -33,13 +35,9 @@ namespace XPBD
         public int targetFPS = 60;
 
         // Timer
-        //Timer stepTimer;
+        Timer stepTimer = new();
+        Timer bodySolveTimer = new();
 
-        public void AddPrimitive(Primitive p)
-        {
-            primitives.Add(p);
-            //Debug.Log(primitives.Count);
-        }
         public void AddBody(Body b)
         {
             bodies.Add(b);
@@ -56,12 +54,14 @@ namespace XPBD
                 Destroy(gameObject);
                 return;
             }
+
             get = this;
             primitives = new List<Primitive>();
             bodies = new List<Body>();
             constraints = new List<Constraint>();
             collisionDetect = new CollisionDetect();
             collisions = new List<CollisionConstraint>();
+
             if (textureFrictionShader == null)
                 textureFrictionShader = Shader.Find("Custom/NewUnlitShader");
 
@@ -74,6 +74,8 @@ namespace XPBD
         }
         private void Update()
         {
+            if(Time.frameCount < 10)
+                return;
             grabber.MoveGrab();
 
             if (Input.GetKeyDown(KeyCode.P))
@@ -89,7 +91,6 @@ namespace XPBD
                 return;
             float dt = 1f / targetFPS;
             SimulationUpdate(dt, substeps);
-
             //Clear step once flag
             stepOnce = false;
         }
@@ -112,7 +113,8 @@ namespace XPBD
         private void SimulationUpdate(float dt, int substeps)
         {
             Timer stepTimer = new(); stepTimer.Tic();
-            //collisions.Clear();
+
+
             collisionDetect.CollectCollision(bodies, primitives, dt);
             collisions = collisionDetect.Collisions;
 
@@ -121,48 +123,70 @@ namespace XPBD
                 totalContacts += collisions.Count;
                 totalSimLoops++;
             }
-            
 
+            bodySolveTimer.Tic();
+            bodySolveTimer.Pause();
             float sdt = dt / substeps;
             for (int step = 0; step < substeps; ++step)
             {
-                foreach (Body body in bodies)
-                    body.PreSolve(sdt, gravity);
+                foreach(Primitive p in primitives) 
+                {
+                    p.Simulate(sdt);
+                }
 
                 foreach (Body body in bodies)
-                    body.Solve(sdt);
+                    if(!body.isFixed)
+                        body.PreSolve(sdt, gravity);
+                
+                bodySolveTimer.Resume();
+
+                foreach (Body body in bodies)
+                    if (!body.isFixed)
+                        body.Solve(sdt);
+
+                bodySolveTimer.Pause();
+
+                foreach (Constraint C in constraints)
+                    C.ResetLambda();
 
                 foreach (Constraint C in constraints)
                     C.SolveConstraint(sdt);
 
+                collisionDetect.SetFrictionCoef();
                 foreach (CollisionConstraint collision in collisions)
                     collision.SolveCollision(sdt);
-
+                
                 foreach (Body body in bodies)
-                    body.PostSolve(sdt);
-
-                foreach (Body body in bodies)
-                    body.VelocitySolve(sdt);
+                    if (!body.isFixed)
+                        body.PostSolve(sdt);
 
                 foreach (Constraint C in constraints)
                     C.SolveVelocities(sdt);
 
                 foreach (CollisionConstraint collision in collisions)
                     collision.VelocitySolve(sdt);
+
+                foreach (Primitive p in primitives)
+                    p.ApplyVelocity();
             }
+            foreach (Primitive p in primitives)
+                p.UpdateVisual();
+            
             foreach (Body body in bodies)
                 body.EndFrame();
 
             stepTimer.Toc();
-            // stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+            stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+
+            bodySolveTimer.Toc();
+            bodySolveTimer.Report("Body solve time: ", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
         }
 
         private void OnDestroy()
         {
-            // BackEnd.XPBDSimDelete();
             if (totalSimLoops > 0)
                 Debug.Log("Average contacts: " + totalContacts / totalSimLoops);
-            Debug.Log("Simulation Destroy");
+            collisionDetect.Dispose(); 
         }
     }
 }

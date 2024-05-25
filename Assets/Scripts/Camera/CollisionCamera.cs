@@ -24,6 +24,7 @@ public class CollisionCamera : MonoBehaviour
         renderTexture.Release();
 
         commandBuffer = new CommandBuffer();
+        commandBuffer.name = gameObject.name;
     }
 
     public void RenderToTexture()
@@ -42,6 +43,7 @@ public class CollisionCamera : MonoBehaviour
         viewport.height *= renderTexture.height;
         
         commandBuffer.Clear();
+        commandBuffer.name = gameObject.name;
         commandBuffer.SetRenderTarget(renderTexture);
         commandBuffer.SetViewport(viewport);
         commandBuffer.SetViewProjectionMatrices(Cam.worldToCameraMatrix, Cam.projectionMatrix);

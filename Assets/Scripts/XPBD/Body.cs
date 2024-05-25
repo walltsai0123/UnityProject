@@ -15,10 +15,12 @@ namespace XPBD
         //public int ID;
         public BodyType bodyType = BodyType.None;
         public float mass = 1f;
+        public bool isFixed = false;
         public bool UseGravity = true;
         public bool EnableContact = true;
-        protected bool isGrabbed = false;
         public bool grabbable = true;
+
+        protected bool isGrabbed = false;
         protected bool isStarted = false;
         
         public float InvMass
@@ -48,10 +50,7 @@ namespace XPBD
         {
             Debug.Log("Body PostSolve");
         }
-        public virtual void VelocitySolve(float dt)
-        {
-            Debug.Log("Body Velocity");
-        }
+
         public virtual void EndFrame()
         {
             Debug.Log("Body EndFrame");
