@@ -20,12 +20,6 @@ namespace XPBD
         [SerializeField, Min(0f)]
         private float compliance = 0f;
 
-        [SerializeField, Min(0f)]
-        private float linearDamping = 0f;
-
-        [SerializeField, Min(0f)]
-        private float angularDamping = 0f;
-
         // Local perpendicular axes of body1
         private float3 axisA, axisB, axisC;
         private float3 r1, r2;
@@ -36,28 +30,7 @@ namespace XPBD
             SolveAngularConstraint2(dt);
             SolvePositionConstraint2(dt);
         }
-        public override void SolveVelocities(float dt)
-        {
-            float3 dv = (body2.vel - body1.vel) * math.min(linearDamping * dt, 1);
-            float3 domega = (body2.omega - body1.omega) * math.min(angularDamping * dt, 1);
 
-            // linear part
-            float3 p = dv / (body1.InvMass + body2.InvMass);
-            body1.vel += p * body1.InvMass;
-            body2.vel -= p * body2.InvMass;
-
-            // angular part
-            float3 n = math.normalizesafe(domega, float3.zero);
-            float w1 = math.mul(n, math.mul(body1.InertiaInv, n));
-            float w2 = math.mul(n, math.mul(body2.InertiaInv, n));
-
-            if(w1 + w2 <= Util.EPSILON)
-                return;
-            p = domega / (w1 + w2);
-            body1.omega += math.mul(body1.InertiaInv, p);
-            body2.omega -= math.mul(body2.InertiaInv, p);
-
-        }
         private void SolveAngularConstraint(float dt)
         {
             quaternion Q1 = math.mul(body1.Rotation, math.conjugate(q1));
@@ -101,7 +74,7 @@ namespace XPBD
         {
             quaternion Q1 = math.mul(body1.Rotation, math.conjugate(q1));
             quaternion Q2 = math.mul(body2.Rotation, math.conjugate(q2));
-            float3 dq = 2f * math.mul(Q1, math.conjugate(Q2)).value.xyz;
+            float3 dq = 2f * math.mul(Q2, math.conjugate(Q1)).value.xyz;
 
             AngularConstraint angularConstraint = new AngularConstraint(body1, body2);
             angularConstraint.GetDeltaLambda(dt, 0f, 0f, dq);

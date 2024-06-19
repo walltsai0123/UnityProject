@@ -1,5 +1,8 @@
 using UnityEngine;
 using Unity.Mathematics;
+using UnityEngine.UIElements;
+using System;
+using UnityEditor.ShaderGraph.Internal;
 namespace XPBD
 {
     public class SandSurface : Primitive
@@ -14,6 +17,8 @@ namespace XPBD
         [SerializeField] float ground_elavation;
         [SerializeField] float mu;
         [SerializeField] Material meshMaterial;
+        [SerializeField] ComputeShader computeShader;
+        [SerializeField] private bool updateMesh = false;
 
         int numX;
         int numZ;
@@ -27,14 +32,14 @@ namespace XPBD
         float[] heights;
         float[] u;
         float[] v;
+        float totalHeight = 0f;
 
         float gravity = -9.81f;
 
         //Material material;
         RenderTexture height_map;
         RenderTexture normal_map;
-
-        [SerializeField] ComputeShader computeShader;
+        
         ComputeBuffer heightBuffer;
         ComputeBuffer heightCacheBuffer;
         ComputeBuffer uBuffer;
@@ -92,23 +97,52 @@ namespace XPBD
 
         public override void UpdateVisual()
         {
-            //UpdateVisMesh();
+            UpdateVisMesh();
             UpdateTextureGPU();
+
+            float totalH = 0f;
+            heightBuffer.GetData(heights);
+            for (int i = 0; i < numCells; i++)
+            {
+                totalH += heights[i];
+            }
+
+            float error = (totalH - totalHeight) / totalHeight * 100f;
+            Debug.Log("Current total height: " + totalH);
+            Debug.Log("Total height: " + totalHeight);
+            Debug.Log("Total height error: " + error.ToString("F6") + "%");
+            Debug.Log("Error per grid: " + (error / numCells * totalHeight));
         }
 
-        public override void ApplyVelocity()
+        public override void ApplyVelocity(float dt)
         {
             if(collisions.Count == 0)
                 return;
+
             Contact [] contact = new Contact[collisions.Count];
-            for(int i = 0; i < collisions.Count; i++)
+
+            Vector3 O = meshVertices[0];
+            float maxDist = 0f;
+            for (int i = 0; i < collisions.Count; i++)
             {
                 var collision = collisions[i];
                 Vector3 localPoint = transform.InverseTransformPoint(collision.q);
                 Vector3 localVel = transform.InverseTransformDirection(collision.body.Vel[collision.index]);
 
-                int X = Mathf.FloorToInt(localPoint.x / spacing) + Mathf.FloorToInt(numX / 2);
-                int Z = Mathf.FloorToInt(localPoint.z / spacing) + Mathf.FloorToInt(numZ / 2);
+                float offset = spacing / 2f;
+                int X = Mathf.FloorToInt((localPoint.x - O.x + offset) / spacing)/* + Mathf.FloorToInt(numX / 2)*/;
+                int Z = Mathf.FloorToInt((localPoint.z - O.z + offset) / spacing)/* + Mathf.FloorToInt(numZ / 2)*/;
+
+                Vector3 V = meshVertices[X * numZ + Z];
+                V.y = 0f;
+                float dist = (localPoint - V).magnitude;
+                maxDist = Mathf.Max(maxDist, dist);
+                if (dist > spacing)
+                {
+                    Debug.Log("pos: " + V);
+                    Debug.Log("localPoint: " + localPoint);
+                    Debug.Log("dist: " + dist);
+                }
 
                 float pene = math.length(collision.q - collision.body.Pos[collision.index]);
                 contact[i] = new Contact()
@@ -119,7 +153,7 @@ namespace XPBD
                     penetration = pene
                 };
             }
-
+            computeShader.SetFloat("dt", dt);
             contactBuffer.SetData(contact);
             ComputeHelper.Dispatch(computeShader, collisions.Count, kernelIndex: collisionKernel);
         }
@@ -134,6 +168,7 @@ namespace XPBD
             heights = new float[numCells];
             u = new float[numCells];
             v = new float[numCells];
+            totalHeight = 0;
 
             System.Array.Fill(heights, 0.01f);
             System.Array.Fill(u, 0f);
@@ -141,16 +176,19 @@ namespace XPBD
 
             int dimX = Mathf.Min(30, numX / 4);
             int dimZ = Mathf.Min(30, numZ / 4);
-            for (int i = numX / 2 - dimX; i < numX / 2 + dimX; i++)
+            for (int i = 0; i < numX; i++)
             {
-                for (int j = numZ / 2 - dimZ; j < numZ / 2 + dimZ; j++)
+                for (int j = 0; j < numZ; j++)
                 {
                     int id = i * numZ + j;
-                    heights[id] = depth;
+                    heights[id] = UnityEngine.Random.Range(0.01f, depth);
                 }
-
             }
             
+            for (int i = 0; i < numCells; i++)
+            {
+                totalHeight += heights[i];
+            }
             Plane = GetComponent<XPBD.Plane>();
             Plane.size = new Vector2(sizeX, sizeZ);
         }
@@ -301,7 +339,8 @@ namespace XPBD
         }
         void UpdateVisMesh()
         {
-
+            if (!updateMesh)
+                return;
             //Update the height
             heightBuffer?.GetData(heights);
             for (int i = 0; i < this.numCells; i++)
@@ -311,8 +350,8 @@ namespace XPBD
 
             //Update the mesh
             mesh.SetVertices(meshVertices);
-            mesh.RecalculateNormals();
-            mesh.RecalculateTangents();
+            //mesh.RecalculateNormals();
+            //mesh.RecalculateTangents();
             mesh.RecalculateBounds();
         }
 

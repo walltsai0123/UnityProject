@@ -18,7 +18,7 @@ namespace XPBD
 
         // Angular velocity
         public float3 omega { get; set; }
-
+        
         // Linear force
         public float3 fext { get; set; }
 
@@ -39,10 +39,11 @@ namespace XPBD
         public float3 prevPos { get; private set; }
         public quaternion prevRot { get; private set; }
 
-        // Initial linear velocity
+        // Initial velocity
         [SerializeField] 
         private Vector3 v0 = Vector3.zero;
-
+        [SerializeField]
+        private float3 omega0;
 
 
         #region Body
@@ -79,7 +80,10 @@ namespace XPBD
             quaternion Omega = new quaternion(omega.x, omega.y, omega.z, 0f);
             Omega.value *= 0.5f * dt;
             quaternion dq = math.mul(Omega, Rotation);
-            Rotation = math.normalize(Rotation.value + dq.value);
+            Rotation = math.normalizesafe(Rotation.value + dq.value, quaternion.identity);
+
+            //Debug.Log(gameObject + " Vel: " + vel);
+            //Debug.Log(gameObject + " Omega: " + omega);
         }
 
         public override void Solve(float dt)
@@ -113,7 +117,6 @@ namespace XPBD
         private void Awake()
         {
             Initialized();
-            //Debug.Log("Rigid Awake");
         }
 
         private void Start()
@@ -142,7 +145,7 @@ namespace XPBD
             Position = prevPos = transform.position;
             Rotation = prevRot = transform.rotation;
             vel = v0;
-            omega = float3.zero;
+            omega = omega0;
             fext = float3.zero;
             Tau = float3.zero;
 
@@ -152,6 +155,7 @@ namespace XPBD
                 0, inertiaVec.y, 0,
                 0, 0, inertiaVec.z);
             InertiaBodyInv = math.inverse(InertiaBody);
+            
             if(mass == 0f)
             {
                 InertiaBody *= 0f;

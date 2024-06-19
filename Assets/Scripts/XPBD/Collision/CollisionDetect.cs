@@ -26,7 +26,7 @@ namespace XPBD
         private readonly int rendertextureSize;
         private readonly int subTextureRowSize;
 
-        private const float nominal_friction = 0.05f;
+        private const float nominal_friction = 0.00f;
         private const float kA = 1f;
         private const float kB = 1f;
 
@@ -67,10 +67,10 @@ namespace XPBD
             FrictionCoefCache = new Vector4[subTextureRowSize * subTextureRowSize];
             System.Array.Fill(FrictionCoefCache, Vector4.zero);
 
-            Debug.Log("RenderTexture Sizes");
-            Debug.Log(rendertextureSize);
-            Debug.Log(subTextureRowSize);
-            Debug.Log(subtextureSize);
+            //Debug.Log("RenderTexture Sizes");
+            //Debug.Log(rendertextureSize);
+            //Debug.Log(subTextureRowSize);
+            //Debug.Log(subtextureSize);
 
             computeShader = Resources.Load<ComputeShader>("FrictionCoef");
             computeBuffer = new ComputeBuffer(FrictionCoefCache.Length, sizeof(float) * 4);
@@ -134,7 +134,7 @@ namespace XPBD
 
             }
             
-            if(collisions.Count > 0)
+            if(collisions.Count > 0 && Simulation.get.collisionVerbose)
             {
                 Debug.Log("Collision count: " + collisions.Count);
                 Debug.Log("Average render time: " + renderTimer.Duration() * 0.001f / collisions.Count + "ms");

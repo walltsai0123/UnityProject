@@ -9,6 +9,34 @@ namespace XPBD
     {
         protected Rigid body1;
         public Rigid body2;
+
+        [SerializeField, Min(0f)]
+        protected float linearDamping = 0f;
+
+        [SerializeField, Min(0f)]
+        protected float angularDamping = 1f; 
+
+        public override void SolveVelocities(float dt)
+        {
+            float3 dv = (body2.vel - body1.vel) * math.min(linearDamping * dt, 1f);
+            float3 domega = (body2.omega - body1.omega) * math.min(angularDamping * dt, 1f);
+
+            // linear part
+            float3 p = dv / (body1.InvMass + body2.InvMass);
+            body1.vel += p * body1.InvMass;
+            body2.vel -= p * body2.InvMass;
+
+            // angular part
+            float3 n = math.normalizesafe(domega, float3.zero);
+            float w1 = math.mul(n, math.mul(body1.InertiaInv, n));
+            float w2 = math.mul(n, math.mul(body2.InertiaInv, n));
+
+            if (w1 + w2 <= Util.EPSILON)
+                return;
+            p = domega / (w1 + w2);
+            body1.omega += math.mul(body1.InertiaInv, p);
+            body2.omega -= math.mul(body2.InertiaInv, p);
+        }
         protected void SolvePositionConstraint(float dt, float3 r1, float3 r2, float3 dx, float dmax, float compliance)
         {
             float C = math.length(dx) - dmax;

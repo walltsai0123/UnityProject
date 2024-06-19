@@ -14,7 +14,8 @@ namespace XPBD
         //public float4 frictionCoef;
         public float restitutionCoef;
         public float3 q;   //Contact point
-        private float3 fn;
+        public float3 fn;
+        public float3 ft, fb;
         public float3 vn_;
 
         public float3 N;    //Surface normal
@@ -31,8 +32,8 @@ namespace XPBD
             index = i;
             q = float3.zero;
             N = float3.zero;
-            frictionCoef = 0.4f;
-            fn = float3.zero;
+            frictionCoef = 0.5f;
+            fn = ft = fb = float3.zero;
         }
 
         public override void SolveCollision(float dt)
@@ -57,12 +58,13 @@ namespace XPBD
             if (C > Util.EPSILON)
                 return;
 
+            float h2 = dt * dt;
             float alpha = 0.0f;
             float w1 = soft.invMass[index];
             float w2 = 0.0f;
             float dlambda = -C / (w1 + w2 + alpha);
             float3 p = dlambda * N;
-            fn = p / (dt * dt);
+            fn = p / h2;
             soft.Pos[index] += p * w1;
 
             float3 dp = soft.Pos[index] - soft.prevPos[index];
@@ -70,6 +72,7 @@ namespace XPBD
             // tangent friction
             float dp_t = math.dot(dp, T);
             float C_T = math.abs(dp_t);
+            ft = float3.zero;
             if (C_T > Util.EPSILON)
             {
                 float dlambda_t = -dp_t / (w1 + w2 + alpha);
@@ -78,11 +81,13 @@ namespace XPBD
                 dlambda_t = math.max(-frictionCoef[2] * dlambda, math.min(dlambda_t, frictionCoef[0] * dlambda));
                 float3 p_t = dlambda_t * T;
                 soft.Pos[index] += p_t * w1;
+                ft = p_t / h2;
             }
 
             // bitangent friction
             float dp_b = math.dot(dp, B);
             float C_B = math.abs(dp_b);
+            fb = float3.zero;
             if (C_B > Util.EPSILON)
             {
                 float dlambda_b = -dp_b / (w1 + w2 + alpha);
@@ -91,6 +96,7 @@ namespace XPBD
                 dlambda_b = math.max(-frictionCoef[3] * dlambda, math.min(dlambda_b, frictionCoef[1] * dlambda));
                 float3 p_b = dlambda_b * B;
                 soft.Pos[index] += p_b * w1;
+                fb = p_b / h2;
             }
 
         }
@@ -110,7 +116,7 @@ namespace XPBD
             float vt = math.dot(v, T);
             float3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
             soft.Vel[index] += dvt;
-
+            
             // bitangent
             float vb = math.dot(v, B);
             float3 dvb = -math.sign(vb) * math.min(normalImpulse * bitangentCoef, math.abs(vb)) * B;

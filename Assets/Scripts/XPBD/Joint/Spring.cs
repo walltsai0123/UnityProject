@@ -14,11 +14,11 @@ namespace XPBD
         [SerializeField, Min(0f)]
         private float compliance = 0f;
 
-        [SerializeField, Range(0f, 1f)]
-        private float linearDamping = 0f;
+        //[SerializeField, Range(0f, 1f)]
+        //private float linearDamping = 0f;
 
-        [SerializeField, Range(0f, 1f)]
-        private float angularDamping = 0f;
+        //[SerializeField, Range(0f, 1f)]
+        //private float angularDamping = 0f;
 
         private float3 r1, r2;
         public override void SolveConstraint(float dt)
@@ -27,30 +27,30 @@ namespace XPBD
         }
 
 
-        public override void SolveVelocities(float dt)
-        {
-            float3 dv = (body2.vel - body1.vel) * math.min(linearDamping * dt, 1);
-            float3 domega = (body2.omega - body1.omega) * math.min(angularDamping * dt, 1);
+        //public override void SolveVelocities(float dt)
+        //{
+        //    float3 dv = (body2.vel - body1.vel) * math.min(linearDamping * dt, 1);
+        //    float3 domega = (body2.omega - body1.omega) * math.min(angularDamping * dt, 1);
 
-            // linear part
-            float3 p = dv / (body1.InvMass + body2.InvMass);
-            if(!body1.isFixed)
-                body1.vel += p * body1.InvMass;
-            if(!body2.isFixed)
-                body2.vel -= p * body2.InvMass;
+        //    // linear part
+        //    float3 p = dv / (body1.InvMass + body2.InvMass);
+        //    if(!body1.isFixed)
+        //        body1.vel += p * body1.InvMass;
+        //    if(!body2.isFixed)
+        //        body2.vel -= p * body2.InvMass;
 
-            // angular part
-            float3 n = math.normalizesafe(domega, float3.zero);
-            float w1 = math.mul(n, math.mul(body1.InertiaInv, n));
-            float w2 = math.mul(n, math.mul(body2.InertiaInv, n));
-            if(w1 + w2 < Util.EPSILON)
-                return;
-            p = domega / (w1 + w2);
-            if (!body1.isFixed)
-                body1.omega += math.mul(body1.InertiaInv, p);
-            if (!body2.isFixed)
-                body2.omega -= math.mul(body2.InertiaInv, p);
-        }
+        //    // angular part
+        //    float3 n = math.normalizesafe(domega, float3.zero);
+        //    float w1 = math.mul(n, math.mul(body1.InertiaInv, n));
+        //    float w2 = math.mul(n, math.mul(body2.InertiaInv, n));
+        //    if(w1 + w2 < Util.EPSILON)
+        //        return;
+        //    p = domega / (w1 + w2);
+        //    if (!body1.isFixed)
+        //        body1.omega += math.mul(body1.InertiaInv, p);
+        //    if (!body2.isFixed)
+        //        body2.omega -= math.mul(body2.InertiaInv, p);
+        //}
 
         private void SolvePositionConstraint(float dt)
         {

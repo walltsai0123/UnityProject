@@ -32,11 +32,35 @@ namespace XPBD
             Simulation.get.primitives.Add(this);
         }
 
+        private void OnDrawGizmos()
+        {
+            if (collisions == null)
+            {
+                return;
+            }
+            foreach (MyCollision collision in collisions)
+            {
+                DrawArrow.ForGizmo(collision.q, collision.T * collision.frictionCoef[0], Color.red);
+                DrawArrow.ForGizmo(collision.q, collision.B * collision.frictionCoef[1], Color.green);
+                DrawArrow.ForGizmo(collision.q, -collision.T * collision.frictionCoef[2], Color.blue);
+                DrawArrow.ForGizmo(collision.q, -collision.B * collision.frictionCoef[3], Color.black);
+
+
+                //Debug.Log(collision.frictionCoef);
+                //Debug.Log(collision.fn);
+                //Debug.Log(collision.ft);
+                //Debug.Log(collision.fb);
+                //Debug.Log(collision.T);
+                //Debug.Log(collision.B);
+
+            }
+        }
+
         public virtual void Simulate(float dt) { }
 
         public virtual void UpdateVisual() { }
 
-        public virtual void ApplyVelocity() { }
+        public virtual void ApplyVelocity(float dt) { }
         public void UpdateCollisionMaterial()
         {
             collisions.Clear();

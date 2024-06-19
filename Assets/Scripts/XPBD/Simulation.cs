@@ -9,30 +9,43 @@ namespace XPBD
     public class Simulation : MonoBehaviour
     {
         public static Simulation get;
+
+        [Space(10)]
+        [Header("Simulation Parameters")]
         public int substeps = 20;
         public Vector3 gravity = new(0, -9.81f, 0);
+        public int targetFPS = 60;
+
 
         // Simulation objects and constraints
         public List<Primitive> primitives { get; private set; }
         private List<Body> bodies;
         private List<Constraint> constraints;
+        private Grabber grabber;
 
         // Collision
+        [Space(10)]
+        [Header("Simulation Option")]
         public bool UseTextureFriction = true;
         public Shader textureFrictionShader;
+        public bool UseNeoHookeanMaterial = true;
+        public bool SoftbodyGPUSolver = true;
+
         private CollisionDetect collisionDetect;
         private List<CollisionConstraint> collisions;
 
-        private Grabber grabber;
+        [Space(10)]
+        [Header("State Control")]
         public bool pause = false;
         public bool stepOnce = false;
 
+        [Space(10)]
+        [Header("Verbose")]
+        public bool verbose = false;
+        public bool collisionVerbose = false;
+
         private int totalContacts = 0;
         private int totalSimLoops = 0;
-
-        public bool UseNeoHookeanMaterial = true;
-
-        public int targetFPS = 60;
 
         // Timer
         Timer stepTimer = new();
@@ -126,6 +139,7 @@ namespace XPBD
 
             bodySolveTimer.Tic();
             bodySolveTimer.Pause();
+
             float sdt = dt / substeps;
             for (int step = 0; step < substeps; ++step)
             {
@@ -167,7 +181,7 @@ namespace XPBD
                     collision.VelocitySolve(sdt);
 
                 foreach (Primitive p in primitives)
-                    p.ApplyVelocity();
+                    p.ApplyVelocity(sdt);
             }
             foreach (Primitive p in primitives)
                 p.UpdateVisual();
@@ -176,15 +190,19 @@ namespace XPBD
                 body.EndFrame();
 
             stepTimer.Toc();
-            stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
-
             bodySolveTimer.Toc();
-            bodySolveTimer.Report("Body solve time: ", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+
+            if(verbose)
+            {
+                stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+                bodySolveTimer.Report("Body solve time: ", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+            }
+            
         }
 
         private void OnDestroy()
         {
-            if (totalSimLoops > 0)
+            if (totalSimLoops > 0 && collisionVerbose)
                 Debug.Log("Average contacts: " + totalContacts / totalSimLoops);
             collisionDetect.Dispose(); 
         }

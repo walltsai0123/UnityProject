@@ -81,7 +81,7 @@ namespace XPBD
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = Color.green;
-            Gizmos.DrawWireCube(transform.position, new Vector3(size.x, 0f, size.y));
+            Gizmos.DrawWireCube(transform.position, new Vector3(transform.lossyScale.x * size.x, 0f, transform.lossyScale.z * size.y));
         }
     }
 }

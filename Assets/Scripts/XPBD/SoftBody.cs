@@ -6,7 +6,8 @@ using Unity.Burst;
 using System.Collections.Generic;
 using System;
 using UnityEngine.Assertions;
-using UnityEngine.UIElements;
+using System.Linq;
+using UnityEditor.Build.Content;
 
 namespace XPBD
 {
@@ -25,7 +26,6 @@ namespace XPBD
 
         public float mu = 10f, lambda = 1000f;
         public bool showTet = false;
-        //public bool showVis = true;
 
         // Simulation Data NativeArray
         public NativeArray<float3> Pos;
@@ -39,7 +39,7 @@ namespace XPBD
         private NativeArray<float> restEdgeLengths;
 
         private NativeArray<int3> volIdOrder;
-        public float3 fext { get; set; }
+        public float3 fext { get; set; } = float3.zero;
 
         // Skinning Info
         private NativeArray<float3> visPos;
@@ -50,7 +50,6 @@ namespace XPBD
 
         private int EdgesNum;
 
-        private float3 startPos;
         [SerializeField]
         private Vector3 v0 = Vector3.zero;
 
@@ -62,7 +61,24 @@ namespace XPBD
         // Grabber info
         public int grabId { get; private set; }
         private float grabInvMass;
-        
+
+        // GPU
+        ComputeShader softbodyCS;
+        ComputeBuffer positionBuffer;
+        ComputeBuffer prevPositionBuffer;
+        ComputeBuffer correctionBuffer;
+        ComputeBuffer velocityBuffer;
+        ComputeBuffer tetBuffer;
+        ComputeBuffer inverseMassBuffer;
+        ComputeBuffer invDmBuffer;
+        ComputeBuffer restVolumeBuffer;
+        ComputeBuffer elementsBuffer;
+        int[] elementConstraitIds;
+        int[] passSize;
+        // gpu kernels
+        int preSolveKernel = 0;
+        int solveElementKernel = 1;
+
 
         #region Body
         public override void ClearCollision()
@@ -78,73 +94,55 @@ namespace XPBD
             if (UseGravity)
                 g = gravity;
 
-            PreSolveJob preSolveJob = new PreSolveJob
+            if (Simulation.get.SoftbodyGPUSolver)
             {
-                dt = dt,
-                gravity = g + fext,
-                pos = Pos,
-                prevPos = prevPos,
-                vel = Vel,
-                invMass = invMass
-            };
-            jobHandle = preSolveJob.Schedule(VerticesNum, 1, jobHandle);
-            jobHandle.Complete();
+                PreSolveGPU(dt, gravity);
+            }
+            else
+            {
+                //GetEnergy();
+                PreSolveJob preSolveJob = new()
+                {
+                    dt = dt,
+                    gravity = g + fext,
+                    pos = Pos,
+                    prevPos = prevPos,
+                    vel = Vel,
+                    invMass = invMass
+                };
+                jobHandle = preSolveJob.Schedule(VerticesNum, 1, jobHandle);
+                jobHandle.Complete();
+
+                
+            }
+            
         }
 
         public override void Solve(float dt)
         {
             if(Simulation.get.UseNeoHookeanMaterial)
             {
-                //if (computeShader == null)
-                //    computeShader = Resources.Load<ComputeShader>("SoftBody");
-
-                //int kernel_SolveDeviatoric = computeShader.FindKernel("SolveDeviatoric");
-
-                //ComputeBuffer posBuffer = new(VerticesNum, sizeof(float) * 3, ComputeBufferType.Default);
-                //posBuffer.SetData(Pos);
-
-                //ComputeBuffer invMassBuffer = new(VerticesNum, sizeof(float), ComputeBufferType.Default);
-                //invMassBuffer.SetData(invMass);
-
-                //ComputeBuffer tetsBuffer = new(TetsNum, sizeof(int) * 4, ComputeBufferType.Default);
-                //tetsBuffer.SetData(tets);
-                //ComputeBuffer restVolumesBuffer = new(TetsNum, sizeof(int), ComputeBufferType.Default);
-                //restVolumesBuffer.SetData(restVolumes);
-                //ComputeBuffer invDmBuffer = new(TetsNum, sizeof(float) * 9, ComputeBufferType.Default);
-                //invDmBuffer.SetData(invDm);
-
-                //computeShader.SetFloat("dt", dt);
-                //computeShader.SetFloat("mu", mu);
-                //computeShader.SetFloat("lambda", lambda);
-
-                //computeShader.SetBuffer(kernel_SolveDeviatoric, "pos", posBuffer);
-                //computeShader.SetBuffer(kernel_SolveDeviatoric, "invMass", invMassBuffer);
-                //computeShader.SetBuffer(kernel_SolveDeviatoric, "tets", tetsBuffer);
-                //computeShader.SetBuffer(kernel_SolveDeviatoric, "restVolumes", restVolumesBuffer);
-                //computeShader.SetBuffer(kernel_SolveDeviatoric, "invDm", invDmBuffer);
-
-
-                //posBuffer.Release();
-                //invMassBuffer.Release();
-                //tetsBuffer.Release();
-                //restVolumesBuffer.Release();
-                //invDmBuffer.Release();
-
-                //computeShader.Dispatch(kernel_SolveDeviatoric, 1 + Mathf.FloorToInt(TetsNum / 64), 1, 1);
-
-                SolveElementJob solveElementJob = new SolveElementJob
+                if(Simulation.get.SoftbodyGPUSolver)
                 {
-                    dt = dt,
-                    mu = this.mu,
-                    lambda = this.lambda,
-                    pos = this.Pos,
-                    tets = this.tets,
-                    restVolumes = this.restVolumes,
-                    invDm = this.invDm,
-                    invMass = this.invMass
-                };
-                jobHandle = solveElementJob.Schedule(jobHandle);
-                jobHandle.Complete();
+                    SolveElementGPU(dt);
+                }
+                else
+                {
+                    SolveElementJob solveElementJob = new SolveElementJob
+                    {
+                        dt = dt,
+                        mu = this.mu,
+                        lambda = this.lambda,
+                        pos = this.Pos,
+                        tets = this.tets,
+                        restVolumes = this.restVolumes,
+                        invDm = this.invDm,
+                        invMass = this.invMass
+                    };
+                    jobHandle = solveElementJob.Schedule(jobHandle);
+                    jobHandle.Complete();
+                }
+                
             }
             else
             {
@@ -176,47 +174,41 @@ namespace XPBD
 
                 Vel[i] = (Pos[i] - prevPos[i]) / dt;
             }
+
         }
 
         public override void EndFrame()
         {
-            //physicMesh.Show(showTet);
-            //visMesh.Show(showVis);
-            //physicMesh.UpdateMesh(Pos);
-
-            UpdateVisMeshJob updateVisMeshJob = new UpdateVisMeshJob
-            {
-                visPos = visPos,
-                pos = Pos,
-                tets = tets,
-                skinningInfo = skinningInfo
-            };
-            jobHandle = updateVisMeshJob.Schedule(visPos.Length, 1, jobHandle);
-            jobHandle.Complete();
-
-            //visMesh.UpdateMesh(visPos);
-
-            visualMesh.SetVertices(visPos);
-            visualMesh.RecalculateBounds();
-            visualMesh.RecalculateNormals();
-            visualMesh.RecalculateTangents();
-
-            tetMesh.SetVertices(Pos);
-            tetMesh.RecalculateBounds();
-            tetMesh.RecalculateNormals();
-            tetMesh.RecalculateTangents();
-
-            if (showTet)
+            if (showTet || visualMesh == null)
             {
                 meshFilter.mesh = tetMesh;
                 meshRenderer.material = wireframeMaterial;
+
+                tetMesh.SetVertices(Pos);
+                tetMesh.RecalculateBounds();
+                tetMesh.RecalculateNormals();
+                tetMesh.RecalculateTangents();
             }
             else
             {
                 meshFilter.mesh = visualMesh;
                 meshRenderer.material = visualMaterial;
+
+                UpdateVisMeshJob updateVisMeshJob = new UpdateVisMeshJob
+                {
+                    visPos = visPos,
+                    pos = Pos,
+                    tets = tets,
+                    skinningInfo = skinningInfo
+                };
+                jobHandle = updateVisMeshJob.Schedule(visPos.Length, 1, jobHandle);
+                jobHandle.Complete();
+
+                visualMesh.SetVertices(visPos);
+                visualMesh.RecalculateBounds();
+                visualMesh.RecalculateNormals();
+                visualMesh.RecalculateTangents();
             }
-                
         }
         
         #endregion
@@ -279,7 +271,6 @@ namespace XPBD
         public override void IsRayHittingBody(Ray ray, out CustomHit hit)
         {
             float3[] vertices = Pos.ToArray();
-            //int[] triangles = physicMesh.mesh.triangles;
             int[] triangles = tetrahedronMesh.faces;
 
             Intersection.IsRayHittingMesh(ray, vertices, triangles, out hit);
@@ -294,28 +285,26 @@ namespace XPBD
         #region Monobehaviour
         private void Awake()
         {
-            //visMesh.Initialize();
-            //physicMesh.Initialize();
-
             Assert.IsNotNull(tetrahedronMesh);
 
             InitializeMesh();
-            //InitializePhysics();
 
             InitializePhysics2();
-            //Debug.Log("SoftBody Awake");
+
+            InitializeComputeBuffers();
+
         }
         private void Start()
         {
             Simulation.get.AddBody(this);
             isStarted = true;
-            //Debug.Log("SoftBody Start");
         }
         private void OnDrawGizmos()
         {
             if (!isStarted)
                 return;
 
+            return;
             foreach(MyCollision collision in collisions)
             {
                 DrawArrow.ForGizmo(collision.q, collision.T * collision.frictionCoef[0], Color.red);
@@ -323,14 +312,7 @@ namespace XPBD
                 DrawArrow.ForGizmo(collision.q, -collision.T * collision.frictionCoef[2], Color.blue);
                 DrawArrow.ForGizmo(collision.q, -collision.B * collision.frictionCoef[3], Color.black);
 
-                
-                //Debug.Log(collision.frictionCoef);
-                //Debug.Log(collision.T);
-                //Debug.Log(collision.B);
-
             }
-            //if(collisions.Count > 0)
-            //    Debug.Log(collisions[0].frictionCoef);
         }
 
         private void OnDestroy()
@@ -348,6 +330,9 @@ namespace XPBD
             if (edges.IsCreated) edges.Dispose();
             if (restEdgeLengths.IsCreated) restEdgeLengths.Dispose();
             if (volIdOrder.IsCreated) volIdOrder.Dispose();
+
+            ComputeHelper.Release(positionBuffer, prevPositionBuffer, velocityBuffer, correctionBuffer,
+                tetBuffer, inverseMassBuffer, invDmBuffer, restVolumeBuffer, elementsBuffer);
         }
         #endregion
 
@@ -356,7 +341,8 @@ namespace XPBD
             meshFilter = GetComponent<MeshFilter>();
             meshRenderer = GetComponent<MeshRenderer>();
 
-            visualMesh = meshFilter.mesh;
+            if(meshFilter.sharedMesh != null)
+                visualMesh = meshFilter.mesh;
 
             // Create tetmesh from tetrahedron data
             tetMesh = new Mesh();
@@ -399,13 +385,20 @@ namespace XPBD
             volIdOrder[2] = new(0, 3, 1);
             volIdOrder[3] = new(0, 1, 2);
 
+
+            // Move to starting position
+            Vector3 startPos = transform.position;
+            transform.position = Vector3.zero;
+
             // Initialize NativeArrays
             for (int i = 0; i < VerticesNum; ++i)
             {
-                Pos[i] = prevPos[i] = tetrahedronMesh.vertices[i];
+                Pos[i] = prevPos[i] = tetrahedronMesh.vertices[i] + startPos;
                 Vel[i] = v0;
                 invMass[i] = 0f;
             }
+
+
             for (int i = 0; i < TetsNum; ++i)
             {
                 int id0 = tetrahedronMesh.tets[4 * i + 0];
@@ -438,11 +431,12 @@ namespace XPBD
                 int id2 = tets[i].z;
                 int id3 = tets[i].w;
 
-                float3x3 RestPose = new float3x3(Pos[id1] - Pos[id0], Pos[id2] - Pos[id0], Pos[id3] - Pos[id0]);
-                invDm[i] = math.inverse(RestPose);
-                float V = math.determinant(RestPose);
 
-                float partialV = V / 4.0f;
+                float3x3 RestPose = new (Pos[id1] - Pos[id0], Pos[id2] - Pos[id0], Pos[id3] - Pos[id0]);
+                invDm[i] = math.inverse(RestPose);
+                float V = math.determinant(RestPose) / 6f;
+
+                float partialV = V / 4f;
                 invMass[id0] += partialV;
                 invMass[id1] += partialV;
                 invMass[id2] += partialV;
@@ -452,34 +446,77 @@ namespace XPBD
                 totalVolume += V;
             }
 
+            
             // Inverse mass (1/w)
             float density = mass / totalVolume;
             for (int i = 0; i < VerticesNum; ++i)
             {
                 invMass[i] *= density;
-                if (invMass[i] != 0.0f)
-                    invMass[i] = 1.0f / invMass[i];
+                if (invMass[i] != 0f)
+                    invMass[i] = 1f / invMass[i];
             }
 
-            // Visual embedded mesh
-            visPos = new NativeArray<float3>(visualMesh.vertexCount, Allocator.Persistent);
-            ComputeSkinningInfo2();
+            //Debug.Log("Total volume: " + totalVolume);
+            //Debug.Log("Density: " + density);
 
-            // Move to starting position
-            startPos = transform.position;
-            transform.position = Vector3.zero;
-            Translate(startPos);
+            // Visual embedded mesh
+            ComputeSkinningInfo2(startPos);
 
             // Init collision list
-            collisions = new List<MyCollision> ();
+            collisions = new List<MyCollision>();
+
+            // Do graph coloring to set up element constraint passes
+            int[] colors = tetrahedronMesh.GraphColoring();
+            int[] colorsize = new int[colors.Length];
+
+            Assert.IsTrue(colors.Length == TetsNum);
+
+            int[] indices = new int[tets.Length];
+            for (int i = 0; i < indices.Length; i++)
+            {
+                indices[i] = i;
+            }
+
+            // Sort indices in order of color
+            Array.Sort(indices, (i1, i2) => colors[i1].CompareTo(colors[i2]));
+
+            List<int> passSizeList = new List<int>();
+
+            int currentColor = -1;
+            for(int i = 0; i < indices.Length; i++)
+            {
+                int color = colors[indices[i]];
+
+                if(currentColor != color)
+                {
+                    currentColor = color;
+                    passSizeList.Add(0);
+                }
+
+                passSizeList[passSizeList.Count - 1]++;
+            }
+
+            elementConstraitIds = indices.ToArray();
+            passSize = passSizeList.ToArray();
         }
 
-        private void ComputeSkinningInfo2()
+        private void ComputeSkinningInfo2(Vector3 startPos)
         {
+            if(visualMesh == null)
+                return;
+
+            
             int numVisVerts = visualMesh.vertexCount;
+            visPos = new NativeArray<float3>(visualMesh.vertexCount, Allocator.Persistent);
+
+            Vector3[] vertices = new Vector3[numVisVerts];
+            for (int i = 0; i < numVisVerts; i++)
+            {
+                vertices[i] = visualMesh.vertices[i] + startPos;
+            }
 
             Hash hash = new Hash(0.15f, numVisVerts);
-            hash.Create(visualMesh.vertices);
+            hash.Create(vertices);
 
             skinningInfo = new NativeArray<float4>(numVisVerts, Allocator.Persistent);
             for (int i = 0; i < skinningInfo.Length; ++i)
@@ -490,7 +527,7 @@ namespace XPBD
             float border = 0.05f;
 
             // Each tet searches for containing vertices
-            float3 tetCenter = float3.zero;
+            float3 tetCenter;
             float3x3 mat = float3x3.zero;
             float4 bary = float4.zero;
             //float averageEdge = 0f;
@@ -520,14 +557,6 @@ namespace XPBD
                 int id2 = tets[i].z;
                 int id3 = tets[i].w;
 
-                //float edgeLength = math.length(Pos[id0] - Pos[id3]);
-                //edgeLength += math.length(Pos[id1] - Pos[id3]);
-                //edgeLength += math.length(Pos[id2] - Pos[id3]);
-                //edgeLength += math.length(Pos[id0] - Pos[id2]);
-                //edgeLength += math.length(Pos[id1] - Pos[id2]);
-                //edgeLength += math.length(Pos[id0] - Pos[id1]);
-                //averageEdge += edgeLength / 6;
-
                 mat.c0 = Pos[id0] - Pos[id3];
                 mat.c1 = Pos[id1] - Pos[id3];
                 mat.c2 = Pos[id2] - Pos[id3];
@@ -541,7 +570,7 @@ namespace XPBD
                     if (minDist[id] <= 0f)
                         continue;
 
-                    float3 visVert = visualMesh.vertices[id];
+                    float3 visVert = vertices[id];
                     if (math.lengthsq(visVert - tetCenter) > rMax * rMax)
                         continue;
 
@@ -563,15 +592,122 @@ namespace XPBD
             }
         }
 
-        private void Translate(float3 moveDist)
+        private void InitializeComputeBuffers()
         {
-            for (int i = 0; i < VerticesNum; i++)
-            {
-                Pos[i] += moveDist;
-                prevPos[i] += moveDist;
-            }
+            // Load compute shader
+            softbodyCS = Instantiate(Resources.Load<ComputeShader>("SoftBody"));
+
+            positionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
+            prevPositionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
+            correctionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
+            velocityBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
+            tetBuffer = ComputeHelper.CreateStructuredBuffer<int4>(TetsNum);
+            inverseMassBuffer = ComputeHelper.CreateStructuredBuffer<float>(VerticesNum);
+            invDmBuffer = ComputeHelper.CreateStructuredBuffer<float3x3>(TetsNum);
+            restVolumeBuffer = ComputeHelper.CreateStructuredBuffer<float>(TetsNum);
+            elementsBuffer = ComputeHelper.CreateStructuredBuffer<int>(TetsNum);
+
+            // TODO: bind buffer to compute shader kernel
+            ComputeHelper.SetBuffer(softbodyCS, positionBuffer, "pos", preSolveKernel, solveElementKernel);
+            ComputeHelper.SetBuffer(softbodyCS, prevPositionBuffer, "prevPos", preSolveKernel);
+            ComputeHelper.SetBuffer(softbodyCS, correctionBuffer, "corr", preSolveKernel, solveElementKernel);
+            ComputeHelper.SetBuffer(softbodyCS, velocityBuffer, "vel", preSolveKernel, solveElementKernel);
+            ComputeHelper.SetBuffer(softbodyCS, tetBuffer, "tets",solveElementKernel);
+            ComputeHelper.SetBuffer(softbodyCS, inverseMassBuffer, "invMass", preSolveKernel, solveElementKernel);
+            ComputeHelper.SetBuffer(softbodyCS, invDmBuffer, "invDm", solveElementKernel);
+            ComputeHelper.SetBuffer(softbodyCS, restVolumeBuffer, "restVolumes", solveElementKernel);
+            ComputeHelper.SetBuffer(softbodyCS, elementsBuffer, "elements", solveElementKernel);
+
+            tetBuffer.SetData(tets);
+            invDmBuffer.SetData(invDm);
+            restVolumeBuffer.SetData(restVolumes);
+            inverseMassBuffer.SetData(invMass);
+            elementsBuffer.SetData(elementConstraitIds);
+
+            softbodyCS.SetInt("verticesNum", VerticesNum);
+            softbodyCS.SetInt("tetsNum", TetsNum);
         }
 
+        private void PreSolveGPU(float dt, float3 gravity)
+        {
+            softbodyCS.SetFloat("dt", dt);
+            softbodyCS.SetVector("gravity", new float4(gravity, 0f));
+
+            positionBuffer.SetData(Pos);
+            velocityBuffer.SetData(Vel);
+
+            ComputeHelper.Dispatch(softbodyCS, VerticesNum, kernelIndex: preSolveKernel);
+        }
+        private void SolveElementGPU(float dt)
+        {
+            softbodyCS.SetFloat("dt", dt);
+            softbodyCS.SetFloat("mu", mu);
+            softbodyCS.SetFloat("lambda", lambda);
+
+            int firstConstraint = 0;
+
+            foreach(int passNr in passSize)
+            {
+                softbodyCS.SetInt("passSize", passNr);
+                softbodyCS.SetInt("firstConstraint", firstConstraint);
+                ComputeHelper.Dispatch(softbodyCS, passNr, kernelIndex: solveElementKernel);
+
+                firstConstraint += passNr;
+            }
+
+            float3[] temp = new float3[VerticesNum];
+            positionBuffer.GetData(temp);
+            Pos.CopyFrom(temp);
+            velocityBuffer.GetData(temp);
+            Vel.CopyFrom(temp);
+            prevPositionBuffer.GetData(temp);
+            prevPos.CopyFrom(temp);
+        }
+
+        private float GetEnergy()
+        {
+            float energy_D = 0f;
+            float energy_V = 0f;
+            float energy = 0f;
+            float gamma = mu / lambda;
+
+            float3x3 PK1 = float3x3.zero;
+            for (int i = 0; i < TetsNum; i++)
+            {
+                float3x3 F = GetDeformationGradient(i);
+                float J = math.determinant(F);
+                float energyD = 0.5f * mu / (math.lengthsq(F.c0) + math.lengthsq(F.c1) + math.lengthsq(F.c2) - 3f);
+                float energyV = 0.5f * lambda / math.pow(J - 1f - gamma, 2f);
+                energy_D += energyD * restVolumes[i];
+                energy_V += energyV * restVolumes[i];
+                energy += (energyD + energyV) * restVolumes[i];
+
+                float3x3 PJPF = new float3x3(math.cross(F.c1, F.c2), math.cross(F.c2, F.c0), math.cross(F.c0, F.c1));
+                PK1 += mu * F + PJPF * (lambda * (J - 1f) - mu);
+            }
+
+            Debug.Log("PK1: " + PK1);
+            Debug.Log("energyD: " + energy_D);
+            Debug.Log("energyV: " + energy_V);
+            Debug.Log("energy: " + energy);
+
+            return energy;
+        }
+
+        private float3x3 GetDeformationGradient(int tetIndex)
+        {
+            int id0 = tets[tetIndex].x;
+            int id1 = tets[tetIndex].y;
+            int id2 = tets[tetIndex].z;
+            int id3 = tets[tetIndex].w;
+
+            float3x3 Ds = float3x3.zero;
+            Ds.c0 = Pos[id1] - Pos[id0];
+            Ds.c1 = Pos[id2] - Pos[id0];
+            Ds.c2 = Pos[id3] - Pos[id0];
+
+            return math.mul(Ds, invDm[tetIndex]);
+        }
 
         #region IJob
         [BurstCompile]
@@ -624,11 +760,10 @@ namespace XPBD
             {
                 for (int index = 0; index < tets.Length; ++index)
                 {
-                    SolveDeviatoric(index);
-                    SolveVolumetric(index);
+                    //SolveDeviatoric(index);
+                    //SolveVolumetric(index);
+                    SolveCoupled(index);
                 }
-                //SolveDeviatoric(index);
-                //SolveVolumetric(index);
             }
 
             private float3x3 GetDeformationGradient(int tetIndex)
@@ -642,18 +777,17 @@ namespace XPBD
                 Ds.c0 = pos[id1] - pos[id0];
                 Ds.c1 = pos[id2] - pos[id0];
                 Ds.c2 = pos[id3] - pos[id0];
-
+                
                 return math.mul(Ds, invDm[tetIndex]);
             }
             private void SolveDeviatoric(int i)
             {
-                float compliance = 1f / mu / restVolumes[i];
-
+                float compliance = 1f / (mu * restVolumes[i]);
                 F = GetDeformationGradient(i);
                 float r_s = math.sqrt(math.lengthsq(F.c0) + math.lengthsq(F.c1) + math.lengthsq(F.c2));
                 float C = r_s;
 
-                if (C == 0f)
+                if (math.abs(C) < Util.EPSILON)
                     return;
 
                 float r_s_inv = 1f / r_s;
@@ -661,35 +795,37 @@ namespace XPBD
                 // gradients set zero
                 gradients = float3x4.zero;
 
-                gradients.c1 += r_s_inv * invDm[i].c0.x * F.c0;
-                gradients.c1 += r_s_inv * invDm[i].c1.x * F.c1;
-                gradients.c1 += r_s_inv * invDm[i].c2.x * F.c2;
-
-                gradients.c2 += r_s_inv * invDm[i].c0.y * F.c0;
-                gradients.c2 += r_s_inv * invDm[i].c1.y * F.c1;
-                gradients.c2 += r_s_inv * invDm[i].c2.y * F.c2;
-
-                gradients.c3 += r_s_inv * invDm[i].c0.z * F.c0;
-                gradients.c3 += r_s_inv * invDm[i].c1.z * F.c1;
-                gradients.c3 += r_s_inv * invDm[i].c2.z * F.c2;
+                gradients.c1 += invDm[i].c0.x * F.c0;
+                gradients.c1 += invDm[i].c1.x * F.c1;
+                gradients.c1 += invDm[i].c2.x * F.c2;
+                                
+                gradients.c2 += invDm[i].c0.y * F.c0;
+                gradients.c2 += invDm[i].c1.y * F.c1;
+                gradients.c2 += invDm[i].c2.y * F.c2;
+                                
+                gradients.c3 += invDm[i].c0.z * F.c0;
+                gradients.c3 += invDm[i].c1.z * F.c1;
+                gradients.c3 += invDm[i].c2.z * F.c2;
 
                 gradients.c0 = -gradients.c1 - gradients.c2 - gradients.c3;
+
+                gradients *= r_s_inv;
 
                 ApplyToElement(i, C, compliance, dt);
             }
 
             private void SolveVolumetric(int i)
             {
-                float gamma = mu / lambda;
-                float compliance = 1f / lambda / restVolumes[i];
+                float gamma = 1f + mu / lambda;
+                float compliance = 1f / (lambda * restVolumes[i]);
 
                 F = GetDeformationGradient(i);
-                float C = math.determinant(F) - 1f - gamma;
+                float C = math.determinant(F) - gamma;
 
-                if (C == 0f)
+                if (math.abs(C) < Util.EPSILON)
                     return;
 
-                dF = float3x3.zero;
+                //dF = float3x3.zero;
                 dF.c0 = math.cross(F.c1, F.c2);
                 dF.c1 = math.cross(F.c2, F.c0);
                 dF.c2 = math.cross(F.c0, F.c1);
@@ -713,6 +849,155 @@ namespace XPBD
                 ApplyToElement(i, C, compliance, dt);
 
             }
+
+            private void SolveCoupled(int i)
+            {
+                // vertices index
+                int id0 = tets[i].x;
+                int id1 = tets[i].y;
+                int id2 = tets[i].z;
+                int id3 = tets[i].w;
+
+                float compliance_D = 1f / (mu * restVolumes[i]);
+
+                float gamma = mu / lambda;
+                float compliance_V = 1f / (lambda * restVolumes[i]);
+
+                float3x3 QT = math.transpose(invDm[i]);
+
+                F = GetDeformationGradient(i);
+                float3 f1 = F.c0;
+                float3 f2 = F.c1;
+                float3 f3 = F.c2;
+
+                float r_s = math.sqrt(math.dot(f1,f1) + math.dot(f2, f2) + math.dot(f3, f3));
+                float r_s_inv = 1f / r_s;
+
+                float C_D = r_s;
+                float C_V = math.determinant(F) - 1f - gamma;
+
+                if (math.abs(C_D) >= Util.EPSILON && math.abs(C_V) >= Util.EPSILON)
+                {
+                    // compliance matrix
+                    float2x2 alpha = new float2x2(compliance_D, 0, 0, compliance_V);
+                    alpha /= (dt * dt);
+
+                    float3x3 dC_D = r_s_inv * math.mul(F, QT);
+
+                    float3 grad1_D = dC_D.c0;
+                    float3 grad2_D = dC_D.c1;
+                    float3 grad3_D = dC_D.c2;
+                    float3 grad0_D = -grad1_D - grad2_D - grad3_D;
+
+                    float3x3 d_F = new float3x3(math.cross(f2, f3), math.cross(f3, f1), math.cross(f1, f2));
+                    float3x3 dC_V = math.mul(d_F, QT);
+
+                    float3 grad1_V = dC_V.c0;
+                    float3 grad2_V = dC_V.c1;
+                    float3 grad3_V = dC_V.c2;
+                    float3 grad0_V = -grad1_V - grad2_V - grad3_V;
+
+                    float2x2 A = float2x2.zero;
+                    A[0][0] += math.dot(grad0_D, grad0_D) * invMass[id0];
+                    A[0][0] += math.dot(grad1_D, grad1_D) * invMass[id1];
+                    A[0][0] += math.dot(grad2_D, grad2_D) * invMass[id2];
+                    A[0][0] += math.dot(grad3_D, grad3_D) * invMass[id3];
+
+                    A[1][0] += math.dot(grad0_D, grad0_V) * invMass[id0];
+                    A[1][0] += math.dot(grad1_D, grad1_V) * invMass[id1];
+                    A[1][0] += math.dot(grad2_D, grad2_V) * invMass[id2];
+                    A[1][0] += math.dot(grad3_D, grad3_V) * invMass[id3];
+
+                    A[0][1] = A[1][0];
+
+                    A[1][1] += math.dot(grad0_V, grad0_V) * invMass[id0];
+                    A[1][1] += math.dot(grad1_V, grad1_V) * invMass[id1];
+                    A[1][1] += math.dot(grad2_V, grad2_V) * invMass[id2];
+                    A[1][1] += math.dot(grad3_V, grad3_V) * invMass[id3];
+
+                    A += alpha;
+
+                    float2 dlambda = Util.LUSolve(A, new float2(-C_D, -C_V));
+
+                    pos[id0] += dlambda[0] * invMass[id0] * grad0_D + dlambda[1] * invMass[id0] * grad0_V;
+                    pos[id1] += dlambda[0] * invMass[id1] * grad1_D + dlambda[1] * invMass[id1] * grad1_V;
+                    pos[id2] += dlambda[0] * invMass[id2] * grad2_D + dlambda[1] * invMass[id2] * grad2_V;
+                    pos[id3] += dlambda[0] * invMass[id3] * grad3_D + dlambda[1] * invMass[id3] * grad3_V;
+
+
+                    /*float3x4 gradients_D = float3x4.zero;
+
+                    gradients_D.c1 += invDm[i].c0.x * F.c0;
+                    gradients_D.c1 += invDm[i].c1.x * F.c1;
+                    gradients_D.c1 += invDm[i].c2.x * F.c2;
+
+                    gradients_D.c2 += invDm[i].c0.y * F.c0;
+                    gradients_D.c2 += invDm[i].c1.y * F.c1;
+                    gradients_D.c2 += invDm[i].c2.y * F.c2;
+
+                    gradients_D.c3 += invDm[i].c0.z * F.c0;
+                    gradients_D.c3 += invDm[i].c1.z * F.c1;
+                    gradients_D.c3 += invDm[i].c2.z * F.c2;
+
+                    gradients_D.c0 = -gradients_D.c1 - gradients_D.c2 - gradients_D.c3;
+
+                    gradients_D *= r_s_inv;
+                    //dF = float3x3.zero;
+                    dF.c0 = math.cross(F.c1, F.c2);
+                    dF.c1 = math.cross(F.c2, F.c0);
+                    dF.c2 = math.cross(F.c0, F.c1);
+
+                    // gradients set zero
+                    float3x4 gradients_V = float3x4.zero;
+                    gradients_V.c1 += invDm[i].c0.x * dF.c0;
+                    gradients_V.c1 += invDm[i].c1.x * dF.c1;
+                    gradients_V.c1 += invDm[i].c2.x * dF.c2;
+
+                    gradients_V.c2 += invDm[i].c0.y * dF.c0;
+                    gradients_V.c2 += invDm[i].c1.y * dF.c1;
+                    gradients_V.c2 += invDm[i].c2.y * dF.c2;
+
+                    gradients_V.c3 += invDm[i].c0.z * dF.c0;
+                    gradients_V.c3 += invDm[i].c1.z * dF.c1;
+                    gradients_V.c3 += invDm[i].c2.z * dF.c2;
+
+                    gradients_V.c0 = -gradients_V.c1 - gradients_V.c2 - gradients_V.c3;
+
+                    float2x2 A = float2x2.zero;
+                    A[0][0] += math.dot(gradients_D.c0, gradients_D.c0) * invMass[id0];
+                    A[0][0] += math.dot(gradients_D.c1, gradients_D.c1) * invMass[id1];
+                    A[0][0] += math.dot(gradients_D.c2, gradients_D.c2) * invMass[id2];
+                    A[0][0] += math.dot(gradients_D.c3, gradients_D.c3) * invMass[id3];
+
+                    A[1][0] += math.dot(gradients_D.c0, gradients_V.c0) * invMass[id0];
+                    A[1][0] += math.dot(gradients_D.c1, gradients_V.c1) * invMass[id1];
+                    A[1][0] += math.dot(gradients_D.c2, gradients_V.c2) * invMass[id2];
+                    A[1][0] += math.dot(gradients_D.c3, gradients_V.c3) * invMass[id3];
+
+                    A[0][1] = A[1][0];
+
+                    A[1][1] += math.dot(gradients_V.c0, gradients_V.c0) * invMass[id0];
+                    A[1][1] += math.dot(gradients_V.c1, gradients_V.c1) * invMass[id1];
+                    A[1][1] += math.dot(gradients_V.c2, gradients_V.c2) * invMass[id2];
+                    A[1][1] += math.dot(gradients_V.c3, gradients_V.c3) * invMass[id3];
+
+                    A += alpha;
+
+                    // Solve A[lambda_D | lambda_V] = - [C_D | C_V]
+                    float2 dlambda = Util.LUSolve(A, new float2(-C_D, -C_V));
+
+                    pos[id0] += dlambda[0] * invMass[id0] * gradients_D.c0 + dlambda[1] * invMass[id0] * gradients_V.c0;
+                    pos[id1] += dlambda[0] * invMass[id1] * gradients_D.c1 + dlambda[1] * invMass[id1] * gradients_V.c1;
+                    pos[id2] += dlambda[0] * invMass[id2] * gradients_D.c2 + dlambda[1] * invMass[id2] * gradients_V.c2;
+                    pos[id3] += dlambda[0] * invMass[id3] * gradients_D.c3 + dlambda[1] * invMass[id3] * gradients_V.c3;*/
+                }
+                else
+                {
+                    SolveDeviatoric(i);
+                    SolveVolumetric(i);
+                }
+
+            }
             private void ApplyToElement(int i, float C, float compliance, float dt)
             {
                 float weight = 0f;
@@ -725,17 +1010,13 @@ namespace XPBD
                 weight += math.lengthsq(gradients.c2) * invMass[id2];
                 weight += math.lengthsq(gradients.c3) * invMass[id3];
 
-                if (weight == 0f)
+                if (weight < Util.EPSILON)
                     return;
 
                 float h2 = dt * dt;
                 float alpha = compliance / h2;
                 float dlambda = -C / (weight + alpha);
 
-                id0 = tets[i].x;
-                id1 = tets[i].y;
-                id2 = tets[i].z;
-                id3 = tets[i].w;
                 pos[id0] += dlambda * invMass[id0] * gradients.c0;
                 pos[id1] += dlambda * invMass[id1] * gradients.c1;
                 pos[id2] += dlambda * invMass[id2] * gradients.c2;

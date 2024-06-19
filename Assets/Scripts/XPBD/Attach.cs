@@ -14,11 +14,11 @@ namespace XPBD
         private SoftBody thisBody;
         public Rigid attachedBody;
 
-        private struct ParitilcPos
+        private struct ParticlePos
         {
             public int i;
             public float3 pos;
-            public ParitilcPos(int index, float3 Pos)
+            public ParticlePos(int index, float3 Pos)
             {
                 i = index;
                 pos = Pos;
@@ -38,8 +38,8 @@ namespace XPBD
                 IBodyInv = attachBody.InertiaBodyInv;
             }
         }
-        private List<ParitilcPos> particlePos;
-        private NativeArray<ParitilcPos> particlePosNative;
+        private List<ParticlePos> particlePos;
+        private NativeArray<ParticlePos> particlePosNative;
         private JobHandle jobHandle;
 
         public override void SolveConstraint(float dt)
@@ -68,7 +68,7 @@ namespace XPBD
         private void Awake()
         {
             thisBody = GetComponent<SoftBody>();
-            particlePos = new List<ParitilcPos>();
+            particlePos = new List<ParticlePos>();
 
             //Debug.Log("Attach Awake");
         }
@@ -106,22 +106,22 @@ namespace XPBD
                     continue;
 
                 float3 clocal = math.rotate(math.conjugate(attachedBody.Rotation), thisBody.Pos[i] - attachedBody.Position);
-                particlePos.Add(new ParitilcPos(i, clocal));
+                particlePos.Add(new ParticlePos(i, clocal));
             }
-            particlePosNative = new NativeArray<ParitilcPos>(particlePos.ToArray(), Allocator.Persistent);
+            particlePosNative = new NativeArray<ParticlePos>(particlePos.ToArray(), Allocator.Persistent);
         }
 
         [BurstCompile]
         private struct AttachJob : IJob
         {
-            public NativeArray<ParitilcPos> particlePositions;
+            public NativeArray<ParticlePos> particlePositions;
             public NativeArray<float3> softbodyPositions;
             public NativeArray<float> softbodyInvMass;
             public NativeArray<AttachBodyData> attachBodyDatas;
             public void Execute()
             {
                 AttachBodyData bodyData = attachBodyDatas[0];
-                foreach (ParitilcPos pPos in particlePositions)
+                foreach (ParticlePos pPos in particlePositions)
                 {
                     float3 R1 = float3.zero;
                     float3 R2 = math.rotate(bodyData.rotation, pPos.pos);

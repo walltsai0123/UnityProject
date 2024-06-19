@@ -11,7 +11,10 @@ namespace XPBD
         [SerializeField] Wheel frontRight;
         [SerializeField] Wheel rearLeft;
         [SerializeField] Wheel rearRight;
-        [SerializeField] Rigid rack;
+        //[SerializeField] Rigid rack;
+
+        [SerializeField] Hinge fLArm;
+        [SerializeField] Hinge fRArm;
 
         private Rigid carBody;
         public float accelration = 500f;
@@ -25,17 +28,15 @@ namespace XPBD
 
         private Vector3 axis = Vector3.right;
 
-        private Hinge fLHinge, fRHinge;
-
         private void Awake()
         {
             carBody = GetComponent<Rigid>();
 
-            Hinge[] hinges;
-            hinges = rack.GetComponents<Hinge>();
-            Debug.Assert(hinges.Length == 2);
-            fLHinge = hinges[0];
-            fRHinge = hinges[1];
+            //Hinge[] hinges;
+            //hinges = rack.GetComponents<Hinge>();
+            //Debug.Assert(hinges.Length == 2);
+            //fLHinge = hinges[0];
+            //fRHinge = hinges[1];
         }
         // Update is called once per frame
         void Update()
@@ -67,8 +68,11 @@ namespace XPBD
             frontLeft.SteerAngle = currentTurnAngle;
             frontRight.SteerAngle = currentTurnAngle;
 
-            fLHinge.targetAngle = currentTurnAngle;
-            fRHinge.targetAngle = currentTurnAngle;
+
+            fLArm.targetOn = true;
+            fRArm.targetOn = true;
+            fLArm.targetAngle = currentTurnAngle;
+            fRArm.targetAngle = currentTurnAngle;
         }
     }
 
