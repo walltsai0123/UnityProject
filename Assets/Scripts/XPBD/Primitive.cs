@@ -1,6 +1,25 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
@@ -38,29 +57,14 @@ namespace XPBD
             {
                 return;
             }
-            foreach (MyCollision collision in collisions)
-            {
-                DrawArrow.ForGizmo(collision.q, collision.T * collision.frictionCoef[0], Color.red);
-                DrawArrow.ForGizmo(collision.q, collision.B * collision.frictionCoef[1], Color.green);
-                DrawArrow.ForGizmo(collision.q, -collision.T * collision.frictionCoef[2], Color.blue);
-                DrawArrow.ForGizmo(collision.q, -collision.B * collision.frictionCoef[3], Color.black);
-
-
-                //Debug.Log(collision.frictionCoef);
-                //Debug.Log(collision.fn);
-                //Debug.Log(collision.ft);
-                //Debug.Log(collision.fb);
-                //Debug.Log(collision.T);
-                //Debug.Log(collision.B);
-
-            }
+            
         }
 
-        public virtual void Simulate(float dt) { }
+        public virtual void Simulate(REAL dt) { }
 
         public virtual void UpdateVisual() { }
 
-        public virtual void ApplyVelocity(float dt) { }
+        public virtual void ApplyVelocity(REAL dt) { }
         public void UpdateCollisionMaterial()
         {
             collisions.Clear();

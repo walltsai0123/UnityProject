@@ -1,7 +1,23 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
@@ -42,11 +58,11 @@ namespace XPBD
             if (math.length(rim.omega) > Util.EPSILON)
             {
                 // Get angular velocity and rotate axis
-                float vel = math.length(rim.omega);
-                float3 axis = math.normalize(rim.omega);
+                REAL vel = math.length(rim.omega);
+                REAL3 axis = math.normalize(rim.omega);
 
                 // Get final angular veloctity
-                float final_vel = vel - brakeTorque;
+                REAL final_vel = vel - brakeTorque;
                 if (final_vel < Util.EPSILON)
                     final_vel = 0f;
 

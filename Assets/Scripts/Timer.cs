@@ -52,7 +52,7 @@ public class Timer
         return elapse;
     }
 
-    public void Report(string msg, TimerOutputUnit outputUnit = TimerOutputUnit.TIMER_OUTPUT_AUTO)
+    public void Report(string msg = "", TimerOutputUnit outputUnit = TimerOutputUnit.TIMER_OUTPUT_AUTO)
     {
         float d = Duration();
         switch (outputUnit)

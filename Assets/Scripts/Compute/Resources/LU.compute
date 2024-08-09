@@ -1,0 +1,16 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#include <Assets/Scripts/Compute/util.hlsl>
+StructuredBuffer <REAL2x2> A;
+StructuredBuffer <REAL2> b;
+RWStructuredBuffer <REAL2> x;
+
+[numthreads(8,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x > 0)
+        return;
+
+    x[0] = LUSolve(A[0], b[0]);
+}

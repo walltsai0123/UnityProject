@@ -2,19 +2,38 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System;
+using Unity.Mathematics;
 
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
     public class Hash
     {
-        float spacing;
+        REAL spacing;
         int tableSize;
         int[] cellStart;
         int[] cellEntries;
         public int[] queryIds;
         public int querySize { get; private set; }
-        public Hash(float spacing, int maxNumObjects)
+        public Hash(REAL spacing, int maxNumObjects)
         {
             this.spacing = spacing;
             tableSize = 2 * maxNumObjects;
@@ -24,7 +43,7 @@ namespace XPBD
             querySize = 0;
         }
 
-        public void Create(Vector3[] pos)
+        public void Create(REAL3[] pos)
         {
             int numObjects = Mathf.Min(pos.Length, cellEntries.Length);
 
@@ -56,7 +75,7 @@ namespace XPBD
             }
         }
 
-        public void Query(Vector3 pos, float maxDist)
+        public void Query(REAL3 pos, REAL maxDist)
         {
             int x0 = intCoord(pos[0] - maxDist);
             int y0 = intCoord(pos[1] - maxDist);
@@ -91,7 +110,7 @@ namespace XPBD
             }
         }
 
-        private int hashPos(Vector3 pos)
+        private int hashPos(REAL3 pos)
         {
             return this.hashCoords(
                 this.intCoord(pos[0]),
@@ -99,9 +118,9 @@ namespace XPBD
                 this.intCoord(pos[2]));
         }
 
-        private int intCoord(float coord)
+        private int intCoord(REAL coord)
         {
-            return Mathf.FloorToInt(coord / this.spacing);
+            return (int)math.floor(coord / this.spacing);
         }
 
         private int hashCoords(int xi, int yi, int zi)

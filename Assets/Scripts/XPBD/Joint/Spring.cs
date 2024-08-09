@@ -1,8 +1,24 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
@@ -14,54 +30,23 @@ namespace XPBD
         [SerializeField, Min(0f)]
         private float compliance = 0f;
 
-        //[SerializeField, Range(0f, 1f)]
-        //private float linearDamping = 0f;
-
-        //[SerializeField, Range(0f, 1f)]
-        //private float angularDamping = 0f;
-
-        private float3 r1, r2;
-        public override void SolveConstraint(float dt)
+        private REAL3 r1, r2;
+        public override void SolveConstraint(REAL dt)
         {
             SolvePositionConstraint(dt);
         }
 
 
-        //public override void SolveVelocities(float dt)
-        //{
-        //    float3 dv = (body2.vel - body1.vel) * math.min(linearDamping * dt, 1);
-        //    float3 domega = (body2.omega - body1.omega) * math.min(angularDamping * dt, 1);
-
-        //    // linear part
-        //    float3 p = dv / (body1.InvMass + body2.InvMass);
-        //    if(!body1.isFixed)
-        //        body1.vel += p * body1.InvMass;
-        //    if(!body2.isFixed)
-        //        body2.vel -= p * body2.InvMass;
-
-        //    // angular part
-        //    float3 n = math.normalizesafe(domega, float3.zero);
-        //    float w1 = math.mul(n, math.mul(body1.InertiaInv, n));
-        //    float w2 = math.mul(n, math.mul(body2.InertiaInv, n));
-        //    if(w1 + w2 < Util.EPSILON)
-        //        return;
-        //    p = domega / (w1 + w2);
-        //    if (!body1.isFixed)
-        //        body1.omega += math.mul(body1.InertiaInv, p);
-        //    if (!body2.isFixed)
-        //        body2.omega -= math.mul(body2.InertiaInv, p);
-        //}
-
-        private void SolvePositionConstraint(float dt)
+        private void SolvePositionConstraint(REAL dt)
         {
             PositionConstraint positionConstraint = new PositionConstraint(body1, body2, r1, r2);
 
-            float3 p1 = body1.Position + positionConstraint.r1;
-            float3 p2 = body2.Position + positionConstraint.r2;
-            float3 dist = distance;
-            float3 delta_x = p1 - p2 - dist;
+            REAL3 p1 = body1.Position + positionConstraint.r1;
+            REAL3 p2 = body2.Position + positionConstraint.r2;
+            REAL3 dist = (float3)distance;
+            REAL3 delta_x = p1 - p2 - dist;
 
-            float d_lambda = positionConstraint.GetDeltaLambda(dt, compliance, 0f, delta_x);
+            REAL d_lambda = positionConstraint.GetDeltaLambda(dt, compliance, 0f, delta_x);
         }
 
         private void SolveAngularConstraint(float dt)
@@ -81,9 +66,9 @@ namespace XPBD
 
         void Initialize()
         {
-            r1 = anchor;
-            float3 Anchor = body1.Position + math.rotate(body1.Rotation, r1);
-            r2 = math.rotate(math.conjugate(body2.Rotation), Anchor - body2.Position);
+            r1 = (float3)anchor;
+            REAL3 Anchor = body1.Position + math.rotate(new float4x4(body1.Rotation, float3.zero), r1);
+            r2 = math.rotate(new float4x4(math.conjugate(body2.Rotation), float3.zero), Anchor - body2.Position);
         }
 
         private void OnDrawGizmosSelected()
@@ -92,7 +77,7 @@ namespace XPBD
                 return;
 
             Vector3 R1 = transform.position + transform.rotation * anchor;
-            Vector3 R2 = body2.transform.position + body2.transform.rotation * r2;
+            Vector3 R2 = body2.transform.position + body2.transform.rotation * (float3)r2;
 
 
             Gizmos.color = Color.green;

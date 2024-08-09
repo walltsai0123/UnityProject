@@ -281,7 +281,10 @@ MonoBehaviour:
   UseGravity: 1
   EnableContact: 0
   grabbable: 0
-  v0: {x: 0, y: 0, z: 0}
+  v0:
+    x: 0
+    y: 0
+    z: 0
   omega0:
     x: 0
     y: 0
@@ -344,6 +347,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2054498248}
     m_Modifications:
+    - target: {fileID: 2577086361810061223, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
+      propertyPath: showTet
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5801679952954441588, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}
       propertyPath: m_Name
       value: FrontLeft
@@ -494,7 +501,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 20, y: 1, z: 20}
+  m_LocalScale: {x: 5, y: 1, z: 5}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1082745732}
@@ -511,9 +518,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7602153f42a9934ea7b60bc95fbd8f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  normal: {x: 0, y: 1, z: 0}
-  center: {x: 0, y: 0, z: 0}
-  size: {x: 10, y: 10}
+  normal:
+    x: 0
+    y: 1
+    z: 0
+  center:
+    x: 0
+    y: 0
+    z: 0
+  size:
+    x: 10
+    y: 10
 --- !u!1001 &365985327
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -890,7 +905,10 @@ MonoBehaviour:
   UseGravity: 1
   EnableContact: 0
   grabbable: 0
-  v0: {x: 0, y: 0, z: 0}
+  v0:
+    x: 0
+    y: 0
+    z: 0
   omega0:
     x: 0
     y: 0
@@ -1332,7 +1350,10 @@ MonoBehaviour:
   UseGravity: 1
   EnableContact: 0
   grabbable: 0
-  v0: {x: 0, y: 0, z: 0}
+  v0:
+    x: 0
+    y: 0
+    z: 0
   omega0:
     x: 0
     y: 0
@@ -1404,8 +1425,8 @@ MonoBehaviour:
   anchor: {x: -0.42, y: -0.6, z: 1.623}
   axis: {x: 0, y: 1, z: 0}
   min: 0.25
-  max: 0.15
-  compliance: 0.00005
+  max: 0.15000000596046448
+  compliance: 0.00004999999873689376
 --- !u!114 &914659462
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1423,9 +1444,9 @@ MonoBehaviour:
   angularDamping: 0
   anchor: {x: 0.5, y: -0.6, z: -1.399}
   axis: {x: 0, y: 1, z: 0}
-  min: 0.3
-  max: 0.15
-  compliance: 0.00001
+  min: 0.30000001192092896
+  max: 0.15000000596046448
+  compliance: 0.000009999999747378752
 --- !u!114 &914659463
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1443,9 +1464,9 @@ MonoBehaviour:
   angularDamping: 0
   anchor: {x: -0.5, y: -0.6, z: -1.399}
   axis: {x: 0, y: 1, z: 0}
-  min: 0.3
-  max: 0.15
-  compliance: 0.00001
+  min: 0.30000001192092896
+  max: 0.15000000596046448
+  compliance: 0.000009999999747378752
 --- !u!114 &914659464
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1464,8 +1485,8 @@ MonoBehaviour:
   anchor: {x: 0.42, y: -0.6, z: 1.623}
   axis: {x: 0, y: 1, z: 0}
   min: 0.25
-  max: 0.15
-  compliance: 0.00005
+  max: 0.15000000596046448
+  compliance: 0.00004999999873689376
 --- !u!1001 &994736469
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1803,7 +1824,10 @@ MonoBehaviour:
   UseGravity: 1
   EnableContact: 1
   grabbable: 1
-  v0: {x: 0, y: 0, z: 0}
+  v0:
+    x: 0
+    y: 0
+    z: 0
   omega0:
     x: 0
     y: 0
@@ -2090,13 +2114,17 @@ PrefabInstance:
       propertyPath: size.x
       value: 50
       objectReference: {fileID: 0}
+    - target: {fileID: 2851453619502130182, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
+      propertyPath: size.y
+      value: 20
+      objectReference: {fileID: 0}
     - target: {fileID: 6648893207043077076, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
       propertyPath: m_Name
       value: Sand
       objectReference: {fileID: 0}
     - target: {fileID: 6648893207043077076, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6900605683120176165, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
       propertyPath: m_LocalPosition.x
@@ -2108,7 +2136,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6900605683120176165, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 30
+      value: 35
       objectReference: {fileID: 0}
     - target: {fileID: 6900605683120176165, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
       propertyPath: m_LocalRotation.w
@@ -2145,6 +2173,10 @@ PrefabInstance:
     - target: {fileID: 7884273105459185521, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
       propertyPath: sizeX
       value: 50
+      objectReference: {fileID: 0}
+    - target: {fileID: 7884273105459185521, guid: 70c8af7cb680bfe4b8d24ab15ba772aa, type: 3}
+      propertyPath: sizeZ
+      value: 20
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2225,7 +2257,10 @@ MonoBehaviour:
   UseGravity: 1
   EnableContact: 0
   grabbable: 0
-  v0: {x: 0, y: 0, z: 0}
+  v0:
+    x: 0
+    y: 0
+    z: 0
   omega0:
     x: 0
     y: 0
@@ -2490,7 +2525,10 @@ MonoBehaviour:
   UseGravity: 1
   EnableContact: 0
   grabbable: 0
-  v0: {x: 0, y: 0, z: 0}
+  v0:
+    x: 0
+    y: 0
+    z: 0
   omega0:
     x: 0
     y: 0
@@ -2689,8 +2727,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   substeps: 20
-  gravity: {x: 0, y: -9.81, z: 0}
   targetFPS: 60
+  gravity:
+    x: 0
+    y: -9.8100004196167
+    z: 0
   UseTextureFriction: 0
   textureFrictionShader: {fileID: 4800000, guid: 3e4c55cb6732c5d49889373c91b02064, type: 3}
   UseNeoHookeanMaterial: 1
@@ -2699,6 +2740,7 @@ MonoBehaviour:
   stepOnce: 0
   verbose: 0
   collisionVerbose: 0
+  GizmosVerbose: 0
 --- !u!114 &2067624450 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 9051494650249104081, guid: 0dfb34abdbfce174f8fc582848d18661, type: 3}

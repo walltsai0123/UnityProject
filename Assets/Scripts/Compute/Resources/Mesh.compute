@@ -1,0 +1,19 @@
+#pragma kernel CSMain
+
+RWByteAddressBuffer vertexbuffer;
+ByteAddressBuffer indexbuffer;
+
+RWStructuredBuffer<uint> index;
+
+const uint indexStride;
+[numthreads(128, 1, 1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    uint address = id.x * indexStride;
+    uint byteOffset = id.x * 2;
+    uint shiftOffset = (indexStride == 2 && id.x % 2 == 1) ? 16 : 0;
+
+    uint data = indexbuffer.Load(address);
+
+    index[id.x] = (data >> shiftOffset) & 0xFFFF;
+}

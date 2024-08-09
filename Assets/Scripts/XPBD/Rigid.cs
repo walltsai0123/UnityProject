@@ -1,6 +1,23 @@
 using UnityEngine;
 using Unity.Mathematics;
-using System.Collections.Generic;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
@@ -10,25 +27,25 @@ namespace XPBD
         public Rigidbody m_rigidbody { get; private set; }
         public Collider m_Collider { get; private set; }
         //public bool Fixed = false;
-        public float3 Position { get; set; }
+        public REAL3 Position { get; set; }
         public quaternion Rotation { get; set; }
 
         // Linear velocity
-        public float3 vel { get; set; }
+        public REAL3 vel { get; set; }
 
         // Angular velocity
-        public float3 omega { get; set; }
+        public REAL3 omega { get; set; }
         
         // Linear force
-        public float3 fext { get; set; }
+        public REAL3 fext { get; set; }
 
         // Angular force (torque)
-        public float3 Tau { get; set; }
+        public REAL3 Tau { get; set; }
 
         // Inertia and inverse inertia in the local body frame
-        public float3x3 InertiaBody { get; private set; }
-        public float3x3 InertiaBodyInv { get; private set; }
-        public float3x3 InertiaInv
+        public REAL3x3 InertiaBody { get; private set; }
+        public REAL3x3 InertiaBodyInv { get; private set; }
+        public REAL3x3 InertiaInv
         {
             get
             {
@@ -36,14 +53,14 @@ namespace XPBD
             }
         }
         // Previous position and rotation
-        public float3 prevPos { get; private set; }
+        public REAL3 prevPos { get; private set; }
         public quaternion prevRot { get; private set; }
 
         // Initial velocity
         [SerializeField] 
-        private Vector3 v0 = Vector3.zero;
+        private REAL3 v0 = REAL3.zero;
         [SerializeField]
-        private float3 omega0;
+        private REAL3 omega0;
 
 
         #region Body
@@ -51,7 +68,7 @@ namespace XPBD
         {
         }
 
-        public override void PreSolve(float dt, Vector3 gravity)
+        public override void PreSolve(REAL dt, REAL3 gravity)
         {
             if (isGrabbed)
                 return;
@@ -59,57 +76,55 @@ namespace XPBD
             // Inverse mass is 0, which means it's fixed
             if (InvMass < Util.EPSILON)
             {
-                vel = float3.zero;
-                omega = float3.zero;
+                vel = REAL3.zero;
+                omega = REAL3.zero;
                 return;
             }
                 
 
-            float3 g = (UseGravity) ? gravity : float3.zero;
+            REAL3 g = (UseGravity) ? gravity : REAL3.zero;
 
             prevPos = Position;
             vel += dt * InvMass * fext;
             vel += dt * g;
             Position += dt * vel;
 
-            float3x3 I = math.mul(math.mul(new float3x3(Rotation), InertiaBody), new float3x3(math.conjugate(Rotation)));
-            float3x3 Iinv = math.mul(math.mul(new float3x3(Rotation), InertiaBodyInv), new float3x3(math.conjugate(Rotation)));
+            REAL3x3 I = math.mul(math.mul(new float3x3(Rotation), InertiaBody), new float3x3(math.conjugate(Rotation)));
+            REAL3x3 Iinv = math.mul(math.mul(new float3x3(Rotation), InertiaBodyInv), new float3x3(math.conjugate(Rotation)));
 
             prevRot = Rotation;
             omega += dt * math.mul(Iinv, Tau - math.cross(omega, math.mul(I, omega)));
-            quaternion Omega = new quaternion(omega.x, omega.y, omega.z, 0f);
-            Omega.value *= 0.5f * dt;
+            quaternion Omega = new quaternion((float)omega.x, (float)omega.y, (float)omega.z, 0f);
+            Omega.value *= 0.5f * (float)dt;
             quaternion dq = math.mul(Omega, Rotation);
             Rotation = math.normalizesafe(Rotation.value + dq.value, quaternion.identity);
 
-            //Debug.Log(gameObject + " Vel: " + vel);
-            //Debug.Log(gameObject + " Omega: " + omega);
         }
 
-        public override void Solve(float dt)
+        public override void Solve(REAL dt)
         {
             if (isGrabbed)
                 return;
         }
 
-        public override void PostSolve(float dt)
+        public override void PostSolve(REAL dt)
         {
             if (isGrabbed)
                 return;
 
             vel = (Position - prevPos) / dt;
             quaternion dq = math.mul(Rotation, math.conjugate(prevRot));
-            float4 dqf = 2.0f * dq.value / dt;
+            REAL4 dqf = 2 * (REAL4)dq.value / dt;
 
-            omega = new float3(dqf.x, dqf.y, dqf.z);
+            omega = new REAL3(dqf.x, dqf.y, dqf.z);
             if (dqf.w < 0f) omega *= -1;
-
+             
         }
         public override void EndFrame()
         {
             ClearForce();
             //rigidCollisions.Clear();
-            transform.SetPositionAndRotation(Position, Rotation);
+            transform.SetPositionAndRotation((float3)Position, Rotation);
         }
         #endregion
 
@@ -138,18 +153,18 @@ namespace XPBD
             bodyType = BodyType.Rigid;
             Transform transform = this.transform;
             m_rigidbody = GetComponent<Rigidbody>();
-            m_rigidbody.mass = mass;
+            m_rigidbody.mass = (float)mass;
 
             m_Collider = GetComponent<Collider>();
 
-            Position = prevPos = transform.position;
+            Position = prevPos = (float3)transform.position;
             Rotation = prevRot = transform.rotation;
             vel = v0;
             omega = omega0;
-            fext = float3.zero;
-            Tau = float3.zero;
+            fext = REAL3.zero;
+            Tau = REAL3.zero;
 
-            float3 inertiaVec = m_rigidbody.inertiaTensor;
+            REAL3 inertiaVec = (float3)m_rigidbody.inertiaTensor;
             InertiaBody = new(
                 inertiaVec.x, 0, 0,
                 0, inertiaVec.y, 0,
@@ -167,27 +182,27 @@ namespace XPBD
 
         private void ClearForce()
         {
-            fext = float3.zero;
-            Tau = float3.zero;
+            fext = REAL3.zero;
+            Tau = REAL3.zero;
         }
 
         #region IGrabbable
-        public override void StartGrab(Vector3 grabPos)
+        public override void StartGrab(REAL3 grabPos)
         {
             isGrabbed = true;
 
             Position = grabPos;
 
-            vel = Vector3.zero;
-            omega = Vector3.zero;
+            vel = REAL3.zero;
+            omega = REAL3.zero;
         }
 
-        public override void MoveGrabbed(Vector3 grabPos)
+        public override void MoveGrabbed(REAL3 grabPos)
         {
             Position = grabPos;
         }
 
-        public override void EndGrab(Vector3 grabPos, Vector3 vel)
+        public override void EndGrab(REAL3 grabPos, REAL3 vel)
         {
             isGrabbed = false;
 
@@ -198,13 +213,13 @@ namespace XPBD
         public override void IsRayHittingBody(Ray ray, out CustomHit hit)
         {
             hit = null;
-            if(Intersection.IsRayHittingCollider(ray, m_Collider, out float hitDistance))
+            if(Intersection.IsRayHittingCollider(ray, m_Collider, out REAL hitDistance))
             {
-                hit = new CustomHit(hitDistance, Vector3.zero, Vector3.zero);
+                hit = new CustomHit(hitDistance, REAL3.zero, REAL3.zero);
             }
         }
 
-        public override Vector3 GetGrabbedPos()
+        public override REAL3 GetGrabbedPos()
         {
             return Position;
         }

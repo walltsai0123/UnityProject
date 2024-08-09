@@ -1,10 +1,27 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Burst;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
@@ -17,8 +34,8 @@ namespace XPBD
         private struct ParticlePos
         {
             public int i;
-            public float3 pos;
-            public ParticlePos(int index, float3 Pos)
+            public REAL3 pos;
+            public ParticlePos(int index, REAL3 Pos)
             {
                 i = index;
                 pos = Pos;
@@ -26,10 +43,10 @@ namespace XPBD
         }
         private struct AttachBodyData
         {
-            public float3 position;
+            public REAL3 position;
             public quaternion rotation;
-            public float invMass;
-            public float3x3 IBodyInv;
+            public REAL invMass;
+            public REAL3x3 IBodyInv;
             public AttachBodyData(Rigid attachBody)
             {
                 position = attachBody.Position;
@@ -42,7 +59,7 @@ namespace XPBD
         private NativeArray<ParticlePos> particlePosNative;
         private JobHandle jobHandle;
 
-        public override void SolveConstraint(float dt)
+        public override void SolveConstraint(REAL dt)
         {
             NativeArray<AttachBodyData> attachBodyDatas = new NativeArray<AttachBodyData>(1, Allocator.TempJob);
             attachBodyDatas[0] = new AttachBodyData(attachedBody);
@@ -64,6 +81,10 @@ namespace XPBD
             attachBodyDatas.Dispose();
         }
 
+        public override void SolveVelocities(REAL dt)
+        {
+            //throw new System.NotImplementedException();
+        }
         #region MonoBehaior Methods
         private void Awake()
         {
@@ -105,7 +126,7 @@ namespace XPBD
                 if (!Util.IsInsideCollider(collider, thisBody.Pos[i]))
                     continue;
 
-                float3 clocal = math.rotate(math.conjugate(attachedBody.Rotation), thisBody.Pos[i] - attachedBody.Position);
+                REAL3 clocal = math.rotate(new float4x4(math.conjugate(attachedBody.Rotation), float3.zero), thisBody.Pos[i] - attachedBody.Position);
                 particlePos.Add(new ParticlePos(i, clocal));
             }
             particlePosNative = new NativeArray<ParticlePos>(particlePos.ToArray(), Allocator.Persistent);
@@ -115,40 +136,40 @@ namespace XPBD
         private struct AttachJob : IJob
         {
             public NativeArray<ParticlePos> particlePositions;
-            public NativeArray<float3> softbodyPositions;
-            public NativeArray<float> softbodyInvMass;
+            public NativeArray<REAL3> softbodyPositions;
+            public NativeArray<REAL> softbodyInvMass;
             public NativeArray<AttachBodyData> attachBodyDatas;
             public void Execute()
             {
                 AttachBodyData bodyData = attachBodyDatas[0];
                 foreach (ParticlePos pPos in particlePositions)
                 {
-                    float3 R1 = float3.zero;
-                    float3 R2 = math.rotate(bodyData.rotation, pPos.pos);
-                    //float3 clocal = math.rotate(math.conjugate(bodyData.rotation), softbodyPositions[pPos.i] - bodyData.position);
-                    //float3 dr = clocal - pPos.pos;
-                    float3 dr = (softbodyPositions[pPos.i] + R1) - (bodyData.position + R2);
-                    float C = math.length(dr);
+                    REAL3 R1 = REAL3.zero;
+                    REAL3 R2 = math.rotate(new float4x4(bodyData.rotation, float3.zero), pPos.pos);
+                    //REAL3 clocal = math.rotate(math.conjugate(bodyData.rotation), softbodyPositions[pPos.i] - bodyData.position);
+                    //REAL3 dr = clocal - pPos.pos;
+                    REAL3 dr = (softbodyPositions[pPos.i] + R1) - (bodyData.position + R2);
+                    REAL C = math.length(dr);
 
                     if (C < math.EPSILON)
                         continue;
 
-                    float3 n = math.normalize(dr);
-                    float3x3 I2Inv = math.mul(new float3x3(bodyData.rotation), math.mul(bodyData.IBodyInv, new float3x3(math.conjugate(bodyData.rotation))));
-                    float3 r2xn = math.cross(R2, n);
+                    REAL3 n = math.normalize(dr);
+                    REAL3x3 I2Inv = math.mul(new float3x3(bodyData.rotation), math.mul(bodyData.IBodyInv, new float3x3(math.conjugate(bodyData.rotation))));
+                    REAL3 r2xn = math.cross(R2, n);
 
-                    float w1 = softbodyInvMass[pPos.i];
-                    float w2 = bodyData.invMass + math.mul(r2xn, math.mul(I2Inv, r2xn));
-                    float alpha = 0.0f;
-                    float dlambda = -C / (w1 + w2 + alpha);
-                    float3 p = dlambda * n;
+                    REAL w1 = softbodyInvMass[pPos.i];
+                    REAL w2 = bodyData.invMass + math.mul(r2xn, math.mul(I2Inv, r2xn));
+                    REAL alpha = 0.0f;
+                    REAL dlambda = -C / (w1 + w2 + alpha);
+                    REAL3 p = dlambda * n;
                     //p = math.rotate(bodyData.rotation, p);
 
                     softbodyPositions[pPos.i] += p * w1;
                     bodyData.position -= p * w2;
 
-                    float3 r2xp = math.mul(I2Inv, math.cross(R2, p));
-                    quaternion Q2 = bodyData.rotation.value - math.mul(new quaternion(0.5f * new float4(r2xp, 0f)), bodyData.rotation).value;
+                    REAL3 r2xp = math.mul(I2Inv, math.cross(R2, p));
+                    quaternion Q2 = bodyData.rotation.value - math.mul(new quaternion(0.5f * new float4((float3)r2xp, 0f)), bodyData.rotation).value;
 
                     bodyData.rotation = math.normalizesafe(Q2, quaternion.identity);
                 }

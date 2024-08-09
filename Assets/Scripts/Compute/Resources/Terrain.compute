@@ -1,0 +1,202 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel TerrainCollision
+#pragma kernel CollisionSolve
+#pragma kernel CollisionVelocitySolve
+
+#include <Assets/Scripts/Compute/settings.hlsl>
+#include <Assets/Scripts/Compute/util.hlsl>
+
+struct Collision{
+    uint valid;
+    REAL3 q;
+    REAL3 N;
+    REAL3 T;
+    REAL3 B;
+    REAL3 fn;
+    REAL vn_; 
+};
+RWStructuredBuffer<Collision> collisions;
+// Softbody r/w position and velocity
+RWStructuredBuffer<REAL3> pos;
+RWStructuredBuffer<REAL3> vel;
+
+// Softbody readonly
+StructuredBuffer<REAL3> prevPos;
+StructuredBuffer<REAL> invMass;
+
+Texture2D<half4> _TerrainHeightMap;
+SamplerState sampler_TerrainHeightMap;
+
+uint verticesNum;
+
+const float dt;
+const float3 terrainOrigin;
+const float3 terrainSize;
+
+[numthreads(128, 1, 1)]
+void TerrainCollision(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+
+    if(i >= verticesNum)
+        return;
+
+    //Init collision data
+    collisions[i] = (Collision)0; 
+
+    // Predicted position after update
+    REAL3 predPos = pos[i] + vel[i] * dt;
+    //predPos = pos[i];
+    //Check pos is in the bound of terrain;
+
+    REAL3 terrainMin = terrainOrigin;
+    REAL3 terrainMax = terrainOrigin + terrainSize;
+    
+    bool xIsInside = predPos.x >= terrainMin.x && predPos.x <= terrainMax.x;
+    bool zIsInside = predPos.z >= terrainMin.z && predPos.z <= terrainMax.z;
+
+    // If either x/z coordinate out side
+    if(!xIsInside || !zIsInside)
+        return;
+
+    // Project y coordinate
+    float2 uv = float2((predPos.x - terrainMin.x) / terrainSize.x, (predPos.z - terrainMin.z) / terrainSize.z);
+    float height = _TerrainHeightMap.SampleLevel(sampler_TerrainHeightMap, uv, 0).r * terrainSize.y * 2;
+    
+    if(predPos.y > height)
+        return;
+
+    // Calculate contact normal
+    uint mapWidth, mapHeight, temp;
+    _TerrainHeightMap.GetDimensions(0, mapWidth, mapHeight, temp);
+
+    // Get coodinates on heightmap
+    uint mapX = floor(uv.x * mapWidth);
+    uint mapZ = floor(uv.y * mapHeight);
+    float spacingX = (float)terrainSize.x / mapWidth;
+    float spacingZ = (float)terrainSize.z / mapHeight;
+
+    // Interpolate normal from neighbor heights
+    float heightL = _TerrainHeightMap[uint2(mapX - 1, mapZ)].r * terrainSize.y * 2;
+    float heightR = _TerrainHeightMap[uint2(mapX + 1, mapZ)].r * terrainSize.y * 2;
+    float heightB = _TerrainHeightMap[uint2(mapX, mapZ - 1)].r * terrainSize.y * 2;
+    float heightT = _TerrainHeightMap[uint2(mapX, mapZ + 1)].r * terrainSize.y * 2;
+    REAL3 normal = normalize(float3(heightL - heightR, 2, heightB - heightT) / float3(spacingX, 1, spacingZ));
+
+    // Construct collision data
+    Collision newCollision = collisions[i];
+    newCollision.valid = 1;
+    newCollision.q = REAL3(predPos.x, height, predPos.z);
+    newCollision.N = normal;
+    newCollision.T = OrthogonalVector(newCollision.N);
+    newCollision.B = cross(newCollision.N, newCollision.T);
+    collisions[i] = newCollision;
+}
+
+[numthreads(128, 1, 1)]
+void CollisionSolve(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+
+    if(i >= verticesNum)
+        return; 
+
+    Collision C = collisions[i];
+
+    // Check broad phase valid
+    if(C.valid == 0)
+        return;
+
+    collisions[i].vn_ = dot(C.N, vel[i]);
+
+    // Check if collision still exist
+    REAL penetration = dot(pos[i] - C.q, C.N);
+    if(penetration >= EPSILON)
+        return;
+
+    REAL h2 = dt * dt;
+    REAL alpha = 0;
+    REAL w1 = invMass[i];
+    REAL w2 = 0;
+
+    // Normal
+    REAL dlambda = -penetration / (w1 + w2 + alpha);
+    REAL3 p = dlambda * C.N;
+    pos[i] += p * w1;
+
+    collisions[i].fn = p / h2;
+
+    REAL3 dp = pos[i] - prevPos[i];
+    REAL frictionCoef = 0.4;
+
+    // Tangent direction
+    REAL dp_t = dot(dp, C.T);
+    REAL C_T = abs(dp_t);
+    //ft = REAL3.zero;
+    if (C_T > EPSILON)
+    {
+        REAL dlambda_t = -dp_t / (w1 + w2 + alpha);
+        //tangentCoef = (dp_t > 0f) ? frictionCoef[0] : frictionCoef[2];
+        //dlambda_t = math.min(dlambda_t, dlambda * tangentCoef);
+        //dlambda_t = math.max(-frictionCoef[2] * dlambda, math.min(dlambda_t, frictionCoef[0] * dlambda));
+        dlambda_t = max(-frictionCoef * dlambda, min(dlambda_t, frictionCoef * dlambda));
+
+        REAL3 p_t = dlambda_t * C.T;
+        pos[i] += p_t * w1;
+    }
+
+    // Bitangent direction
+    REAL dp_b = dot(dp, C.B);
+    REAL C_B = abs(dp_b);
+    //ft = REAL3.zero;
+    if (C_B > EPSILON)
+    {
+        REAL dlambda_b = -dp_b / (w1 + w2 + alpha);
+        //tangentCoef = (dp_t > 0f) ? frictionCoef[0] : frictionCoef[2];
+        //dlambda_t = math.min(dlambda_t, dlambda * tangentCoef);
+        //dlambda_t = math.max(-frictionCoef[2] * dlambda, math.min(dlambda_t, frictionCoef[0] * dlambda));
+        dlambda_b = max(-frictionCoef * dlambda, min(dlambda_b, frictionCoef * dlambda));
+
+        REAL3 p_b = dlambda_b * C.B;
+        pos[i] += p_b * w1;
+    }
+}
+
+[numthreads(128, 1, 1)]
+void CollisionVelocitySolve(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if(i >= verticesNum)
+        return;
+
+    Collision C = collisions[i];
+    // Check broad phase valid
+    if(C.valid == 0)
+        return;
+
+    REAL3 v = vel[i];
+    REAL vn = dot(C.N, v);
+    REAL normalImpulse = dt * length(C.fn);
+
+    if (normalImpulse < EPSILON)
+        return;
+
+    REAL tangentCoef;
+    REAL bitangentCoef;
+
+    tangentCoef = bitangentCoef = 0.4;
+    // tangent
+    REAL vt = dot(v, C.T);
+    REAL3 dvt = -sign(vt) * min(normalImpulse * tangentCoef, abs(vt)) * C.T;
+    vel[i] += dvt;
+    
+    // bitangent
+    REAL vb = dot(v, C.B);
+    REAL3 dvb = -sign(vb) * min(normalImpulse * bitangentCoef, abs(vb)) * C.B;
+    vel[i] += dvb;
+
+    // normal
+    REAL restitutionCoef = (abs(vn) <= 2.0 * 9.81 * dt) ? 0.0 : 1.0;
+    REAL3 dvn = C.N * (-vn + max(0.0, -restitutionCoef * C.vn_));
+    vel[i] += dvn;
+}

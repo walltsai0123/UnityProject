@@ -1,21 +1,37 @@
 using UnityEngine;
 using Unity.Mathematics;
-using UnityEngine.UIElements;
-using System;
-using UnityEditor.ShaderGraph.Internal;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
+
 namespace XPBD
 {
     public class SandSurface : Primitive
     {
         public XPBD.Plane Plane { get; private set; }
 
-        [SerializeField] float sizeX;
-        [SerializeField] float sizeZ;
-        [SerializeField] float spacing;
-        [SerializeField] float depth;
-        [SerializeField] float dilute;
-        [SerializeField] float ground_elavation;
-        [SerializeField] float mu;
+        [SerializeField] REAL sizeX;
+        [SerializeField] REAL sizeZ;
+        [SerializeField] REAL spacing;
+        [SerializeField] REAL depth;
+        [SerializeField] REAL dilute;
+        [SerializeField] REAL ground_elavation;
+        [SerializeField] REAL mu;
         [SerializeField] Material meshMaterial;
         [SerializeField] ComputeShader computeShader;
         [SerializeField] private bool updateMesh = false;
@@ -29,12 +45,12 @@ namespace XPBD
         //Mesh mesh;
         private Vector3[] meshVertices;
 
-        float[] heights;
-        float[] u;
-        float[] v;
-        float totalHeight = 0f;
+        REAL[] heights;
+        REAL[] u;
+        REAL[] v;
+        REAL totalHeight = 0f;
 
-        float gravity = -9.81f;
+        REAL gravity = -9.81f;
 
         //Material material;
         RenderTexture height_map;
@@ -56,9 +72,9 @@ namespace XPBD
         struct Contact
         {
             public int index;
-            public float3 point;
-            public float3 velocity;
-            public float penetration;
+            public REAL3 point;
+            public REAL3 velocity;
+            public REAL penetration;
         };
 
         protected override void Awake()
@@ -83,14 +99,14 @@ namespace XPBD
         {
             ComputeHelper.Release(heightBuffer, heightCacheBuffer, uBuffer, vBuffer, contactBuffer);
         }
-        public override void Simulate(float dt)
+        public override void Simulate(REAL dt)
         {
             Timer timer = new Timer();
             timer.Tic();
             UpdateGPUSettings(dt);
-            AdvectionGPU(dt);
-            UpdateVelocityGPU(dt);
-            timer.Toc();
+            AdvectionGPU();
+            UpdateVelocityGPU();
+            timer.Toc();  
 
             //timer.Report("Time step: ", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
         }
@@ -99,22 +115,9 @@ namespace XPBD
         {
             UpdateVisMesh();
             UpdateTextureGPU();
-
-            float totalH = 0f;
-            heightBuffer.GetData(heights);
-            for (int i = 0; i < numCells; i++)
-            {
-                totalH += heights[i];
-            }
-
-            float error = (totalH - totalHeight) / totalHeight * 100f;
-            Debug.Log("Current total height: " + totalH);
-            Debug.Log("Total height: " + totalHeight);
-            Debug.Log("Total height error: " + error.ToString("F6") + "%");
-            Debug.Log("Error per grid: " + (error / numCells * totalHeight));
         }
 
-        public override void ApplyVelocity(float dt)
+        public override void ApplyVelocity(REAL dt)
         {
             if(collisions.Count == 0)
                 return;
@@ -122,21 +125,21 @@ namespace XPBD
             Contact [] contact = new Contact[collisions.Count];
 
             Vector3 O = meshVertices[0];
-            float maxDist = 0f;
+            REAL maxDist = 0f;
             for (int i = 0; i < collisions.Count; i++)
             {
                 var collision = collisions[i];
-                Vector3 localPoint = transform.InverseTransformPoint(collision.q);
-                Vector3 localVel = transform.InverseTransformDirection(collision.body.Vel[collision.index]);
+                Vector3 localPoint = transform.InverseTransformPoint((float3)collision.q);
+                Vector3 localVel = transform.InverseTransformDirection((float3)collision.body.Vel[collision.index]);
 
-                float offset = spacing / 2f;
-                int X = Mathf.FloorToInt((localPoint.x - O.x + offset) / spacing)/* + Mathf.FloorToInt(numX / 2)*/;
-                int Z = Mathf.FloorToInt((localPoint.z - O.z + offset) / spacing)/* + Mathf.FloorToInt(numZ / 2)*/;
+                REAL offset = spacing / 2f;
+                int X = (int)math.floor((localPoint.x - O.x + offset) / spacing)/* + Mathf.FloorToInt(numX / 2)*/;
+                int Z = (int)math.floor((localPoint.z - O.z + offset) / spacing)/* + Mathf.FloorToInt(numZ / 2)*/;
 
                 Vector3 V = meshVertices[X * numZ + Z];
                 V.y = 0f;
-                float dist = (localPoint - V).magnitude;
-                maxDist = Mathf.Max(maxDist, dist);
+                REAL dist = (localPoint - V).magnitude;
+                maxDist = math.max(maxDist, dist);
                 if (dist > spacing)
                 {
                     Debug.Log("pos: " + V);
@@ -144,30 +147,30 @@ namespace XPBD
                     Debug.Log("dist: " + dist);
                 }
 
-                float pene = math.length(collision.q - collision.body.Pos[collision.index]);
+                REAL pene = math.length(collision.q - collision.body.Pos[collision.index]);
                 contact[i] = new Contact()
                 {
                     index = X * numZ + Z,
-                    point = localPoint,
-                    velocity = localVel,
+                    point = (float3)localPoint,
+                    velocity = (float3)localVel,
                     penetration = pene
                 };
             }
-            computeShader.SetFloat("dt", dt);
+            computeShader.SetFloat("dt", (float)dt);
             contactBuffer.SetData(contact);
             ComputeHelper.Dispatch(computeShader, collisions.Count, kernelIndex: collisionKernel);
         }
 
         private void Initialize()
         {
-            numX = Mathf.FloorToInt(sizeX / spacing) + 1;
-            numZ = Mathf.FloorToInt(sizeZ / spacing) + 1;
+            numX = (int)math.floor(sizeX / spacing) + 1;
+            numZ = (int)math.floor(sizeZ / spacing) + 1;
 
             numCells = numX * numZ;
 
-            heights = new float[numCells];
-            u = new float[numCells];
-            v = new float[numCells];
+            heights = new REAL[numCells];
+            u = new REAL[numCells];
+            v = new REAL[numCells];
             totalHeight = 0;
 
             System.Array.Fill(heights, 0.01f);
@@ -181,7 +184,7 @@ namespace XPBD
                 for (int j = 0; j < numZ; j++)
                 {
                     int id = i * numZ + j;
-                    heights[id] = UnityEngine.Random.Range(0.01f, depth);
+                    heights[id] = UnityEngine.Random.Range(0.01f, (float)depth);
                 }
             }
             
@@ -190,7 +193,7 @@ namespace XPBD
                 totalHeight += heights[i];
             }
             Plane = GetComponent<XPBD.Plane>();
-            Plane.size = new Vector2(sizeX, sizeZ);
+            Plane.size = new REAL2(sizeX, sizeZ);
         }
 
         private void GenerateMesh()
@@ -207,16 +210,16 @@ namespace XPBD
             {
                 for (int j = 0; j < this.numZ; j++)
                 {
-                    float posX = (i - cx) * spacing;
-                    float posY = 0f;
-                    float posZ = (j - cz) * spacing;
+                    REAL posX = (i - cx) * spacing;
+                    REAL posY = 0f;
+                    REAL posZ = (j - cz) * spacing;
 
-                    positions[i * this.numZ + j] = new Vector3(posX, posY, posZ);
+                    positions[i * this.numZ + j] = (float3)new REAL3(posX, posY, posZ);
 
-                    float u = i / (float)this.numX;
-                    float v = j / (float)this.numZ;
+                    REAL u = i / (REAL)this.numX;
+                    REAL v = j / (REAL)this.numZ;
 
-                    uvs[i * this.numZ + j] = new Vector2(u, v);
+                    uvs[i * this.numZ + j] = (float2)new REAL2(u, v);
                 }
             }
 
@@ -291,15 +294,23 @@ namespace XPBD
 
         private void InitComputeBuffers()
         {
-            heightBuffer = new ComputeBuffer(numCells, sizeof(float));
-            heightCacheBuffer = new ComputeBuffer(numCells, sizeof(float));
-            uBuffer = new ComputeBuffer(numCells, sizeof(float));
-            vBuffer = new ComputeBuffer(numCells, sizeof(float));
+            heightBuffer = new ComputeBuffer(numCells, sizeof(REAL));
+            heightCacheBuffer = new ComputeBuffer(numCells, sizeof(REAL));
+            uBuffer = new ComputeBuffer(numCells, sizeof(REAL));
+            vBuffer = new ComputeBuffer(numCells, sizeof(REAL));
             contactBuffer = new ComputeBuffer(numCells, System.Runtime.InteropServices.Marshal.SizeOf(typeof(Contact)));
 
             heightBuffer.SetData(heights);
             uBuffer.SetData(u);
             vBuffer.SetData(v);
+
+#if USE_FLOAT
+            computeShader.EnableKeyword("USE_FLOAT");
+            computeShader.DisableKeyword("USE_DOUBLE");
+#else
+            computeShader.EnableKeyword("USE_DOUBLE");
+            computeShader.DisableKeyword("USE_FLOAT");
+#endif
 
             ComputeHelper.SetBuffer(computeShader, heightBuffer, "heights", heightKernel, cacheKernel, velocityKernel, textureKernel, collisionKernel);
             ComputeHelper.SetBuffer(computeShader, heightCacheBuffer, "heights_cache", heightKernel, cacheKernel);
@@ -314,25 +325,30 @@ namespace XPBD
 
 
             // Set const
-            computeShader.SetFloat("spacing", spacing);
-            computeShader.SetFloat("gravity", gravity);
+            computeShader.SetFloat("spacing", (float)spacing);
+            computeShader.SetFloat("gravity", (float)gravity);
             computeShader.SetInt("numX", numX);
             computeShader.SetInt("numZ", numZ);
+
+            foreach (var localKeywordName in computeShader.shaderKeywords)
+            {
+                Debug.Log("Local shader keyword " + localKeywordName + " is currently enabled");
+            }
         }
 
-        private void UpdateGPUSettings(float dt)
+        private void UpdateGPUSettings(REAL dt)
         {
-            computeShader.SetFloat("dt", dt);
-            computeShader.SetFloat("gravity", gravity);
-            computeShader.SetFloat("mu", mu);
+            computeShader.SetFloat("dt", (float)dt);
+            computeShader.SetFloat("gravity", (float)gravity);
+            computeShader.SetFloat("mu", (float)mu);
         }
-        private void AdvectionGPU(float dt)
+        private void AdvectionGPU()
         {
             ComputeHelper.Dispatch(computeShader, numCells, kernelIndex: 0);
-            //ComputeHelper.Dispatch(computeShader, numCells, kernelIndex: 1);
+            ComputeHelper.Dispatch(computeShader, numCells, kernelIndex: 1);
         }
 
-        private void UpdateVelocityGPU(float dt)
+        private void UpdateVelocityGPU()
         {
             ComputeHelper.Dispatch(computeShader, numCells, kernelIndex: velocityKernel);
             ComputeHelper.Dispatch(computeShader, numCells, kernelIndex: frictionKernel);
@@ -345,7 +361,7 @@ namespace XPBD
             heightBuffer?.GetData(heights);
             for (int i = 0; i < this.numCells; i++)
             {
-                meshVertices[i].y = heights[i];
+                meshVertices[i].y = (float)heights[i];
             }
 
             //Update the mesh

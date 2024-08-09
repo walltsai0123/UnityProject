@@ -1,0 +1,313 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel PreSolve
+#pragma kernel SolveElement
+#pragma kernel PostSolve
+#pragma kernel UpdateMesh
+#pragma kernel UpdateVisualMesh
+
+#include <Assets/Scripts/Compute/settings.hlsl>
+#include <Assets/Scripts/Compute/util.hlsl>
+
+RWStructuredBuffer<REAL3> pos;
+RWStructuredBuffer<REAL3> prevPos;
+RWStructuredBuffer<REAL3> vel;
+RWByteAddressBuffer meshVertices;
+ 
+StructuredBuffer<REAL> invMass;
+StructuredBuffer<int4> tets;
+StructuredBuffer<REAL> restVolumes;
+StructuredBuffer<REAL3x3> invDm;
+StructuredBuffer<int> elements;
+StructuredBuffer<REAL4> skinningInfo;
+
+uint verticesNum;
+uint tetsNum;
+uint passSize;
+uint firstConstraint;
+
+const float dt;
+const float mu;
+const float lambda;
+const float3 gravity;
+const uint vertexStride;
+const uint vertexOffset;
+const uint tetOffset;
+
+inline REAL3x3 GetDeformationGradient(uint tetId)
+{
+    int id0 = tets[tetId].x;
+    int id1 = tets[tetId].y;
+    int id2 = tets[tetId].z;
+    int id3 = tets[tetId].w;
+    
+    REAL3x3 Ds = 0;
+    Ds._m00_m10_m20 = pos[id1] - pos[id0];
+    Ds._m01_m11_m21 = pos[id2] - pos[id0];
+    Ds._m02_m12_m22 = pos[id3] - pos[id0];
+
+    return mul(Ds, invDm[tetId]);
+}
+
+inline void ApplyToElement(uint i, REAL C, REAL compliance, REAL3x4 gradients)
+{
+    if (abs(C) < EPSILON)
+        return;
+
+    int id0 = tets[i].x;
+    int id1 = tets[i].y;
+    int id2 = tets[i].z;
+    int id3 = tets[i].w;
+
+    REAL weight = 0.0;
+    weight += dot(gradients._m00_m10_m20, gradients._m00_m10_m20) * invMass[id0];
+    weight += dot(gradients._m01_m11_m21, gradients._m01_m11_m21) * invMass[id1];
+    weight += dot(gradients._m02_m12_m22, gradients._m02_m12_m22) * invMass[id2];
+    weight += dot(gradients._m03_m13_m23, gradients._m03_m13_m23) * invMass[id3];
+
+    if (weight < EPSILON)
+        return;
+
+    REAL h2 = dt * dt;
+    REAL alpha = compliance / h2 / restVolumes[i];
+    REAL dlambda = -C / (weight + alpha);
+
+    pos[id0] += dlambda * invMass[id0] * gradients._m00_m10_m20;
+    pos[id1] += dlambda * invMass[id1] * gradients._m01_m11_m21;
+    pos[id2] += dlambda * invMass[id2] * gradients._m02_m12_m22;
+    pos[id3] += dlambda * invMass[id3] * gradients._m03_m13_m23;
+}
+inline REAL SolveDeviatoric(uint i, out REAL3x4 gradient)
+{
+    gradient = 0;
+    REAL3x3 F = GetDeformationGradient(i);
+    REAL3 f1 = F._m00_m10_m20;
+    REAL3 f2 = F._m01_m11_m21;
+    REAL3 f3 = F._m02_m12_m22;
+    REAL r_s = sqrt(dot(f1, f1) + dot(f2, f2) + dot(f3, f3));
+
+    REAL C = r_s;
+
+    REAL r_s_inv = 1.0 / r_s;
+
+    REAL3x3 QT = transpose(invDm[i]);
+    REAL3x3 dC_D = r_s_inv * mul(F, QT);
+
+    REAL3 grad1_D = dC_D._m00_m10_m20;
+    REAL3 grad2_D = dC_D._m01_m11_m21;
+    REAL3 grad3_D = dC_D._m02_m12_m22;
+    REAL3 grad0_D = -grad1_D - grad2_D - grad3_D;
+
+    // gradients set zero
+    REAL3x4 gradients_d = 0;
+    gradients_d._m00_m10_m20 = grad0_D;
+    gradients_d._m01_m11_m21 = grad1_D;
+    gradients_d._m02_m12_m22 = grad2_D;
+    gradients_d._m03_m13_m23 = grad3_D;
+
+    REAL compliance = 1 / (mu);
+
+    gradient = gradients_d;
+    return C;
+    //ApplyToElement(i, C, compliance, gradients_d);
+}
+REAL SolveVolumetric(uint i, out REAL3x4 gradient)
+{
+    gradient = 0;
+
+    REAL gamma = mu / lambda;
+    REAL compliance = 1 / (lambda);
+
+    REAL3x3 F = GetDeformationGradient(i);
+    
+    REAL C = determinant(F) - 1.0 - gamma;
+
+    REAL3 f1 = F._m00_m10_m20;
+    REAL3 f2 = F._m01_m11_m21;
+    REAL3 f3 = F._m02_m12_m22;
+
+    REAL3x3 QT = transpose(invDm[i]);
+    REAL3x3 dF = REAL3x3(cross(f2, f3), cross(f3, f1), cross(f1, f2));
+    dF = transpose(dF);
+    dF._m00_m10_m20 = cross(f2, f3);
+    dF._m01_m11_m21 = cross(f3, f1);
+    dF._m02_m12_m22 = cross(f1, f2);
+    REAL3x3 dC_V = mul(dF, QT);
+
+    REAL3 grad1_V = dC_V._m00_m10_m20;
+    REAL3 grad2_V = dC_V._m01_m11_m21;
+    REAL3 grad3_V = dC_V._m02_m12_m22;
+    REAL3 grad0_V = -grad1_V - grad2_V - grad3_V;
+
+    // gradients set zero
+    REAL3x4 gradients_v = 0;
+    gradients_v._m00_m10_m20 = grad0_V;
+    gradients_v._m01_m11_m21 = grad1_V;
+    gradients_v._m02_m12_m22 = grad2_V;
+    gradients_v._m03_m13_m23 = grad3_V;
+    gradient = gradients_v;
+
+    return C;
+
+    //ApplyToElement(i, C, compliance, gradients_v);
+}
+[numthreads(64,1,1)]
+void PreSolve(uint3 dispatchID : SV_DispatchThreadID)
+{
+    uint i = dispatchID.x;
+
+    if(i >= verticesNum)
+        return;
+    if(invMass[i] == 0)
+        return;
+
+    vel[i] += dt * gravity;
+
+    prevPos[i] = pos[i];
+    pos[i] += dt * vel[i];
+}
+
+[numthreads(64,1,1)]
+void SolveElement(uint3 dispatchID : SV_DispatchThreadID)
+{
+    if(dispatchID.x >= passSize)
+        return;
+
+    uint tetId = elements[dispatchID.x + firstConstraint];
+
+    REAL C_D, C_V;
+    REAL3x4 gradients_D, gradients_V;
+
+    C_D = SolveDeviatoric(tetId, gradients_D);
+    C_V = SolveVolumetric(tetId, gradients_V);
+
+    if(abs(C_D) >= EPSILON && abs(C_V) >= EPSILON)
+    {
+        // vertices index
+        int id0 = tets[tetId].x;
+        int id1 = tets[tetId].y;
+        int id2 = tets[tetId].z;
+        int id3 = tets[tetId].w;
+
+        REAL compliance_D = 1 / (mu * restVolumes[tetId]);
+        REAL compliance_V = 1 / (lambda * restVolumes[tetId]);
+        REAL2x2 alpha = {
+            compliance_D, 0.0,
+            0.0, compliance_V
+        };
+        alpha /= dt * dt;
+
+        REAL3 grad0_D = gradients_D._m00_m10_m20;
+        REAL3 grad1_D = gradients_D._m01_m11_m21;
+        REAL3 grad2_D = gradients_D._m02_m12_m22;
+        REAL3 grad3_D = gradients_D._m03_m13_m23;
+
+        REAL3 grad0_V = gradients_V._m00_m10_m20;
+        REAL3 grad1_V = gradients_V._m01_m11_m21;
+        REAL3 grad2_V = gradients_V._m02_m12_m22;
+        REAL3 grad3_V = gradients_V._m03_m13_m23;
+
+        REAL2x2 A = 0;
+
+        A._m00 += dot(grad0_D, grad0_D) * invMass[id0];
+        A._m00 += dot(grad1_D, grad1_D) * invMass[id1];
+        A._m00 += dot(grad2_D, grad2_D) * invMass[id2];
+        A._m00 += dot(grad3_D, grad3_D) * invMass[id3];
+        
+        A._m01 += dot(grad0_D, grad0_V) * invMass[id0];
+        A._m01 += dot(grad1_D, grad1_V) * invMass[id1];
+        A._m01 += dot(grad2_D, grad2_V) * invMass[id2];
+        A._m01 += dot(grad3_D, grad3_V) * invMass[id3];
+
+        A._m10 = A._m01;
+
+        A._m11 += dot(grad0_V, grad0_V) * invMass[id0];
+        A._m11 += dot(grad1_V, grad1_V) * invMass[id1];
+        A._m11 += dot(grad2_V, grad2_V) * invMass[id2];
+        A._m11 += dot(grad3_V, grad3_V) * invMass[id3];
+
+        A += alpha;
+
+        REAL2 dlambda = LUSolve(A, REAL2(-C_D, -C_V));
+
+        pos[id0] += dlambda[0] * invMass[id0] * grad0_D + dlambda[1] * invMass[id0] * grad0_V;
+        pos[id1] += dlambda[0] * invMass[id1] * grad1_D + dlambda[1] * invMass[id1] * grad1_V;
+        pos[id2] += dlambda[0] * invMass[id2] * grad2_D + dlambda[1] * invMass[id2] * grad2_V;
+        pos[id3] += dlambda[0] * invMass[id3] * grad3_D + dlambda[1] * invMass[id3] * grad3_V;
+    }
+    else
+    {
+        ApplyToElement(tetId, C_D, 1 / mu, gradients_D);
+        ApplyToElement(tetId, C_V, 1 / lambda, gradients_V); 
+    }
+}
+
+[numthreads(64,1,1)]
+void PostSolve(uint3 dispatchID : SV_DispatchThreadID)
+{
+    uint i = dispatchID.x;
+
+    if(i >= verticesNum)
+        return;
+
+    if(invMass[i] == 0)
+        return;
+
+    //pos[i].y = max(pos[i].y, 0);
+    vel[i] = (pos[i] - prevPos[i]) / dt;
+}
+
+[numthreads(64,1,1)]
+void UpdateMesh(uint3 dispatchID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 groupThreadID : SV_GroupThreadID)
+{
+    uint i = dispatchID.x;
+    if(i >= verticesNum) 
+        return;
+
+    uint address = i * vertexStride / 4;
+    uint posId = i + vertexOffset;
+
+    uint3 data;
+    data.x = asuint((float)pos[posId].x);
+    data.y = asuint((float)pos[posId].y);
+    data.z = asuint((float)pos[posId].z);
+    meshVertices.Store((address + 0) << 2, data.x);
+    meshVertices.Store((address + 1) << 2, data.y);
+    meshVertices.Store((address + 2) << 2, data.z);
+}
+
+[numthreads(64,1,1)]
+void UpdateVisualMesh(uint3 dispatchID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 groupThreadID : SV_GroupThreadID)
+{
+    uint i = dispatchID.x;
+    if(i >= verticesNum) 
+        return;
+
+    uint address = i * vertexStride / 4;
+    uint tetNr = (uint)skinningInfo[i][0] + tetOffset;
+
+    REAL b0 = skinningInfo[i][1];
+    REAL b1 = skinningInfo[i][2];
+    REAL b2 = skinningInfo[i][3];
+    REAL b3 = 1 - b0 - b1 - b2;
+
+    int id0 = tets[tetNr].x;
+    int id1 = tets[tetNr].y;
+    int id2 = tets[tetNr].z;
+    int id3 = tets[tetNr].w;
+
+    float3 visPos = 0;
+    visPos += pos[id0] * b0;
+    visPos += pos[id1] * b1;
+    visPos += pos[id2] * b2;
+    visPos += pos[id3] * b3;
+
+    uint3 data;
+    data.x = asuint(visPos.x);
+    data.y = asuint(visPos.y);
+    data.z = asuint(visPos.z);
+
+
+    meshVertices.Store((address + 0) << 2, data.x);
+    meshVertices.Store((address + 1) << 2, data.y);
+    meshVertices.Store((address + 2) << 2, data.z);
+}

@@ -1,40 +1,56 @@
-using System.Collections;
-using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
     public class Plane : Geometry
     {
         // We assume all the planes has the same attributes
-        public Vector3 normal = new(0,1,0);
-        public Vector3 center = new(0,0,0);
-        public Vector2 size = new(10, 10);
+        public REAL3 normal = new(0,1,0);
+        public REAL3 center = new(0,0,0);
+        public REAL2 size = new(10, 10);
 
-        public override Vector3 ClosestSurfacePoint(Vector3 point, out Vector3 surfaceNormal)
+        public override REAL3 ClosestSurfacePoint(REAL3 point, out REAL3 surfaceNormal)
         {
             // transform to local
-            Vector3 local = transform.InverseTransformPoint(point);
+            REAL3 local = (float3)transform.InverseTransformPoint((float3)point);
 
-            float t = -Vector3.Dot(normal, local - center);
-            Vector3 result = local + t * normal;
+            REAL t = -math.dot(normal, local - center);
+            REAL3 result = local + t * normal;
 
             // transform back to world
-            result = transform.TransformPoint(result);
-            surfaceNormal = transform.TransformDirection(normal);
+            result = (float3)transform.TransformPoint((float3)result);
+            surfaceNormal = (float3)transform.TransformDirection((float3)normal);
             return result;
         }
-        public override bool IsInside(Vector3 point)
+        public override bool IsInside(REAL3 point)
         {
-            Vector3 local = transform.InverseTransformPoint(point);
+            REAL3 local = (float3)transform.InverseTransformPoint((float3)point);
 
             // dp < 0 => under plane
-            float dp = Vector3.Dot(local - center, normal);
-            Vector3 tangent = (local - center) - dp * normal;
+            REAL dp = math.dot(local - center, normal);
+            REAL3 tangent = (local - center) - dp * normal;
 
-            if (dp <= 0f)
-                if (Mathf.Abs(tangent.x) <= size.x / 2f && Mathf.Abs(tangent.z) <= size.y / 2f)
+            if (dp <= Util.EPSILON)
+                if (math.abs(tangent.x) <= size.x / 2f && math.abs(tangent.z) <= size.y / 2f)
                     return true;
 
             return false;
@@ -44,22 +60,22 @@ namespace XPBD
             hit = new();
 
             //Add default because have to
-            float t = 0f;
+            REAL t = 0f;
 
             //First check if the plane and the ray are perpendicular
-            float NdotRayDirection = Vector3.Dot(normal, ray.direction);
+            REAL NdotRayDirection = math.dot(normal, (float3)ray.direction);
 
             //If the dot product is almost 0 then ray is perpendicular to the triangle, so no itersection is possible
-            if (Mathf.Abs(NdotRayDirection) < Util.EPSILON)
+            if (math.abs(NdotRayDirection) < Util.EPSILON)
             {
                 return false;
             }
 
             //Compute d parameter using equation 2 by picking any point on the plane
-            float d = -Vector3.Dot(normal, center);
+            REAL d = -math.dot(normal, center);
 
             //Compute t (equation 3)
-            t = -(Vector3.Dot(normal, ray.origin) + d) / NdotRayDirection;
+            t = -(math.dot(normal, (float3)ray.origin) + d) / NdotRayDirection;
 
             //Check if the plane is behind the ray
             if (t < 0)
@@ -71,9 +87,9 @@ namespace XPBD
             if (t > maxDistance)
                 return false;
 
-            hit.normal = normal;
-            hit.distance = t;
-            hit.point = ray.GetPoint(t);
+            hit.normal = (float3)normal;
+            hit.distance = (float)t;
+            hit.point = ray.GetPoint((float)t);
 
             return true;
         }
@@ -81,7 +97,7 @@ namespace XPBD
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = Color.green;
-            Gizmos.DrawWireCube(transform.position, new Vector3(transform.lossyScale.x * size.x, 0f, transform.lossyScale.z * size.y));
+            Gizmos.DrawWireCube(transform.position, new Vector3(transform.lossyScale.x * (float)size.x, 0f, transform.lossyScale.z * (float)size.y));
         }
     }
 }

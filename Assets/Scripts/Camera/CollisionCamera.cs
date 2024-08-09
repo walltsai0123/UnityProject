@@ -25,6 +25,8 @@ public class CollisionCamera : MonoBehaviour
 
         commandBuffer = new CommandBuffer();
         commandBuffer.name = gameObject.name;
+
+        Cam.SetReplacementShader(shader, "");
     }
 
     public void RenderToTexture()

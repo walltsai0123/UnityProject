@@ -3,6 +3,24 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
 
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
+
 namespace XPBD
 {
     public class MyCollision : CollisionConstraint
@@ -11,120 +29,120 @@ namespace XPBD
         public Primitive primitive;
         public int index;
 
-        //public float4 frictionCoef;
-        public float restitutionCoef;
-        public float3 q;   //Contact point
-        public float3 fn;
-        public float3 ft, fb;
-        public float3 vn_;
+        //public REAL4 frictionCoef;
+        public REAL restitutionCoef;
+        public REAL3 q;   //Contact point
+        public REAL3 fn;
+        public REAL3 ft, fb;
+        public REAL3 vn_;
 
-        public float3 N;    //Surface normal
-        public float3 T;    //Surface tangent
-        public float3 B;    //Surface bitangent
+        public REAL3 N;    //Surface normal
+        public REAL3 T;    //Surface tangent
+        public REAL3 B;    //Surface bitangent
 
-        private float tangentCoef = 0f;
-        private float bitangentCoef = 0f;
+        private REAL tangentCoef = 0f;
+        private REAL bitangentCoef = 0f;
 
         public MyCollision(SoftBody b, Primitive p, int i = -1)
         {
             body = b;
             primitive = p;
             index = i;
-            q = float3.zero;
-            N = float3.zero;
+            q = REAL3.zero;
+            N = REAL3.zero;
             frictionCoef = 0.5f;
-            fn = ft = fb = float3.zero;
+            fn = ft = fb = REAL3.zero;
         }
 
-        public override void SolveCollision(float dt)
+        public override void SolveCollision(REAL dt)
         {
             if (body.bodyType == Body.BodyType.Soft)
                 SolveSoftBodyCollision(dt);
         }
 
-        public override void VelocitySolve(float dt)
+        public override void VelocitySolve(REAL dt)
         {
             if (body.bodyType == Body.BodyType.Soft)
                 SolveSoftBodyVelcity(dt);
         }
 
-        private void SolveSoftBodyCollision(float dt)
+        private void SolveSoftBodyCollision(REAL dt)
         {
             SoftBody soft = (SoftBody)body;
 
             vn_ = math.dot(N, soft.Vel[index]);
 
-            float C = math.dot(soft.Pos[index] - q, N);
+            REAL C = math.dot(soft.Pos[index] - q, N);
             if (C > Util.EPSILON)
                 return;
 
-            float h2 = dt * dt;
-            float alpha = 0.0f;
-            float w1 = soft.invMass[index];
-            float w2 = 0.0f;
-            float dlambda = -C / (w1 + w2 + alpha);
-            float3 p = dlambda * N;
+            REAL h2 = dt * dt;
+            REAL alpha = 0.0f;
+            REAL w1 = soft.invMass[index];
+            REAL w2 = 0.0f;
+            REAL dlambda = -C / (w1 + w2 + alpha);
+            REAL3 p = dlambda * N;
             fn = p / h2;
             soft.Pos[index] += p * w1;
 
-            float3 dp = soft.Pos[index] - soft.prevPos[index];
+            REAL3 dp = soft.Pos[index] - soft.prevPos[index];
 
             // tangent friction
-            float dp_t = math.dot(dp, T);
-            float C_T = math.abs(dp_t);
-            ft = float3.zero;
+            REAL dp_t = math.dot(dp, T);
+            REAL C_T = math.abs(dp_t);
+            ft = REAL3.zero;
             if (C_T > Util.EPSILON)
             {
-                float dlambda_t = -dp_t / (w1 + w2 + alpha);
+                REAL dlambda_t = -dp_t / (w1 + w2 + alpha);
                 tangentCoef = (dp_t > 0f) ? frictionCoef[0] : frictionCoef[2];
                 //dlambda_t = math.min(dlambda_t, dlambda * tangentCoef);
                 dlambda_t = math.max(-frictionCoef[2] * dlambda, math.min(dlambda_t, frictionCoef[0] * dlambda));
-                float3 p_t = dlambda_t * T;
+                REAL3 p_t = dlambda_t * T;
                 soft.Pos[index] += p_t * w1;
                 ft = p_t / h2;
             }
 
             // bitangent friction
-            float dp_b = math.dot(dp, B);
-            float C_B = math.abs(dp_b);
-            fb = float3.zero;
+            REAL dp_b = math.dot(dp, B);
+            REAL C_B = math.abs(dp_b);
+            fb = REAL3.zero;
             if (C_B > Util.EPSILON)
             {
-                float dlambda_b = -dp_b / (w1 + w2 + alpha);
+                REAL dlambda_b = -dp_b / (w1 + w2 + alpha);
                 bitangentCoef = (dp_b > 0f) ? frictionCoef[1] : frictionCoef[3];
                 //dlambda_b = math.min(dlambda_b, dlambda * bitangentCoef);
                 dlambda_b = math.max(-frictionCoef[3] * dlambda, math.min(dlambda_b, frictionCoef[1] * dlambda));
-                float3 p_b = dlambda_b * B;
+                REAL3 p_b = dlambda_b * B;
                 soft.Pos[index] += p_b * w1;
                 fb = p_b / h2;
             }
 
         }
 
-        private void SolveSoftBodyVelcity(float dt)
+        private void SolveSoftBodyVelcity(REAL dt)
         {
             SoftBody soft = (SoftBody)body;
 
-            float3 v = soft.Vel[index];
-            float vn = math.dot(N, v);
-            float normalImpulse = dt * math.length(fn);
+            REAL3 v = soft.Vel[index];
+            REAL vn = math.dot(N, v);
+            REAL normalImpulse = dt * math.length(fn);
 
             if (normalImpulse < Util.EPSILON)
                 return;
 
             // tangent
-            float vt = math.dot(v, T);
-            float3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
+            REAL vt = math.dot(v, T);
+            REAL3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
             soft.Vel[index] += dvt;
             
             // bitangent
-            float vb = math.dot(v, B);
-            float3 dvb = -math.sign(vb) * math.min(normalImpulse * bitangentCoef, math.abs(vb)) * B;
+            REAL vb = math.dot(v, B);
+            REAL3 dvb = -math.sign(vb) * math.min(normalImpulse * bitangentCoef, math.abs(vb)) * B;
             soft.Vel[index] += dvb;
 
             // normal
             restitutionCoef = (math.abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;
-            float3 dvn = N * (-vn + math.max(0.0f, -restitutionCoef * vn_));
+            REAL3 dvn = N * (-vn + math.max(0.0f, -restitutionCoef * vn_));
             soft.Vel[index] += dvn;
         }
 

@@ -1,7 +1,6 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using XPBD;
+using Unity.Mathematics;
 
 [RequireComponent(typeof(Camera))]
 public class CameraFollow : MonoBehaviour
@@ -14,10 +13,10 @@ public class CameraFollow : MonoBehaviour
         if(softBody == null)
             return;
 
-        transform.position = softBody.Pos[0];
+        transform.position = (float3)softBody.Pos[0];
 
         transform.position += dist * Vector3.back + dist * Vector3.up;
 
-        transform.LookAt(softBody.Pos[0]);
+        transform.LookAt((float3)softBody.Pos[0]);
     }
 }

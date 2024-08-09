@@ -1,8 +1,5 @@
-// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
 RWStructuredBuffer<float4> Result;
 Texture2D<float4> image;
 float3 Dispatch;

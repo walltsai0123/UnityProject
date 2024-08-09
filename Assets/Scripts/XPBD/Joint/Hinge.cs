@@ -1,9 +1,23 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
-using Unity.Collections;
-using Unity.Jobs;
+
+#if USE_FLOAT
+using REAL = System.Single;
+using REAL2 = Unity.Mathematics.float2;
+using REAL3 = Unity.Mathematics.float3;
+using REAL4 = Unity.Mathematics.float4;
+using REAL2x2 = Unity.Mathematics.float2x2;
+using REAL3x3 = Unity.Mathematics.float3x3;
+using REAL3x4 = Unity.Mathematics.float3x4;
+#else
+using REAL = System.Double;
+using REAL2 = Unity.Mathematics.double2;
+using REAL3 = Unity.Mathematics.double3;
+using REAL4 = Unity.Mathematics.double4;
+using REAL2x2 = Unity.Mathematics.double2x2;
+using REAL3x3 = Unity.Mathematics.double3x3;
+using REAL3x4 = Unity.Mathematics.double3x4;
+#endif
 
 namespace XPBD
 {
@@ -13,98 +27,62 @@ namespace XPBD
         public Vector3 anchor;
         public Vector3 axis = Vector3.right;
         public bool targetOn = false;
-        public float targetAngle = 0f;
+        public REAL targetAngle = 0;
 
         
-        private float3 r1, r2;
+        private REAL3 r1, r2;
         private quaternion q1, q2;
 
         // Aligned axis of each body in local frame
-        private float3 axisA1, axisA2;
+        private REAL3 axisA1, axisA2;
         // limited axis of each body in local frame
-        private float3 axisB1, axisB2;
+        private REAL3 axisB1, axisB2;
 
-        public override void SolveConstraint(float dt)
+        public override void SolveConstraint(REAL dt)
         {
             SolveAngularConstraint2(dt);
             SolvePositionConstraint2(dt);
         }
 
-        private void SolveAngularConstraint2(float dt)
+        private void SolveAngularConstraint2(REAL dt)
         {
             AngularConstraint angularConstraint = new AngularConstraint(body1, body2);
 
-            float3 axisA1_wc = math.rotate(body1.Rotation, axisA1);
-            float3 axisA2_wc = math.rotate(body2.Rotation, axisA2);
-            float3 delta_q = math.cross(axisA1_wc, axisA2_wc);
-            float d_lambda = angularConstraint.GetDeltaLambda(dt, 0f, 0f, delta_q);
+            REAL3 axisA1_wc = math.rotate(new float4x4(body1.Rotation, 0), axisA1);
+            REAL3 axisA2_wc = math.rotate(new float4x4(body2.Rotation, 0), axisA2);
+            REAL3 delta_q = math.cross(axisA1_wc, axisA2_wc);
+            REAL d_lambda = angularConstraint.GetDeltaLambda(dt, 0f, 0f, delta_q);
             //lambda += d_lambda;
 
             if (targetOn)
             {
-                float3 n1 = math.rotate(body1.Rotation, axisB1);
-                float3 n2 = math.rotate(body2.Rotation, axisB2);
-                float3 N = math.rotate(body1.Rotation, axisA1);
+                REAL3 n1 = math.rotate(new float4x4(body1.Rotation, 0), axisB1);
+                REAL3 n2 = math.rotate(new float4x4(body2.Rotation, 0), axisB2);
+                REAL3 N = math.rotate(new float4x4(body1.Rotation, 0), axisA1);
 
                 targetAngle %= 360f;
-                float targetAngleRadian = math.radians(targetAngle);
+                REAL targetAngleRadian = math.radians(targetAngle);
 
-                float3 bTarget = math.rotate(quaternion.AxisAngle(N, targetAngleRadian), n1);
-                float3 dq_target = math.cross(bTarget, n2);
+                quaternion q = quaternion.AxisAngle((float3)N, (float)targetAngleRadian);
+                REAL3 bTarget = math.rotate(new float4x4(q, float3.zero), n1);
+                REAL3 dq_target = math.cross(bTarget, n2);
 
                 AngularConstraint angC2 = new(body1, body2);
                 angC2.GetDeltaLambda(dt, 0f, 0f, dq_target);
             }
         }
 
-        private void SolvePositionConstraint2(float dt)
+        private void SolvePositionConstraint2(REAL dt)
         {
             PositionConstraint positionConstraint = new PositionConstraint(body1, body2, r1, r2);
 
-            float3 p1 = body1.Position + positionConstraint.r1;
-            float3 p2 = body2.Position + positionConstraint.r2;
-            float3 delta_x = p1 - p2;
+            REAL3 p1 = body1.Position + positionConstraint.r1;
+            REAL3 p2 = body2.Position + positionConstraint.r2;
+            REAL3 delta_x = p1 - p2;
 
-            float d_lambda = positionConstraint.GetDeltaLambda(dt, 0f, 0f, delta_x);
+            REAL d_lambda = positionConstraint.GetDeltaLambda(dt, 0f, 0f, delta_x);
             //lambda += d_lambda;
         }
-
-        private void SolveAngularConstraint(float dt)
-        {
-            // Hinge axis align
-            float3 A1 = math.rotate(body1.Rotation, math.rotate(math.conjugate(q1), axisA1));
-            float3 A2 = math.rotate(body2.Rotation, math.rotate(math.conjugate(q2), axisA1));
-            float3 dq_hinge = math.cross(A2, A1);
-            //float3 dq_hinge = math.cross(A1, A2);
-
-            SolveAngularConstraint(dt, dq_hinge, 0f, 0f);
-
-            // Target angle
-            if(targetOn)
-            {
-                targetAngle %= 360f;
-                float targetAngleRadian = math.radians(targetAngle);
-                A1 = math.rotate(body1.Rotation, math.rotate(math.conjugate(q1), axisA1));
-                A2 = math.rotate(body2.Rotation, math.rotate(math.conjugate(q2), axisA1));
-                float3 B1 = math.rotate(body1.Rotation, math.rotate(math.conjugate(q1), axisA2));
-                float3 B2 = math.rotate(body2.Rotation, math.rotate(math.conjugate(q2), axisA2));
-                float3 bTarget = math.rotate(quaternion.AxisAngle(math.normalize(A1), targetAngleRadian), B1);
-                float3 dq_target = math.cross(B2, bTarget);
-                //float3 dq_target = math.cross(bTarget, B2);
-
-                SolveAngularConstraint(dt, dq_target, 0f, 0f);
-            }
-        }
-        private void SolvePositionConstraint(float dt)
-        {
-
-            float3 R1 = body1.Position + math.rotate(body1.Rotation, r1);
-            float3 R2 = body2.Position + math.rotate(body2.Rotation, r2);
-            float3 dx = R1 - R2;
-
-            SolvePositionConstraint(dt, r1, r2, dx, 0f, 0f);
-        }
-
         private void Awake()
         {
             body1 = GetComponent<Rigid>();
@@ -117,9 +95,9 @@ namespace XPBD
 
         void Initialize()
         {
-            r1 = anchor;
-            float3 Anchor = body1.Position + math.rotate(body1.Rotation, r1);
-            r2 = math.rotate(math.conjugate(body2.Rotation), Anchor - body2.Position);
+            r1 = (float3)anchor;
+            REAL3 Anchor = body1.Position + math.rotate(new float4x4(body1.Rotation, 0), r1);
+            r2 = math.rotate(new float4x4(math.conjugate(body2.Rotation), 0), Anchor - body2.Position);
 
             q1 = body1.Rotation;
             q2 = body2.Rotation;
@@ -129,9 +107,9 @@ namespace XPBD
             axisA2 = math.rotate(math.conjugate(body2.Rotation), axis);
 
             // Calculate joint perpendicular unit axes
-            float3 axisB = Util.GetPerpendicularVector(axis);
-            axisB1 = math.rotate(math.conjugate(body1.Rotation), axisB);
-            axisB2 = math.rotate(math.conjugate(body2.Rotation), axisB);
+            REAL3 axisB = Util.GetPerpendicularVector((float3)axis);
+            axisB1 = Util.rotate(math.conjugate(body1.Rotation), axisB);
+            axisB2 = Util.rotate(math.conjugate(body2.Rotation), axisB);
         }
 
         private void OnDrawGizmosSelected()
@@ -145,23 +123,23 @@ namespace XPBD
             if (body1 == null)
             {
                 R1 = transform.position + transform.rotation * anchor;
-                R2 = body2.transform.position + body2.transform.rotation * r2;
+                R2 = body2.transform.position + body2.transform.rotation * (float3)r2;
                 a1 = transform.TransformDirection(transform.InverseTransformDirection(axis)) * 1f;
                 a2 = body2.transform.TransformDirection(body2.transform.InverseTransformDirection(axis)) * 1f;
 
-                Vector3 B = Util.GetPerpendicularVector(axis);
+                Vector3 B = (float3)Util.GetPerpendicularVector((float3)axis);
 
                 b1 = transform.TransformDirection(transform.InverseTransformDirection(B)) * 1f;
                 b2 = body2.transform.TransformDirection(body2.transform.InverseTransformDirection(B)) * 1f;
             }
             else
             {
-                R1 = transform.position + transform.rotation * r1;
-                R2 = body2.transform.position + body2.transform.rotation * r2;
-                a1 = transform.TransformDirection(math.rotate(math.conjugate(q1), axisA1)) * 1f;
-                a2 = body2.transform.TransformDirection(math.rotate(math.conjugate(q2), axisA1)) * 1f;
-                b1 = transform.TransformDirection(math.rotate(math.conjugate(q1), axisA2)) * 1f;
-                b2 = body2.transform.TransformDirection(math.rotate(math.conjugate(q2), axisA2)) * 1f;
+                R1 = transform.position + transform.rotation * (float3)r1;
+                R2 = body2.transform.position + body2.transform.rotation * (float3)r2;
+                a1 = transform.TransformDirection(math.rotate(math.conjugate(q1), (float3)axisA1)) * 1f;
+                a2 = body2.transform.TransformDirection(math.rotate(math.conjugate(q2), (float3)axisA1)) * 1f;
+                b1 = transform.TransformDirection(math.rotate(math.conjugate(q1), (float3)axisA2)) * 1f;
+                b2 = body2.transform.TransformDirection(math.rotate(math.conjugate(q2), (float3)axisA2)) * 1f;
             }
 
             Gizmos.color = Color.green;
