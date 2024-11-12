@@ -7,6 +7,8 @@
 
 #pragma multi_compile USE_FLOAT USE_DOUBLE
 
+#include
+
 #ifdef USE_DOUBLE
 typedef double REAL;
 #else
@@ -198,7 +200,7 @@ void UpdateTexture(uint3 id : SV_DispatchThreadID)
     Normal_map[id.xy] = REAL4(0.5, 0.5, 1.0, 1.0);
 
     uint left = (i == 0) ? index : index - numZ;
-    uint right = (i == numX + 1) ? index : index + numZ;
+    uint right = (i == numX - 1) ? index : index + numZ;
     uint bottom = (j == 0) ? index : index - 1;
     uint top = (j == numZ - 1) ? index : index + 1;
 

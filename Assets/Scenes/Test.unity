@@ -2219,7 +2219,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b02dafd011438eb4289e14fdc51b2202, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  mode: 2
   softBody: {fileID: 580130648}
+  rigid: {fileID: 0}
   dist: 3
 --- !u!114 &1824302414
 MonoBehaviour:
@@ -2390,25 +2392,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc74fca1879105f4291617d80d1385d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  fixedTimeStep: 1
+  fixedTimeStep: 0
   substeps: 20
-  frameLimit: 0
+  frameLimit: 1
   targetFPS: 60
   gravity:
     x: 0
     y: -10
     z: 0
-  globalSoftBody: {fileID: 0}
-  UseTextureFriction: 1
+  softbodySystem: {fileID: 0}
+  UseTextureFriction: 0
   textureFrictionShader: {fileID: 4800000, guid: 3e4c55cb6732c5d49889373c91b02064, type: 3}
   UseNeoHookeanMaterial: 1
-  SoftbodyGPUSolver: 0
-  GlobalSoftBody: 1
+  GPUSolver: 0
+  terrain: {fileID: 0}
   pause: 1
   stepOnce: 0
-  verbose: 0
+  verbose: 1
   collisionVerbose: 0
-  GizmosVerbose: 1
+  GizmosVerbose: 0
 --- !u!4 &2047814475
 Transform:
   m_ObjectHideFlags: 0

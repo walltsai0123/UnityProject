@@ -62,7 +62,6 @@ namespace XPBD
         [SerializeField]
         private REAL3 omega0;
 
-
         #region Body
         public override void ClearCollision()
         {
@@ -72,7 +71,7 @@ namespace XPBD
         {
             if (isGrabbed)
                 return;
-
+            if (isFixed) return;
             // Inverse mass is 0, which means it's fixed
             if (InvMass < Util.EPSILON)
             {
@@ -105,13 +104,14 @@ namespace XPBD
         {
             if (isGrabbed)
                 return;
+            if (isFixed) return;
         }
 
         public override void PostSolve(REAL dt)
         {
             if (isGrabbed)
                 return;
-
+            if (isFixed) return;
             vel = (Position - prevPos) / dt;
             quaternion dq = math.mul(Rotation, math.conjugate(prevRot));
             REAL4 dqf = 2 * (REAL4)dq.value / dt;
@@ -133,10 +133,13 @@ namespace XPBD
         {
             Initialized();
         }
+        private void OnEnable()
+        {
+            Simulation.get.AddBody(this);
+        }
 
         private void Start()
         {
-            Simulation.get.AddBody(this);
             isStarted = true;
         }
 

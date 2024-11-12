@@ -58,13 +58,13 @@ namespace XPBD
         {
             body1 = GetComponent<Rigid>();
         }
-        void Start()
-        {
-            Initialize();
-            Simulation.get.AddConstraints(this);
-        }
+        //void Start()
+        //{
+        //    Initialize();
+        //    Simulation.get.AddConstraints(this);
+        //}
 
-        void Initialize()
+        protected override void Initialize()
         {
             r1 = (float3)anchor;
             REAL3 Anchor = body1.Position + math.rotate(new float4x4(body1.Rotation, float3.zero), r1);

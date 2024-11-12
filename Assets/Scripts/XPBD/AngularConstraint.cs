@@ -1,4 +1,12 @@
 using Unity.Mathematics;
+using Unity.Jobs;
+using Unity.Collections;
+using UnityEditor.MPE;
+using Unity.Burst;
+
+
+
+
 
 #if USE_FLOAT
 using REAL = System.Single;
@@ -20,23 +28,29 @@ using REAL3x4 = Unity.Mathematics.double3x4;
 
 namespace XPBD
 {
+    [BurstCompile]
     public struct AngularConstraint
     {
         // Bodys to be contrained
-        Rigid rigid1;
-        Rigid rigid2;
+        //Rigid rigid1;
+        //Rigid rigid2;
 
         // Inverse inertia tensor of each body
-        REAL3x3 rigid1_InertiaInv;
-        REAL3x3 rigid2_InertiaInv;
+        public REAL3x3 rigid1_InertiaInv;
+        public REAL3x3 rigid2_InertiaInv;
+
+        public quaternion q1, q2;
 
         public AngularConstraint(Rigid Rigid1, Rigid Rigid2)
         {
-            this.rigid1 = Rigid1;
-            this.rigid2 = Rigid2;
+            //this.rigid1 = Rigid1;
+            //this.rigid2 = Rigid2;
 
-            rigid1_InertiaInv = rigid1.InertiaInv;
-            rigid2_InertiaInv = rigid2.InertiaInv;
+            q1 = Rigid1.Rotation;
+            q2 = Rigid2.Rotation;
+
+            rigid1_InertiaInv = Rigid1.InertiaInv;
+            rigid2_InertiaInv = Rigid2.InertiaInv;
         }
 
         public REAL GetDeltaLambda(REAL dt, REAL compliance, REAL lambda, REAL3 delta_q)
@@ -69,19 +83,13 @@ namespace XPBD
             REAL3 I1invP = math.mul(rigid1_InertiaInv, impulse);
             REAL3 I2invP = math.mul(rigid2_InertiaInv, impulse);
 
-            if (!rigid1.isFixed)
-            {
-                quaternion newQ = new quaternion(0.5f * new float4((float3)I1invP, 0));
-                rigid1.Rotation = rigid1.Rotation.value + math.mul(newQ, rigid1.Rotation).value;
-                rigid1.Rotation = math.normalizesafe(rigid1.Rotation);
-            }
+            quaternion newQ = new quaternion(0.5f * new float4((float3)I1invP, 0));
+            q1 = q1.value + math.mul(newQ, q1).value;
+            q1 = math.normalizesafe(q1);
 
-            if (!rigid2.isFixed)
-            {
-                quaternion newQ = new quaternion(0.5f * new float4((float3)I2invP, 0));
-                rigid2.Rotation = rigid2.Rotation.value - math.mul(newQ, rigid2.Rotation).value;
-                rigid2.Rotation = math.normalizesafe(rigid2.Rotation);
-            }
+            quaternion newQ2 = new quaternion(0.5f * new float4((float3)I2invP, 0));
+            q2 = q2.value - math.mul(newQ2, q2).value;
+            q2 = math.normalizesafe(q2);
         }
     }
 }

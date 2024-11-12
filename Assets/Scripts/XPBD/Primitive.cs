@@ -34,8 +34,6 @@ namespace XPBD
         public Vector3 Position => transform.position;
         public Quaternion Rotation => transform.rotation;
 
-        public List<MyCollision> collisions { get; protected set; }
-
         protected virtual void Awake()
         {
             gameObject.tag = "Primitive";
@@ -46,19 +44,10 @@ namespace XPBD
 
         protected virtual void Start()
         {
-            collisions = new List<MyCollision>();
             collisionMaterial = new(Simulation.get.textureFrictionShader);
             Simulation.get.primitives.Add(this);
         }
 
-        private void OnDrawGizmos()
-        {
-            if (collisions == null)
-            {
-                return;
-            }
-            
-        }
 
         public virtual void Simulate(REAL dt) { }
 
@@ -67,7 +56,6 @@ namespace XPBD
         public virtual void ApplyVelocity(REAL dt) { }
         public void UpdateCollisionMaterial()
         {
-            collisions.Clear();
             collisionMaterial.CopyMatchingPropertiesFromMaterial(material);
         }
     }

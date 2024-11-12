@@ -105,11 +105,19 @@ MonoBehaviour:
   grabbable: 1
   tetrahedronMesh: {fileID: -6750239444755058063, guid: b8f86316a918a784d9a8a34c363a9d37, type: 3}
   visualMesh: {fileID: 0}
+  tetMesh: {fileID: 0}
   wireframeMaterial: {fileID: 2100000, guid: 6833a623d1b4df54abdfe933a1483a27, type: 2}
   mu: 33557.05
   lambda: 1644295
   showTet: 0
-  v0: {x: 0, y: 0, z: 0}
+  v0:
+    x: 0
+    y: 0
+    z: 0
+  translate:
+    x: 0
+    y: 0
+    z: 0
 --- !u!114 &8196280174840191114
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -123,3 +131,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   attachedBody: {fileID: 0}
+  parallel: 0

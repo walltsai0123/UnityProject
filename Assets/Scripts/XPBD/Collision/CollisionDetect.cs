@@ -3,6 +3,7 @@ using UnityEngine;
 using Unity.Mathematics;
 using System;
 using UnityEngine.Rendering;
+using UnityEngine.Assertions;
 
 #if USE_FLOAT
 using REAL = System.Single;
@@ -24,62 +25,75 @@ using REAL3x4 = Unity.Mathematics.double3x4;
 
 namespace XPBD
 {
-    public class CollisionDetect : IDisposable
+    public class CollisionDetect : MonoBehaviour
     {
-        private CollisionCamera cam1;
-        private CollisionCamera cam2;
+        //private CollisionCamera cam1;
+        //private CollisionCamera cam2;
+        SoftBodySystem softBodySystem;
+
+        [SerializeField] RenderTexture renderTexture;
+        [SerializeField] CollisionCamera collisionCamera_prefab = null;
+        CollisionCamera collisionCamera = null;
 
         private const string tangentVector = "_TangentVector";
         private const string bitangentVector = "_BitangentVector";
 
-        private List<CollisionConstraint> collisions;
-        public List<CollisionConstraint> Collisions => collisions;
+        private List<MyCollision> collisions;
+        public List<MyCollision> Collisions => collisions;
 
         // Sub-texture and framebuffer size (only one side since both are square)
         private readonly int subtextureSize = 16;
-        private readonly int rendertextureSize;
-        private readonly int subTextureRowSize;
+        private int rendertextureSize;
+        private int subTextureRowSize;
 
-        private const REAL nominal_friction = 0.1f;
-        private const REAL kA = 1f;
-        private const REAL kB = 1f;
+        [SerializeField] private float nominal_friction = 0.1f;
+        [SerializeField] private float kA = 1f;
+        [SerializeField] private float kB = 1f;
+
+        [SerializeField] Material terrainMat;
 
         int kernel;
         private ComputeShader computeShader;
         private ComputeBuffer computeBuffer;
-        private Vector4 [] FrictionCoefCache;
+        private Vector4[] FrictionCoefCache;
         AsyncGPUReadbackRequest req;
         bool coefSet;
 
         //Timers
-        Timer renderTimer = new();
-        Timer computeCoefTimer2 = new();
-        Timer readbackTimer = new();
+        readonly Timer renderTimer = new();
+        readonly Timer computeCoefTimer2 = new();
+        readonly Timer readbackTimer = new();
 
-        public CollisionDetect()
+        private void Awake()
         {
-            GameObject[] gameObjects = GameObject.FindGameObjectsWithTag("CollisionCam");
-            if (gameObjects.Length != 2)
-                Debug.LogWarning("Collision camera should only be two!!! Current: " + gameObjects.Length);
-            cam1 = gameObjects[0].GetComponent<CollisionCamera>();
-            cam2 = gameObjects[1].GetComponent<CollisionCamera>();
+            if (collisionCamera == null)
+            {
+                collisionCamera = Instantiate(collisionCamera_prefab);
+                collisionCamera.transform.SetParent(transform);
+                collisionCamera.renderTexture = renderTexture;
+            }
 
-            collisions = new List<CollisionConstraint>();
+            collisions = new List<MyCollision>();
 
             // Get framebuffer size and subtexture size
-            rendertextureSize = cam1.renderTexture.width;
+            rendertextureSize = renderTexture.width;
             subTextureRowSize = rendertextureSize / subtextureSize;
             FrictionCoefCache = new Vector4[subTextureRowSize * subTextureRowSize];
-            System.Array.Fill(FrictionCoefCache, Vector4.zero);
+            Array.Fill(FrictionCoefCache, Vector4.zero);
 
             computeShader = Resources.Load<ComputeShader>("FrictionCoef");
             computeBuffer = new ComputeBuffer(FrictionCoefCache.Length, sizeof(float) * 4);
 
             kernel = computeShader.FindKernel("CSMain");
 
-            computeShader.SetTexture(kernel, "image", cam1.renderTexture);
+            Assert.IsNotNull(renderTexture);
+            computeShader.SetTexture(kernel, "image", renderTexture);
             computeShader.SetBuffer(kernel, "Result", computeBuffer);
             computeShader.SetVector("Dispatch", new Vector4(subTextureRowSize, subTextureRowSize, 1));
+        }
+        private void OnDestroy()
+        {
+            Dispose();
         }
         public void Dispose()
         {
@@ -95,10 +109,10 @@ namespace XPBD
             if (bodies.Count == 0 || primitives.Count == 0)
                 return;
 
-            foreach(var primitive in primitives)
+            foreach (var primitive in primitives)
                 primitive.UpdateCollisionMaterial();
 
-            foreach(var body in bodies)
+            foreach (var body in bodies)
             {
                 if (!body.EnableContact)
                     continue;
@@ -111,14 +125,15 @@ namespace XPBD
                     continue;
 
 
-                foreach(var primitive in primitives)
+                foreach (var primitive in primitives)
                 {
                     if (body.bodyType == Body.BodyType.Soft)
                         SoftBodyCollision((SoftBody)body, primitive, dt);
                 }
             }
 
-            if(Simulation.get.UseTextureFriction && collisions.Count > 0)
+
+            if (Simulation.get.UseTextureFriction)
             {
                 //computeCoefTimer.Tic();
                 //CalculateTextureFriction(cam1.renderTexture);
@@ -129,12 +144,89 @@ namespace XPBD
                 renderTimer.Toc();
 
                 computeCoefTimer2.Tic();
-                CalculateTextureFrictionGPU(cam1.renderTexture);
+                CalculateTextureFrictionGPU(renderTexture);
                 computeCoefTimer2.Toc();
 
             }
-            
-            if(collisions.Count > 0 && Simulation.get.collisionVerbose)
+
+            if (Simulation.get.collisionVerbose)
+            {
+                Debug.Log("Collision count: " + collisions.Count);
+                Debug.Log("Average render time: " + renderTimer.Duration() * 0.001f / collisions.Count + "ms");
+                renderTimer.Report("Render contact patch", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+                computeCoefTimer2.Report("Compute Coef2", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+            }
+        }
+        public void CollectCollision(SoftBodySystem sBS, MyTerrain terrain, REAL dt)
+        {
+            softBodySystem = sBS;
+            collisions.Clear();
+            if (softBodySystem.VerticesNum == 0 || terrain == null)
+                return;
+
+            TerrainData terrainData = terrain.TerrainData;
+            REAL3 terrainPosition = (float3)terrain.transform.position;
+            REAL3 terrainSize = (float3)terrainData.size;
+
+            for (int i = 0; i < softBodySystem.VerticesNum; ++i)
+            {
+                SoftBodyParticle particle = softBodySystem.particles[i];
+                // Predicted position of particle
+                REAL3 predPos = particle.pos + particle.vel * dt;
+                //predPos = particle.pos;
+
+                REAL x = (predPos.x - terrainPosition.x) / terrainSize.x;
+                REAL z = (predPos.z - terrainPosition.z) / terrainSize.z;
+
+                REAL sampleHeight = terrain.Terrain.SampleHeight((float3)predPos);
+
+                if (predPos.y <= sampleHeight)
+                {
+                    MyCollision newCollision = new(i)
+                    {
+                        q = new REAL3(predPos.x, sampleHeight, predPos.z),
+                        N = (float3)terrainData.GetInterpolatedNormal((float)x, (float)z)
+                    };
+
+                    // Calculate the Normal, Tangent, Bitangent vector of contact frame
+                    REAL3 N = newCollision.N;
+                    REAL3 up = math.cross(newCollision.N, new REAL3(1, 0, 0));
+                    if (math.length(up) < Util.EPSILON)
+                    {
+                        up = -math.cross(newCollision.N, new REAL3(0, 0, -1));
+                    }
+                    math.normalize(up);
+
+                    REAL3 tangent = up;
+                    REAL3 bitangent = math.cross(N, tangent);
+
+                    newCollision.T = up;
+                    newCollision.B = bitangent;
+
+                    collisions.Add(newCollision);
+                    //soft.collisions.Add(newCollision);
+                    //primitive.collisions.Add(newCollision);
+
+                    terrain.SetupMaterial(newCollision);
+                }
+            }
+
+
+            if (collisions.Count == 0)
+                return;
+
+            if (Simulation.get.UseTextureFriction)
+            {
+                renderTimer.Tic();
+                RenderContactPatch();
+                renderTimer.Toc();
+
+                computeCoefTimer2.Tic();
+                CalculateTextureFrictionGPU(renderTexture);
+                computeCoefTimer2.Toc();
+            }
+
+            if (Simulation.get.collisionVerbose)
             {
                 Debug.Log("Collision count: " + collisions.Count);
                 Debug.Log("Average render time: " + renderTimer.Duration() * 0.001f / collisions.Count + "ms");
@@ -175,155 +267,166 @@ namespace XPBD
 
                 collisions[i].frictionCoef = kA * mu1 + kB * mu2;
                 collisions[i].frictionCoef += nominal_friction;
+
+                //Debug.Log(collisions[i].frictionCoef);
             }
 
             coefSet = true;
         }
 
+        public void SolveCollision(REAL dt)
+        {
+            SetFrictionCoef();
+
+            foreach (var collision in  collisions)
+            {
+                collision.SolveCollision(softBodySystem, dt);
+            }
+        }
+
+        public void VelocitySolve(REAL dt)
+        {
+            foreach (var collision in collisions)
+            {
+                collision.VelocitySolve(softBodySystem, dt);
+            }
+        }
+
         private void SoftBodyCollision(SoftBody soft, Primitive primitive, REAL dt)
         {
-            Geometry geometry = primitive.Geometry;
+            //Geometry geometry = primitive.Geometry;
 
-            for (int i = 0; i < soft.VerticesNum; ++i)
-            {
-                // Ignore grabbed particle
-                if (i == soft.grabId)
-                    continue;
+            //for (int i = 0; i < soft.VerticesNum; ++i)
+            //{
+            //    // Ignore grabbed particle
+            //    if (i == soft.grabId)
+            //        continue;
 
-                // Predicted position of particle
-                REAL3 predPos = soft.Pos[i] + soft.Vel[i] * dt;
-                predPos = soft.Pos[i];
-                if (geometry.IsInside(predPos))
-                {
-                    MyCollision newCollision = new(soft, primitive, i);
-                    newCollision.q = geometry.ClosestSurfacePoint(predPos, out REAL3 normal);
-                    newCollision.N = normal;
+            //    // Predicted position of particle
+            //    REAL3 predPos = soft.Pos[i] + soft.Vel[i] * dt;
+            //    predPos = soft.Pos[i];
+            //    if (geometry.IsInside(predPos))
+            //    {
+            //        MyCollision newCollision = new(soft, primitive, i);
+            //        newCollision.q = geometry.ClosestSurfacePoint(predPos, out REAL3 normal);
+            //        newCollision.N = normal;
 
-                    // Calculate the Normal, Tangent, Bitangent vector of contact frame
-                    REAL3 N = newCollision.N;
-                    REAL3 up = math.cross(newCollision.N, new REAL3(1, 0, 0));
-                    if (math.length(up) < Util.EPSILON)
-                    {
-                        up = -math.cross(newCollision.N, new REAL3(0, 0, -1));
-                    }
-                    math.normalize(up);
+            //        // Calculate the Normal, Tangent, Bitangent vector of contact frame
+            //        REAL3 N = newCollision.N;
+            //        REAL3 up = math.cross(newCollision.N, new REAL3(1, 0, 0));
+            //        if (math.length(up) < Util.EPSILON)
+            //        {
+            //            up = -math.cross(newCollision.N, new REAL3(0, 0, -1));
+            //        }
+            //        math.normalize(up);
 
-                    REAL3 tangent = up;
-                    REAL3 bitangent = math.cross(N, tangent);
+            //        REAL3 tangent = up;
+            //        REAL3 bitangent = math.cross(N, tangent);
 
-                    newCollision.T = up;
-                    newCollision.B = bitangent;
+            //        newCollision.T = up;
+            //        newCollision.B = bitangent;
 
-                    // Render contact patch
-                    if (Simulation.get.UseTextureFriction)
-                    {
+            //        // Render contact patch
+            //        if (Simulation.get.UseTextureFriction)
+            //        {
                         
-                        // Set collision camera position
-                        //cam1.transform.position = soft.Pos[i] - 0.02f * N;
-                        //cam2.transform.position = newCollision.q + 0.02f * N;
+            //            // Set collision camera position
+            //            //cam1.transform.position = soft.Pos[i] - 0.02f * N;
+            //            //cam2.transform.position = newCollision.q + 0.02f * N;
 
-                        //cam1.transform.LookAt(soft.Pos[i], up);
-                        //cam2.transform.LookAt(newCollision.q, up);
+            //            //cam1.transform.LookAt(soft.Pos[i], up);
+            //            //cam2.transform.LookAt(newCollision.q, up);
 
-                        //Shader.SetGlobalREAL("_Depth", 0.25f);
-                        //Shader.SetGlobalVector(tangentVector, tangent);
-                        //Shader.SetGlobalVector(bitangentVector, bitangent);
+            //            //Shader.SetGlobalREAL("_Depth", 0.25f);
+            //            //Shader.SetGlobalVector(tangentVector, tangent);
+            //            //Shader.SetGlobalVector(bitangentVector, bitangent);
 
-                        //// Set collision camera view rect
-                        //int subtextureNum1 = collisions.Count * 2;
-                        //int subtextureNum2 = subtextureNum1 + 1;
+            //            //// Set collision camera view rect
+            //            //int subtextureNum1 = collisions.Count * 2;
+            //            //int subtextureNum2 = subtextureNum1 + 1;
 
-                        //// Set cam1 viewport
-                        //int row1 = subtextureNum1 / subTextureRowSize;
-                        //int col1 = subtextureNum1 % subTextureRowSize;
-                        //int x1 = subtextureSize * col1;
-                        //int y1 = subtextureSize * row1;
-                        //cam1.SetViewPort(x1, y1, subtextureSize, subtextureSize);
+            //            //// Set cam1 viewport
+            //            //int row1 = subtextureNum1 / subTextureRowSize;
+            //            //int col1 = subtextureNum1 % subTextureRowSize;
+            //            //int x1 = subtextureSize * col1;
+            //            //int y1 = subtextureSize * row1;
+            //            //cam1.SetViewPort(x1, y1, subtextureSize, subtextureSize);
 
-                        //// Set cam2 viewport
-                        //int row2 = subtextureNum2 / subTextureRowSize;
-                        //int col2 = subtextureNum2 % subTextureRowSize;
-                        //int x2 = subtextureSize * col2;
-                        //int y2 = subtextureSize * row2;
-                        //cam2.SetViewPort(x2, y2, subtextureSize, subtextureSize);
+            //            //// Set cam2 viewport
+            //            //int row2 = subtextureNum2 / subTextureRowSize;
+            //            //int col2 = subtextureNum2 % subTextureRowSize;
+            //            //int x2 = subtextureSize * col2;
+            //            //int y2 = subtextureSize * row2;
+            //            //cam2.SetViewPort(x2, y2, subtextureSize, subtextureSize);
 
-                        //renderTimer.Resume();
+            //            //renderTimer.Resume();
 
-                        //cam1.RenderToTexture();
-                        //cam2.RenderToTexture();
+            //            //cam1.RenderToTexture();
+            //            //cam2.RenderToTexture();
 
-                        //renderTimer.Pause();
-                    }
+            //            //renderTimer.Pause();
+            //        }
 
-                    collisions.Add(newCollision);
-                    soft.collisions.Add(newCollision);
-                    primitive.collisions.Add(newCollision);
-                }
-            }
+            //        collisions.Add(newCollision);
+            //        soft.collisions.Add(newCollision);
+            //        primitive.collisions.Add(newCollision);
+            //    }
+            //}
 
         }
+
         private void RenderContactPatch()
         {
-            cam1.renderTexture.Release();
+            renderTexture.Release();
+            var terrain = Simulation.get.terrain;
             for (int i = 0; i < collisions.Count; i++)
             {
-                MyCollision collision = (MyCollision)collisions[i];
+                MyCollision collision = collisions[i];
 
-                //Set collision camera position
-                cam1.transform.position = (float3)(collision.body.Pos[collision.index] - 0.02f * collision.N);
-                cam2.transform.position = (float3)(collision.q + 0.02f * collision.N);
-
-                // Set camera axis
+                // contact frame axis
                 Vector3 up = (float3)collision.T;
                 Vector3 tangent = (float3)collision.T;
                 Vector3 bitangent = (float3)collision.B;
 
-                cam1.transform.LookAt((float3)collision.body.Pos[collision.index], up);
-                cam2.transform.LookAt((float3)collision.q, up);
-
-                // Set collision camera view rect
-                int subtextureNum1 = i * 2;
-                int subtextureNum2 = subtextureNum1 + 1;
-
-                float WH = 1f / subTextureRowSize;
-                // Set cam1 viewport
-                int row1 = subtextureNum1 / subTextureRowSize;
-                int col1 = subtextureNum1 % subTextureRowSize;
-                int x1 = subtextureSize * col1;
-                int y1 = subtextureSize * row1;
-                cam1.SetViewPort((float)col1 / subTextureRowSize, (float)row1 / subTextureRowSize, WH, WH);
-
-                // Set cam2 viewport
-                int row2 = subtextureNum2 / subTextureRowSize;
-                int col2 = subtextureNum2 % subTextureRowSize;
-                int x2 = subtextureSize * col2;
-                int y2 = subtextureSize * row2;
-                cam2.SetViewPort((float)col2 / subTextureRowSize, (float)row2 / subTextureRowSize, WH, WH);
-
-                /*Shader.SetGlobalFloat("_Depth", 0.25f);
-                Shader.SetGlobalVector(tangentVector, tangent);
-                Shader.SetGlobalVector(bitangentVector, bitangent);
-
-                Util.SetLayerRecursive(collision.body.gameObject, Layer1);
-                Util.SetLayerRecursive(collision.primitive.gameObject, Layer2);
-
-                cam1.RenderToTexture();
-                cam2.RenderToTexture();
-
-                Util.SetLayerRecursive(collision.body.gameObject, originLayer);
-                Util.SetLayerRecursive(collision.primitive.gameObject, originLayer);*/
-
-                Material mat1 = collision.body.collisionMaterial;
-                Material mat2 = collision.primitive.collisionMaterial;
-
+                // Set material uniform variable
+                SoftBody body = softBodySystem.GetParticleBody(collision.index);
+                Material mat1 = body.collisionMaterial;
                 mat1.SetVector(tangentVector, tangent);
                 mat1.SetVector(bitangentVector, bitangent);
-                mat2.SetVector(tangentVector, tangent);
-                mat2.SetVector(bitangentVector, bitangent);
 
-                cam1.DrawToTexture(collision.body.visualMesh, collision.body.collisionMaterial, collision.body.transform.localToWorldMatrix);
-                cam2.DrawToTexture(collision.primitive.mesh, collision.primitive.collisionMaterial, collision.primitive.transform.localToWorldMatrix);
+                // viewport width/height
+                float WH = 1f / subTextureRowSize;
+
+                //Object 1
+                //Set collision camera position
+                collisionCamera.transform.position = (float3)(collision.q - 0.02f * collision.N);
+                // Set camera axis
+                collisionCamera.transform.LookAt((float3)collision.q, up);
+                // Set collision camera view rect
+                int subtextureNum1 = i * 2;
+                // Set cam viewport
+                int row1 = subtextureNum1 / subTextureRowSize;
+                int col1 = subtextureNum1 % subTextureRowSize;
+                collisionCamera.SetViewPort((float)col1 / subTextureRowSize, (float)row1 / subTextureRowSize, WH, WH);
+                //collisionCamera.DrawToTexture(body.visualMesh, body.collisionMaterial, body.transform.localToWorldMatrix);
+
+                //Object 2
+                //Set collision camera position
+                collisionCamera.transform.position = (float3)(collision.q + 0.02f * collision.N);
+                // Set camera axis
+                collisionCamera.transform.LookAt((float3)collision.q, up);
+                // Set collision camera view rect
+                int subtextureNum2 = subtextureNum1 + 1;
+                // Set cam viewport
+                int row2 = subtextureNum2 / subTextureRowSize;
+                int col2 = subtextureNum2 % subTextureRowSize;
+                collisionCamera.SetViewPort((float)col2 / subTextureRowSize, (float)row2 / subTextureRowSize, WH, WH);
+
+                terrain.SetupMaterial(collision);
+                collisionCamera.DrawToTexture(terrain.mesh2, terrain.CollisionMaterial, terrain.transform.localToWorldMatrix, true);
+                
             }
+
         }
         private void CalculateTextureFriction(RenderTexture renderTexture)
         {
@@ -397,6 +500,9 @@ namespace XPBD
 
         private void CalculateTextureFrictionGPU(RenderTexture renderTexture)
         {
+            computeShader.SetFloat("nominal_friction", nominal_friction);
+            computeShader.SetFloat("kA", kA);
+            computeShader.SetFloat("kB", kB);
             computeShader.Dispatch(kernel, subTextureRowSize, subTextureRowSize, 1);
 
             req = AsyncGPUReadback.Request(computeBuffer, computeBuffer.stride * collisions.Count * 2, 0);

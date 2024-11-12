@@ -1,8 +1,16 @@
 #pragma kernel CSMain
+#pragma kernel ToCoefficient
 
 RWStructuredBuffer<float4> Result;
+RWStructuredBuffer<float4> frictionCoef;
+
 Texture2D<float4> image;
+
 float3 Dispatch;
+float collisions;
+int subtextureSize;
+float nominal_friction;
+float kA, kB;
 
 groupshared float4 TotalSum[256];
 
@@ -27,4 +35,22 @@ void CSMain(uint3 groupID : SV_GroupID, uint3 dispatchID : SV_DispatchThreadID, 
         Result[index] = TotalSum[0];
     }
     
+}
+
+[numthreads(64,1,1)]
+void ToCoefficient(uint3 dispatchID : SV_DispatchThreadID)
+{
+    uint i = dispatchID.x;
+    if(i >= collisions)
+        return;
+
+    float4 mu1 = Result[2 * i];
+    float4 mu2 = Result[2 * i + 1];
+    float validPixels = subtextureSize * subtextureSize;
+
+    mu1 /= validPixels;
+    mu2 /= validPixels;
+
+    frictionCoef[i] = kA * mu1 + kB * mu2;
+    frictionCoef[i] += nominal_friction;
 }

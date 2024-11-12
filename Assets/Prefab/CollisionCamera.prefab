@@ -40,7 +40,7 @@ Camera:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1976093030812455336}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_ClearFlags: 2
   m_BackGroundColor: {r: 0, g: 0, b: 0, a: 0}
@@ -68,7 +68,7 @@ Camera:
   far clip plane: 1
   field of view: 60
   orthographic: 1
-  orthographic size: 0.01
+  orthographic size: 0.02
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
@@ -97,5 +97,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   layer: 0
-  shader: {fileID: 4800000, guid: 3e4c55cb6732c5d49889373c91b02064, type: 3}
   renderTexture: {fileID: 8400000, guid: 506bc0d22b6540e44abe5f15beb7be61, type: 2}

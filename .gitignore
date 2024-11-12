@@ -76,4 +76,4 @@ crashlytics-build.properties
 .vscode/
 /log/
 /[Aa]ssets/Plugins/__cpp-interface.*
-/[Aa]ssets/Asset Store/
+#/[Aa]ssets/Asset Store/

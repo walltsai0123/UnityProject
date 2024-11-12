@@ -26,7 +26,7 @@ Shader "Custom/TerrainWithNormalOutput" {
         #include "UnityPBSLighting.cginc"
 
         #pragma multi_compile_local_fragment __ _ALPHATEST_ON
-        #pragma multi_compile_local __ _NORMALMAP
+        //#pragma multi_compile_local __ _NORMALMAP
          
         #define TERRAIN_STANDARD_SHADER
         #define TERRAIN_INSTANCED_PERPIXEL_NORMAL
@@ -58,7 +58,8 @@ Shader "Custom/TerrainWithNormalOutput" {
             o.Smoothness = mixedDiffuse.a;
             o.Metallic = dot(splat_control, half4(_Metallic0, _Metallic1, _Metallic2, _Metallic3));
 
-            o.Normal = o.Normal.zxy;
+            o.Normal = o.Normal;
+            o.Albedo = o.Normal;
         }
 
         fixed4 LightingNoLighting(SurfaceOutputStandard s, fixed3 lightDir, fixed atten)
@@ -80,32 +81,3 @@ Shader "Custom/TerrainWithNormalOutput" {
     
     Fallback "Nature/Terrain/Diffuse"
 }
-
-//fixed4 LightingNoLighting(SurfaceOutput s, fixed3 lightDir, fixed atten)
-//        {
-//            fixed4 c;
-//            c.rgb = s.Albedo; 
-//            c.a = s.Alpha;
-//            return c;
-//        }
-// ploughing friction model
-            //half3 d1 = normalize(_TangentVector.xyz);
-            //half3 d2 = normalize(_BitangentVector.xyz);
-            //half3 d3 = -d1;
-            //half3 d4 = -d2;
-            
-            //half theta = acos(dot(o.Normal, _NormalVector));
-            //float P = 2.0 * UNITY_INV_PI * tan(theta);
-            
-            //half3 m_prime = _NormalVector - dot(_NormalVector, o.Normal) * o.Normal;
-            //m_prime = normalize(m_prime);
-            
-            //half S1 = max(0, dot(m_prime, d1));
-            //half S2 = max(0, dot(m_prime, d2));
-            //half S3 = max(0, dot(m_prime, d3));
-            //half S4 = max(0, dot(m_prime, d4));
-
-            //o.Albedo.r = S1 * P;
-            //o.Albedo.g = S2 * P;
-            //o.Albedo.b = S3 * P;
-            //o.Alpha = S4 * P;

@@ -1,0 +1,58 @@
+#pragma kernel PreSolve
+#pragma kernel PostSolve
+
+#include <Assets/Scripts/Compute/settings.hlsl>
+#include <Assets/Scripts/Compute/system.hlsl>
+#include <Assets/Scripts/Compute/bodyStructs.hlsl>
+
+RWStructuredBuffer<RigidBody> rigidBodies;
+
+const uint rigidsNum;
+const float3 gravity;
+const float3 Tau = 0;
+
+[numthreads(64,1,1)]
+void PreSolve (uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if(i >= rigidsNum)
+        return;
+
+    if(rigidBodies[i].isFixed != 0)
+        return;
+
+    REAL3 g = gravity;
+
+    rigidBodies[i].prevPos = rigidBodies[i].position;
+
+    //rigidBodies[i].vel += dt * InvMass * fext;
+    rigidBodies[i].vel += dt * g;
+    rigidBodies[i].position += dt * rigidBodies[i].vel;
+
+    REAL3x3 I = rotate_matrix(rotate_matrix(rigidBodies[i].rotation, rigidBodies[i].IBody), q_conj(rigidBodies[i].rotation));
+    REAL3x3 Iinv = rotate_matrix(rotate_matrix(rigidBodies[i].rotation, rigidBodies[i].IBodyInv), q_conj(rigidBodies[i].rotation));
+
+    rigidBodies[i].prevRot = rigidBodies[i].rotation;
+    rigidBodies[i].omega += dt * mul(Iinv, Tau - cross(rigidBodies[i].omega, mul(I, rigidBodies[i].omega)));
+    quaternion Omega = quaternion(rigidBodies[i].omega, 0);
+    Omega *= 0.5 * dt;
+    quaternion dq = qmul(Omega, rigidBodies[i].rotation);
+    rigidBodies[i].rotation = normalize(rigidBodies[i].rotation + dq);
+}
+[numthreads(64,1,1)]
+void PostSolve (uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if(i >= rigidsNum)
+        return;
+
+    if(rigidBodies[i].isFixed != 0)
+        return;
+
+    rigidBodies[i].vel = (rigidBodies[i].position - rigidBodies[i].prevPos) / dt;
+    quaternion dq = qmul(rigidBodies[i].rotation, q_conj(rigidBodies[i].prevRot));
+    REAL4 dqf = 2 * dq / dt;
+
+    rigidBodies[i].omega = dqf.xyz;
+    if (dqf.w < 0) rigidBodies[i].omega *= -1;
+}

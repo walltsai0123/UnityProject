@@ -1,0 +1,247 @@
+#pragma kernel HeightIntergration
+#pragma kernel CacheCopy
+#pragma kernel UpdateVelocity
+#pragma kernel ApplyFriction
+#pragma kernel UpdateTexture
+#pragma kernel Collision
+
+#include <Assets/Scripts/Compute/settings.hlsl>
+static const int NumThreads = 64;
+ 
+RWTexture2D<float4> Height_map;
+RWTexture2D<float4> Normal_map;
+
+RWStructuredBuffer<REAL> heights;
+RWStructuredBuffer<REAL> heights_cache;
+RWStructuredBuffer<REAL> u;
+RWStructuredBuffer<REAL> v;
+
+struct Contact
+{
+    int index;
+    REAL3 p;
+    REAL3 velocity;
+    REAL penetration;
+};
+
+RWStructuredBuffer<Contact> contacts;
+
+// Settings
+const float dt;
+const float gravity;
+const float mu;
+const float spacing;
+const uint numX;
+const uint numZ;
+
+[numthreads(NumThreads, 1, 1)]
+void HeightIntergration (uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x / numZ;
+    uint j = id.x % numZ;
+
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    //if(i == 0 || j == 0 || i == numX - 1 || j == numZ - 1)
+    //{
+    //    heights_cache[id.x] = heights[id.x];
+    //    return;
+    //}
+
+	uint center = id.x;
+    uint left = id.x - numZ;
+    uint right = id.x + numZ;
+    uint bottom = id.x - 1;
+    uint top = id.x + 1;
+
+    REAL g = abs(gravity);
+    REAL h = heights[center];
+
+    // neighbor cell height
+    REAL h_n = 0;
+    REAL h_avg = 0;
+
+    REAL h_right = (i == numX - 1) ? h : heights[right];
+    REAL h_left = (i == 0) ? h : heights[left];
+    REAL h_top = (j == numZ - 1) ? h : heights[top];
+    REAL h_bottom = (j == 0) ? h : heights[bottom];
+
+    REAL beta = 2.0 * spacing / (gravity * dt);
+    REAL h_adj = max(0, (h_right + h_left + h_top + h_bottom) / 4.0 - beta);
+
+    // right cell is boundary
+    h_n = h_right;
+    REAL U0 = max(u[right], 0.0) * h + min(u[right], 0.0) * h_n;
+
+    // left cell is boundary
+    h_n = h_left;
+    REAL U1 = max(u[center], 0.0) * h_n + min(u[center], 0.0) * h;
+
+    // up cell is boundary
+    h_n = h_top;
+    REAL U2 = max(v[top], 0.0) * h + min(v[top], 0.0) * h_n;
+
+    // down cell is boundary
+    h_n = h_bottom;
+    REAL U3 = max(v[center], 0.0) * h_n + min(v[center], 0.0) * h;
+
+    heights_cache[id.x] = max(h - (dt / spacing) * (U0 - U1 + U2 - U3), 0);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void CacheCopy(uint id : SV_DispatchThreadID)
+{
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    heights[id.x] = heights_cache[id.x];
+}
+
+[numthreads(NumThreads, 1, 1)]
+void UpdateVelocity(uint id : SV_DispatchThreadID)
+{
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    uint i = id.x / numZ;
+    uint j = id.x % numZ;
+
+    //if(i == 0 || j == 0 || i == numX - 1 || j == numZ - 1)
+    //    return;
+
+    REAL g = abs(gravity);
+    int center = i * numZ + j;
+    int left = (i == 0) ? center : center - numZ;
+    int down = (j == 0) ? center : center - 1;
+
+    REAL h_C = heights[center];
+    REAL h_L = heights[left];
+    REAL h_D = heights[down];
+
+    REAL u_temp = u[center] - (dt * g / spacing) * (h_C - h_L);
+    REAL v_temp = v[center] - (dt * g / spacing) * (h_C - h_D);
+
+    REAL maxVel = 0.5 * spacing / dt;
+
+    u[center] = (i == 0) ? 0 : clamp(u_temp, -maxVel, maxVel);
+    v[center] = (j == 0) ? 0 : clamp(v_temp, -maxVel, maxVel);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void ApplyFriction(uint id : SV_DispatchThreadID)
+{
+    // if index out of range or on boundary
+    if(id.x >= numX * numZ)
+        return;
+
+    uint i = id.x / numZ;
+    uint j = id.x % numZ;
+
+    int center = i * numZ + j;
+    int right = (i + 1) * numZ + j;
+    int top = i * numZ + j + 1;
+
+    REAL g = abs(gravity);
+    REAL friction = mu * g;
+
+    if(i + 1 == numX - 1)
+    {
+        u[right] = 0;
+    }
+    else
+    {
+        REAL u_right = u[right];
+        REAL correction = (abs(u_right) < EPSILON) ? 0 : max((abs(u_right) - dt * friction) / abs(u_right), 0);
+        u[right] *= correction;
+    }
+
+    if(j + 1 == numX - 1)
+    {
+        v[top] = 0;
+    }
+    else
+    {
+        REAL v_top = v[top];
+        REAL correction = (abs(v_top) < EPSILON) ? 0 : max((abs(v_top) - dt * friction) / abs(v_top), 0);
+        v[top] *= correction;
+    }
+}
+
+[numthreads(8, 8, 1)]
+void UpdateTexture(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x * numZ + id.y;
+    if(index >= numX * numZ)
+        return;
+
+    Height_map[id.xy] = heights[index];
+
+    uint i = id.x; 
+    uint j = id.y;
+
+    Normal_map[id.xy] = REAL4(0.5, 0.5, 1.0, 1.0);
+
+    uint left = (i == 0) ? index : index - numZ;
+    uint right = (i == numX + 1) ? index : index + numZ;
+    uint bottom = (j == 0) ? index : index - 1;
+    uint top = (j == numZ - 1) ? index : index + 1;
+
+    REAL x = -(heights[right] - heights[left]) / (2 * spacing);
+    REAL y = -(heights[top] - heights[bottom]) / (2 * spacing);
+    REAL3 normal = normalize(REAL3(x, y, 1));
+
+    Normal_map[id.xy] = REAL4(0.5 + 0.5 * normal, 1);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void Collision(uint id : SV_DispatchThreadID)
+{
+    int index = contacts[id.x].index;
+    REAL h = min(heights[index], contacts[id.x].penetration);
+    REAL hSand = max(heights[index] - h, 0);
+    REAL H = h + hSand;
+
+    uint i = index / numZ;
+    uint j = index % numZ;
+
+    REAL S[4];
+    
+    S[0] = (i == numX - 1) ? 0 : 1;
+    S[1] = (i == 0) ? 0 : 1;
+    S[2] = (j == numZ - 1) ? 0 : 1;
+    S[3] = (j == 0) ? 0 : 1;
+
+    REAL SS = S[0] + S[1] + S[2] + S[3];
+
+    uint center = index;
+    uint right = index + numZ;
+    uint top = index + 1;
+
+
+    REAL u_right = (i == numX - 1) ? 0 : u[right];
+    REAL v_top = (j == numZ - 1) ? 0 : v[top];
+
+    REAL3 nS = h * contacts[id.x].velocity;
+    REAL nSand1 = hSand * u_right;
+    REAL nSand2 = hSand * u[center]; 
+    REAL nSand3 = hSand * v_top; 
+    REAL nSand4 = hSand * v[center];
+
+    REAL w = nS.y / SS;
+     
+    REAL ur_temp = u_right + (nS.x + nSand1 + w) / H;
+    REAL uc_temp = u[center] + (nS.x + nSand2 + w) / H;
+    REAL vt_temp = v_top + (nS.z + nSand3 + w) / H;
+    REAL vc_temp = v[center] + (nS.z + nSand4 + w) / H;
+
+    REAL maxVel = 0.5 * spacing / dt;
+
+    u[right] = (i == numX - 1) ? 0 : clamp(ur_temp, -maxVel, maxVel);
+    u[center] = (i == 0) ? 0 : clamp(uc_temp, -maxVel, maxVel);
+    v[top] = (j == numZ - 1) ? 0 : clamp(vt_temp, -maxVel, maxVel);
+    v[center] = (j == 0) ? 0 : clamp(vc_temp, -maxVel, maxVel);
+}

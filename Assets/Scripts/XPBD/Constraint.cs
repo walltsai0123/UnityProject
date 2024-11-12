@@ -30,6 +30,23 @@ namespace XPBD
         //[SerializeField] protected float compliance = 0f;
         protected float lambda = 0f;
 
+        protected NativeArray<PositionConstraint> positionConstraints;
+        protected NativeArray<AngularConstraint> angularConstraints;
+
+        void OnEnable()
+        {
+            Initialize();
+            Simulation.get.AddConstraints(this);
+
+            positionConstraints = new(1, Allocator.Persistent);
+            angularConstraints = new(1, Allocator.Persistent);
+        }
+        private void OnDisable()
+        {
+            positionConstraints.Dispose();
+            angularConstraints.Dispose();
+        }
+
         public virtual void ResetLambda()
         {
             lambda = 0f;
@@ -40,9 +57,8 @@ namespace XPBD
         }
 
         public abstract void SolveVelocities(REAL dt);
-        //{
-        //    Debug.LogWarning("Base Constraint SolveVelocities");
-        //}
+
+        protected abstract void Initialize();
 
         //protected struct PositionConstraintData
         //{

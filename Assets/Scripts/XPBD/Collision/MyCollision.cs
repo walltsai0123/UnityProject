@@ -23,13 +23,11 @@ using REAL3x4 = Unity.Mathematics.double3x4;
 
 namespace XPBD
 {
-    public class MyCollision : CollisionConstraint
+    public class MyCollision
     {
-        public SoftBody body;
-        public Primitive primitive;
+        //public Primitive primitive { get; set; }
         public int index;
-
-        //public REAL4 frictionCoef;
+        public REAL4 frictionCoef;
         public REAL restitutionCoef;
         public REAL3 q;   //Contact point
         public REAL3 fn;
@@ -43,49 +41,36 @@ namespace XPBD
         private REAL tangentCoef = 0f;
         private REAL bitangentCoef = 0f;
 
-        public MyCollision(SoftBody b, Primitive p, int i = -1)
+        public MyCollision(int i = -1)
         {
-            body = b;
-            primitive = p;
+            //primitive = p;
             index = i;
             q = REAL3.zero;
             N = REAL3.zero;
-            frictionCoef = 0.5f;
+            frictionCoef = 0.5;
             fn = ft = fb = REAL3.zero;
         }
 
-        public override void SolveCollision(REAL dt)
+        public void SolveCollision(SoftBodySystem sbs, REAL dt)
         {
-            if (body.bodyType == Body.BodyType.Soft)
-                SolveSoftBodyCollision(dt);
-        }
+            SoftBodyParticle particle = sbs.particles[index];
 
-        public override void VelocitySolve(REAL dt)
-        {
-            if (body.bodyType == Body.BodyType.Soft)
-                SolveSoftBodyVelcity(dt);
-        }
+            vn_ = math.dot(N, particle.vel);
 
-        private void SolveSoftBodyCollision(REAL dt)
-        {
-            SoftBody soft = (SoftBody)body;
-
-            vn_ = math.dot(N, soft.Vel[index]);
-
-            REAL C = math.dot(soft.Pos[index] - q, N);
+            REAL C = math.dot(particle.pos - q, N);
             if (C > Util.EPSILON)
                 return;
 
             REAL h2 = dt * dt;
             REAL alpha = 0.0f;
-            REAL w1 = soft.invMass[index];
+            REAL w1 = particle.invMass;
             REAL w2 = 0.0f;
             REAL dlambda = -C / (w1 + w2 + alpha);
             REAL3 p = dlambda * N;
             fn = p / h2;
-            soft.Pos[index] += p * w1;
+            particle.pos += p * w1;
 
-            REAL3 dp = soft.Pos[index] - soft.prevPos[index];
+            REAL3 dp = particle.pos - particle.prevPos;
 
             // tangent friction
             REAL dp_t = math.dot(dp, T);
@@ -95,10 +80,9 @@ namespace XPBD
             {
                 REAL dlambda_t = -dp_t / (w1 + w2 + alpha);
                 tangentCoef = (dp_t > 0f) ? frictionCoef[0] : frictionCoef[2];
-                //dlambda_t = math.min(dlambda_t, dlambda * tangentCoef);
                 dlambda_t = math.max(-frictionCoef[2] * dlambda, math.min(dlambda_t, frictionCoef[0] * dlambda));
                 REAL3 p_t = dlambda_t * T;
-                soft.Pos[index] += p_t * w1;
+                particle.pos += p_t * w1;
                 ft = p_t / h2;
             }
 
@@ -110,20 +94,20 @@ namespace XPBD
             {
                 REAL dlambda_b = -dp_b / (w1 + w2 + alpha);
                 bitangentCoef = (dp_b > 0f) ? frictionCoef[1] : frictionCoef[3];
-                //dlambda_b = math.min(dlambda_b, dlambda * bitangentCoef);
                 dlambda_b = math.max(-frictionCoef[3] * dlambda, math.min(dlambda_b, frictionCoef[1] * dlambda));
                 REAL3 p_b = dlambda_b * B;
-                soft.Pos[index] += p_b * w1;
+                particle.pos += p_b * w1;
                 fb = p_b / h2;
             }
 
+            sbs.particles[index] = particle;
         }
 
-        private void SolveSoftBodyVelcity(REAL dt)
+        public void VelocitySolve(SoftBodySystem sbs, REAL dt) 
         {
-            SoftBody soft = (SoftBody)body;
+            SoftBodyParticle particle = sbs.particles[index];
 
-            REAL3 v = soft.Vel[index];
+            REAL3 v = particle.vel;
             REAL vn = math.dot(N, v);
             REAL normalImpulse = dt * math.length(fn);
 
@@ -133,36 +117,25 @@ namespace XPBD
             // tangent
             REAL vt = math.dot(v, T);
             REAL3 dvt = -math.sign(vt) * math.min(normalImpulse * tangentCoef, math.abs(vt)) * T;
-            soft.Vel[index] += dvt;
-            
+            particle.vel += dvt;
+
             // bitangent
             REAL vb = math.dot(v, B);
             REAL3 dvb = -math.sign(vb) * math.min(normalImpulse * bitangentCoef, math.abs(vb)) * B;
-            soft.Vel[index] += dvb;
+            particle.vel += dvb;
 
             // normal
             restitutionCoef = (math.abs(vn) <= 2.0f * 9.81f * dt) ? 0.0f : 1.0f;
             REAL3 dvn = N * (-vn + math.max(0.0f, -restitutionCoef * vn_));
-            soft.Vel[index] += dvn;
+            particle.vel += dvn;
+
+            sbs.particles[index] = particle;
         }
 
-        public void PrintData()
-        {
-            string data = "";
-            data += ToString() + "\n";
-            data += frictionCoef + "\n";
-            data += restitutionCoef + "\n";
-            data += q + "\n";
-            data += N + "\n";
-            data += fn + "\n";
-            data += vn_ + "\n";
-
-            Debug.Log(data);
-        }
         public override string ToString()
         {
-            string result = body.ToString() + "\n";
-            result += primitive.ToString() + "\n";
+            string result = "";
+            //result += primitive.ToString() + "\n";
             result += index + "\n";
             result += frictionCoef + "\n";
             result += tangentCoef + "\n";

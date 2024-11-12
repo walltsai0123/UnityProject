@@ -3,9 +3,6 @@ using Unity.Mathematics;
 using System;
 using System.Collections.Generic;
 using UnityEngine.Assertions;
-
-//using System.Numerics;
-
 #if USE_FLOAT
 using REAL = System.Single;
 using REAL2 = Unity.Mathematics.float2;

@@ -67,12 +67,12 @@ namespace XPBD
         {
             body1 = GetComponent<Rigid>();
         }
-        void Start()
-        {
-            Initialize();
-            Simulation.get.AddConstraints(this);
-        }
-        void Initialize()
+        //void Start()
+        //{
+        //    Initialize();
+        //    Simulation.get.AddConstraints(this);
+        //}
+        protected override void Initialize()
         {
             q1 = body1.Rotation;
             q2 = body2.Rotation;

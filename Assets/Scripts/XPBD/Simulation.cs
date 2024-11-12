@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
+using System;
+
 
 #if USE_FLOAT
 using REAL = System.Single;
@@ -32,29 +34,31 @@ namespace XPBD
         public bool frameLimit = false;
         public int targetFPS = 60;
         public REAL3 gravity = new(0, -9.81f, 0);
+        public Bounds worldBound;
 
         // Simulation objects and constraints
         public List<Primitive> primitives { get; private set; }
         private List<Body> bodies;
-        private List<SoftBody> softBodies;
+        private List<Rigid> rigidbodies;
         private List<Constraint> constraints;
         private Grabber grabber;
 
-        public SoftBodySystem softbodySystem;
-
+        public SoftBodySystem softBodySystem { get; private set; }
         // Collision
         [Space(10)]
         [Header("Simulation Option")]
         public bool UseTextureFriction = true;
         public Shader textureFrictionShader;
         public bool UseNeoHookeanMaterial = true;
-        public bool GPUSolver = true;
+        public bool parallelBlockXPBD = true;
+        public bool parallelAttach = true;
 
         private CollisionDetect collisionDetect;
-        private CollisionDetectGPU collisionDetectGPU;
         private List<CollisionConstraint> collisions;
 
-        [SerializeField]Terrain terrain;
+        //[SerializeField]Terrain terrain;
+
+        public MyTerrain terrain;
 
         [Space(10)]
         [Header("State Control")]
@@ -71,18 +75,18 @@ namespace XPBD
         private int totalSimLoops = 0;
         private bool firstFrame = true;
         // Timer
-        Timer stepTimer = new();
-        Timer bodySolveTimer = new();
-
+        readonly Timer stepTimer = new();
+        readonly Timer bodySolveTimer = new();
+        readonly Timer collisionTimer = new();
+        readonly Timer constraintTimer = new();
+        readonly Timer primitiveTimer = new();  
         public void AddBody(Body b)
         {
             bodies.Add(b);
+            if (b.bodyType == Body.BodyType.Rigid)
+                rigidbodies.Add((Rigid)b);
             if (b.bodyType == Body.BodyType.Soft)
-                softBodies.Add((SoftBody)b);
-        }
-        public void RemoveBody(Body b)
-        {
-            bodies.Remove(b);
+                softBodySystem.AddSoftBody((SoftBody)b);
         }
         public void AddConstraints(Constraint c)
         {
@@ -100,28 +104,15 @@ namespace XPBD
             get = this;
             primitives = new List<Primitive>();
             bodies = new List<Body>();
-            softBodies = new List<SoftBody>();
+            rigidbodies = new List<Rigid>();
             constraints = new List<Constraint>();
-            collisionDetect = new CollisionDetect();
+            collisionDetect = GetComponent<CollisionDetect>();
             collisions = new List<CollisionConstraint>();
 
-            collisionDetectGPU = GetComponent<CollisionDetectGPU>();
-            if(collisionDetectGPU == null)
-            {
-                collisionDetectGPU = gameObject.AddComponent<CollisionDetectGPU>();
-            }
+            softBodySystem = new SoftBodySystem();
 
             if (textureFrictionShader == null)
                 textureFrictionShader = Shader.Find("Custom/NewUnlitShader");
-
-            // Create softbody system if not exist
-            if(softbodySystem == null)
-            {
-                GameObject gSB = new GameObject("GlobalSoftBody");
-                gSB.transform.parent = transform;
-                gSB.AddComponent<SoftBodySystem>();
-                softbodySystem = gSB.GetComponent<SoftBodySystem>();
-            }
 
             grabber = new Grabber(Camera.main);
 
@@ -129,22 +120,20 @@ namespace XPBD
         private void Start()
         {
             QualitySettings.vSyncCount = 0;
+            FirstFrameSetting();
         }
 
         private void FixedUpdate()
         {
             if(!fixedTimeStep) 
                 return;
-            FirstFrameSetting();
+            //FirstFrameSetting();
 
             if (Time.frameCount < 10)
                 return;
             REAL dt = Time.fixedDeltaTime;
 
-            if(GPUSolver)
-                SimulationUpdateGPU(dt, substeps);
-            else
-                SimulationUpdate(dt, substeps);
+            SimulationUpdate(dt, substeps);
         }
         private void Update()
         {
@@ -162,12 +151,10 @@ namespace XPBD
 
             if (fixedTimeStep || Time.frameCount < 10)
                 return;
-            FirstFrameSetting();
+            //FirstFrameSetting();
             REAL dt = 1f / targetFPS;
-            if (GPUSolver)
-                SimulationUpdateGPU(dt, substeps);
-            else
-                SimulationUpdate(dt, substeps);
+
+            SimulationUpdate(dt, substeps);
         }
 
         private void LateUpdate()
@@ -191,17 +178,18 @@ namespace XPBD
                 return;
 
             firstFrame = false;
-            if(GPUSolver)
-                softbodySystem?.CollectSoftBodies(softBodies);
+
+            softBodySystem.Init();
         }
         private void SimulationUpdate(REAL dt, int substeps)
         {
             if (pause && !stepOnce)
                 return;
 
-            Timer stepTimer = new(); stepTimer.Tic();
-            collisionDetect.CollectCollision(bodies, primitives, dt);
-            collisions = collisionDetect.Collisions;
+            stepTimer.Tic();
+            //collisionDetect.CollectCollision(bodies, primitives, dt);
+            collisionDetect.CollectCollision(softBodySystem, terrain, dt);
+            //collisions = collisionDetect.Collisions;
 
             if(collisions.Count > 0)
             {
@@ -212,116 +200,86 @@ namespace XPBD
             bodySolveTimer.Tic();
             bodySolveTimer.Pause();
 
+            constraintTimer.Tic();
+            constraintTimer.Pause();
+
+            primitiveTimer.Tic();
+            primitiveTimer.Pause();
+
             REAL sdt = dt / substeps;
             for (int step = 0; step < substeps; ++step)
             {
-                foreach(Primitive p in primitives) 
-                {
+                primitiveTimer.Resume();
+                foreach(Primitive p in primitives)
                     p.Simulate(sdt);
-                }
+                primitiveTimer.Pause();
 
-                foreach (Body body in bodies)
-                    if(!body.isFixed)
-                        body.PreSolve(sdt, gravity);
-                
+                foreach (Rigid body in rigidbodies)
+                    body.PreSolve(sdt, gravity);
+                softBodySystem.PreSolve(sdt, gravity);
                 
                 bodySolveTimer.Resume();
 
-                foreach (Body body in bodies)
-                    if (!body.isFixed)
-                        body.Solve(sdt);
+                foreach (Rigid body in rigidbodies)
+                    body.Solve(sdt);
+                    softBodySystem.Solve(sdt);
                 bodySolveTimer.Pause();
 
-                foreach (Constraint C in constraints)
-                    C.ResetLambda();
-
+                //foreach (Constraint C in constraints)
+                //    C.ResetLambda();
+                //
                 foreach (Constraint C in constraints)
                     C.SolveConstraint(sdt);
 
-                collisionDetect?.SetFrictionCoef();
-                foreach (CollisionConstraint collision in collisions)
-                    collision.SolveCollision(sdt);
-                
-                foreach (Body body in bodies)
-                    if (!body.isFixed)
-                        body.PostSolve(sdt);
+
+
+                constraintTimer.Resume();
+                collisionDetect.SolveCollision(sdt);
+
+
+                constraintTimer.Pause();
+
+                foreach (Rigid body in rigidbodies)
+                    body.PostSolve(sdt);
+                    
+                softBodySystem.PostSolve(sdt);
 
                 foreach (Constraint C in constraints)
                     C.SolveVelocities(sdt);
 
-                foreach (CollisionConstraint collision in collisions)
-                    collision.VelocitySolve(sdt);
-
-                foreach (Primitive p in primitives)
-                    p.ApplyVelocity(sdt);
+                collisionDetect.VelocitySolve(sdt);
+                //foreach (Primitive p in primitives)
+                //    p.ApplyVelocity(sdt);
             }
             foreach (Primitive p in primitives)
                 p.UpdateVisual();
-            
-            foreach (Body body in bodies)
+
+            foreach (Rigid body in rigidbodies) 
                 body.EndFrame();
+            softBodySystem.EndFrame();
 
             stepTimer.Toc();
             bodySolveTimer.Toc();
-
+            constraintTimer.Toc();
+            primitiveTimer.Toc();
             if(verbose)
             {
                 stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
                 bodySolveTimer.Report("Body solve time: ", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+                constraintTimer.Report("Constraint solve time", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+                primitiveTimer.Report("Primitive solve time", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
             }
 
             //Clear step once flag
             stepOnce = false;
         }
 
-        private void SimulationUpdateGPU(REAL dt, int substeps)
-        {
-            if (pause && !stepOnce)
-                return;
-
-            Timer stepTimer = new(); stepTimer.Tic();
-
-            collisionDetectGPU.CollectCollisions(softbodySystem, terrain, dt);
-            REAL sdt = dt / substeps;
-            for (int step = 0; step < substeps; ++step)
-            {
-                //foreach (Primitive p in primitives)
-                //{
-                //    p.Simulate(sdt);
-                //}
-
-                softbodySystem.PreSolve(sdt, gravity);
-                softbodySystem.Solve(sdt);
-
-                collisionDetectGPU.CollisionSolve(sdt);
-
-                softbodySystem.PostSolve(sdt);
-
-                collisionDetectGPU.CollisionVelocitySolve(sdt);
-
-                //foreach (Primitive p in primitives)
-                //    p.ApplyVelocity(sdt);
-            }
-
-            softbodySystem.EndFrame();
-
-
-            stepTimer.Toc();
-
-            if (verbose)
-            {
-                stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
-            }
-
-
-            //Clear step once flag
-            stepOnce = false;
-        }
         private void OnDestroy()
         {
             if (totalSimLoops > 0 && collisionVerbose)
                 Debug.Log("Average contacts: " + totalContacts / totalSimLoops);
-            collisionDetect?.Dispose(); 
+            //collisionDetect?.Dispose(); 
+            softBodySystem?.Dispose();
         }
 
         private void OnDrawGizmos()
@@ -329,7 +287,6 @@ namespace XPBD
             if (!GizmosVerbose)
                 return;
         }
-
     }
 }
 

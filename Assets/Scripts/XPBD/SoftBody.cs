@@ -28,7 +28,86 @@ using REAL3x4 = Unity.Mathematics.double3x4;
 
 namespace XPBD
 {
-    
+    public struct SoftBodyParticle
+    {
+        public REAL3 pos;
+        public REAL3 prevPos;
+        public REAL3 vel;
+        public REAL invMass;
+
+        public SoftBodyParticle(REAL3 position, REAL inverseMass)
+        {
+            pos = prevPos = position;
+            vel = 0;
+            invMass = inverseMass;
+        }
+    };
+    public struct ElementConstraint
+    {
+        public bool active;
+        public int4 tet;
+        public REAL3x3 invDm;
+        public REAL restVolume;
+        public REAL mu, lambda;
+
+        public ElementConstraint(int4 tetId, REAL3x3 inverseDm, REAL volume, REAL Mu, REAL Lambda)
+        {
+            active = true;
+            tet = tetId;
+            invDm = inverseDm;
+            restVolume = volume;
+            mu = Mu;
+            lambda = Lambda;
+        }
+
+        public bool AreAdjacent(ElementConstraint other)
+        {
+            int sharedVertices = 0;
+            // check vertex equality
+            for (int i = 0; i < 4; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    if (tet[i] == other.tet[j])
+                        sharedVertices++;
+
+                    if (sharedVertices >= 1)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        public float Distance(ElementConstraint other)
+        {
+            int intersect = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    if (tet[i] == other.tet[j])
+                        intersect++;
+                }
+            }
+            float union = 8 - intersect;
+
+            // distance = 1 - |Cj ¡ä Ck| / |Cj ¡å Ck|
+            return 1f - intersect / union;
+        }
+
+        public override readonly string ToString()
+        {
+            string s = "";
+            s += active + "\n";
+            s += tet + "\n";
+            s += restVolume + "\n";
+            s += $"{mu} {lambda}\n";
+            s += invDm + "\n";
+            s += base.ToString();
+            return s;
+        }
+    };
+
     public class SoftBody : Body
     {
         [SerializeField] TetrahedronMesh tetrahedronMesh;
@@ -54,6 +133,9 @@ namespace XPBD
         private NativeArray<int2> edges;
         private NativeArray<REAL> restEdgeLengths;
 
+        public List<SoftBodyParticle> particles;
+        public List<ElementConstraint> elementConstraints;
+
         private NativeArray<int3> volIdOrder;
         public REAL3 fext { get; set; } = REAL3.zero;
 
@@ -74,34 +156,20 @@ namespace XPBD
         private JobHandle jobHandle;
         //private ComputeShader computeShader = null;
 
-        public List<MyCollision> collisions;
+        //public List<MyCollision> collisions;
 
         // Grabber info
         public int grabId { get; private set; }
         private REAL grabInvMass;
 
-        // GPU
-        ComputeShader softbodyCS;
-        ComputeBuffer positionBuffer;
-        ComputeBuffer prevPositionBuffer;
-        ComputeBuffer correctionBuffer;
-        ComputeBuffer velocityBuffer;
-        ComputeBuffer tetBuffer;
-        ComputeBuffer inverseMassBuffer;
-        ComputeBuffer invDmBuffer;
-        ComputeBuffer restVolumeBuffer;
-        ComputeBuffer elementsBuffer;
         int[] elementConstraitIds;
         int[] passSize;
-        // gpu kernels
-        int preSolveKernel = 0;
-        int solveElementKernel = 1;
 
         REAL3 startPos;
         #region Body
         public override void ClearCollision()
         {
-            collisions.Clear();
+            //collisions.Clear();
 
             collisionMaterial.CopyMatchingPropertiesFromMaterial(visualMaterial);
         }
@@ -142,10 +210,10 @@ namespace XPBD
                     restVolumes = this.restVolumes,
                     invDm = this.invDm,
                     invMass = this.invMass
+
                 };
                 jobHandle = solveElementJob.Schedule(jobHandle);
                 jobHandle.Complete();
-
             }
             else
             {
@@ -316,8 +384,7 @@ namespace XPBD
         }
         private void OnEnable()
         {
-            InitializePhysics2();
-            InitializeComputeBuffers();
+            InitializePhysics();
             Simulation.get.AddBody(this);
         }
         private void Start()
@@ -328,27 +395,6 @@ namespace XPBD
         {
             if (!isStarted)
                 return;
-
-            //for(int i = 0; i < VerticesNum; i++)
-            //{
-            //    DrawArrow.ForGizmo((float3)Pos[i], (float3)Vel[i], Color.red);
-            //}
-            REAL3 Q = 0;
-            REAL3 F = 0;
-            foreach (MyCollision collision in collisions)
-            {
-
-                REAL3 FT = collision.ft / 60.0f;
-                REAL3 FB = collision.fb / 60.0f;
-
-                Q += collision.q;
-                F += FB + FT;
-
-                //DrawArrow.ForGizmo((float3)collision.q, (float3)FT, Color.red);
-                //DrawArrow.ForGizmo((float3)collision.q, (float3)FB, Color.blue);
-                //DrawArrow.ForGizmo((float3)collision.q, (float3)F, Color.green);
-            }
-            DrawArrow.ForGizmo((float3)Q / collisions.Count, (float3)F, Color.green);
         }
 
         private void OnDisable()
@@ -366,11 +412,6 @@ namespace XPBD
             if (edges.IsCreated) edges.Dispose();
             if (restEdgeLengths.IsCreated) restEdgeLengths.Dispose();
             if (volIdOrder.IsCreated) volIdOrder.Dispose();
-
-            ComputeHelper.Release(positionBuffer, prevPositionBuffer, velocityBuffer, correctionBuffer,
-                tetBuffer, inverseMassBuffer, invDmBuffer, restVolumeBuffer, elementsBuffer);
-
-            Simulation.get.RemoveBody(this);
         }
         #endregion
 
@@ -405,13 +446,14 @@ namespace XPBD
             collisionMaterial = new(Simulation.get.textureFrictionShader);
 
         }
-        private void InitializePhysics2()
+        private void InitializePhysics()
         {
             bodyType = BodyType.Soft;
 
             VerticesNum = tetrahedronMesh.vertices.Length;
             TetsNum = tetrahedronMesh.tets.Length / 4;
             EdgesNum = tetrahedronMesh.edges.Length / 2;
+
 
             Pos = new NativeArray<REAL3>(VerticesNum, Allocator.Persistent);
             prevPos = new NativeArray<REAL3>(VerticesNum, Allocator.Persistent);
@@ -496,6 +538,15 @@ namespace XPBD
                     invMass[i] = 1f / invMass[i];
             }
 
+
+            particles = new List<SoftBodyParticle>(VerticesNum);
+            elementConstraints = new List<ElementConstraint>(TetsNum);
+
+            for (int i = 0; i < VerticesNum; ++i)
+                particles.Add(new SoftBodyParticle(Pos[i], invMass[i]));
+            for (int i = 0; i < TetsNum; ++i)
+                elementConstraints.Add(new ElementConstraint(tets[i], invDm[i], restVolumes[i], mu, lambda));
+
             //Debug.Log("Total volume: " + totalVolume);
             //Debug.Log("Density: " + density);
 
@@ -503,7 +554,7 @@ namespace XPBD
             ComputeSkinningInfo2(startPos);
 
             // Init collision list
-            collisions = new List<MyCollision>();
+            //collisions = new List<MyCollision>();
 
             // Do graph coloring to set up element constraint passes
             int[] colors = tetrahedronMesh.GraphColoring();
@@ -525,20 +576,23 @@ namespace XPBD
             int currentColor = -1;
             for(int i = 0; i < indices.Length; i++)
             {
+                // Get color of tet
                 int color = colors[indices[i]];
 
+                // check if the color is new
                 if(currentColor != color)
                 {
+                    // Add new color
                     currentColor = color;
                     passSizeList.Add(0);
                 }
 
+                // Increase the color count
                 passSizeList[passSizeList.Count - 1]++;
             }
 
             elementConstraitIds = indices.ToArray();
             passSize = passSizeList.ToArray();
-
         }
 
         private void ComputeSkinningInfo2(REAL3 startPos)
@@ -631,69 +685,7 @@ namespace XPBD
             }
         }
 
-        private void InitializeComputeBuffers()
-        {
-            // Load compute shader
-            softbodyCS = Instantiate(Resources.Load<ComputeShader>("SoftBody"));
 
-            positionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
-            prevPositionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
-            correctionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
-            velocityBuffer = ComputeHelper.CreateStructuredBuffer<float3>(VerticesNum);
-            tetBuffer = ComputeHelper.CreateStructuredBuffer<int4>(TetsNum);
-            inverseMassBuffer = ComputeHelper.CreateStructuredBuffer<float>(VerticesNum);
-            invDmBuffer = ComputeHelper.CreateStructuredBuffer<float3x3>(TetsNum);
-            restVolumeBuffer = ComputeHelper.CreateStructuredBuffer<float>(TetsNum);
-            elementsBuffer = ComputeHelper.CreateStructuredBuffer<int>(TetsNum);
-
-            // TODO: bind buffer to compute shader kernel
-            ComputeHelper.SetBuffer(softbodyCS, positionBuffer, "pos", preSolveKernel, solveElementKernel);
-            ComputeHelper.SetBuffer(softbodyCS, prevPositionBuffer, "prevPos", preSolveKernel);
-            ComputeHelper.SetBuffer(softbodyCS, correctionBuffer, "corr", preSolveKernel, solveElementKernel);
-            ComputeHelper.SetBuffer(softbodyCS, velocityBuffer, "vel", preSolveKernel, solveElementKernel);
-            ComputeHelper.SetBuffer(softbodyCS, tetBuffer, "tets",solveElementKernel);
-            ComputeHelper.SetBuffer(softbodyCS, inverseMassBuffer, "invMass", preSolveKernel, solveElementKernel);
-            ComputeHelper.SetBuffer(softbodyCS, invDmBuffer, "invDm", solveElementKernel);
-            ComputeHelper.SetBuffer(softbodyCS, restVolumeBuffer, "restVolumes", solveElementKernel);
-            ComputeHelper.SetBuffer(softbodyCS, elementsBuffer, "elements", solveElementKernel);
-
-            //tetBuffer.SetData(tets);
-            //invDmBuffer.SetData(invDm);
-            //restVolumeBuffer.SetData(restVolumes);
-            //inverseMassBuffer.SetData(invMass);
-            //elementsBuffer.SetData(elementConstraitIds);
-
-            softbodyCS.SetInt("verticesNum", VerticesNum);
-            softbodyCS.SetInt("tetsNum", TetsNum);
-        }
-
-        private void PreSolveGPU(float dt, float3 gravity)
-        {
-            softbodyCS.SetFloat("dt", dt);
-            softbodyCS.SetVector("gravity", new float4(gravity, 0f));
-
-            positionBuffer.SetData(Pos);
-            velocityBuffer.SetData(Vel);
-
-            ComputeHelper.Dispatch(softbodyCS, VerticesNum, kernelIndex: preSolveKernel);
-        }
-        private void SolveElementGPU(float dt)
-        {
-            softbodyCS.SetFloat("dt", dt);
-            softbodyCS.SetFloat("mu", (float)mu);
-            softbodyCS.SetFloat("lambda", (float)lambda);
-
-            int firstConstraint = 0;
-
-            foreach(int passNr in passSize)
-            {
-                softbodyCS.SetInt("passSize", passNr);
-                softbodyCS.SetInt("firstConstraint", firstConstraint);
-                ComputeHelper.Dispatch(softbodyCS, passNr, kernelIndex: solveElementKernel);
-
-                firstConstraint += passNr;
-            }
-        }
 
         private REAL GetEnergy()
         {
@@ -783,6 +775,11 @@ namespace XPBD
             public REAL mu;
             public REAL lambda;
 
+            //public int firstConstraint;
+            //public int passSize;
+            public int tetsNum;
+
+            [NativeDisableParallelForRestriction]
             public NativeArray<REAL3> pos;
 
             [ReadOnly]
@@ -794,6 +791,9 @@ namespace XPBD
             [ReadOnly]
             public NativeArray<REAL3x3> invDm;
 
+            //[ReadOnly]
+            //public NativeArray<int> elements;
+            
             private REAL3x4 gradients;
             private REAL3x4 gradients_d;
             private REAL3x3 F, dF;
@@ -806,6 +806,15 @@ namespace XPBD
                     SolveCoupled(index);
                 }
             }
+
+            //public void Execute(int index)
+            //{
+            //    if (index >= passSize)
+            //        return;
+            //
+            //    int tetId = elements[index + firstConstraint];
+            //    SolveCoupled(tetId);
+            //}
 
             private REAL3x3 GetDeformationGradient(int tetIndex)
             {
@@ -999,6 +1008,8 @@ namespace XPBD
                 pos[id2] = (REAL3)(pos[id2] + dlambda * invMass[id2] * gradients_d.c2);
                 pos[id3] = (REAL3)(pos[id3] + dlambda * invMass[id3] * gradients_d.c3);
             }
+
+            
         }
 
         [BurstCompile]

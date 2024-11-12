@@ -119,8 +119,9 @@ Shader "Custom/NewUnlitShader"
                 c.a = S4 * P;
                 
                 //c *= h;
-                c = fixed4(m  * 0.5 + 0.5, 1);
-
+                //c = fixed4(m  * 0.5 + 0.5, 1);
+                fixed3 dir_color = i.normal * 0.5 + 0.5;
+                c = fixed4(dir_color, 1);
                 return c;
             }
             ENDCG

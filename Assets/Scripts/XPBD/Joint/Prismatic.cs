@@ -1,5 +1,9 @@
 using UnityEngine;
 using Unity.Mathematics;
+using Unity.Collections;
+
+using Unity.Jobs;
+
 
 #if USE_FLOAT
 using REAL = System.Single;
@@ -39,6 +43,10 @@ namespace XPBD
         private REAL3 r1, r2;
         private quaternion q1, q2;
 
+        Timer timer = new();
+        int times = 0;
+        float duration = 0;
+
         public override void SolveConstraint(REAL dt)
         {
             SolveAngularConstraint2(dt);
@@ -51,8 +59,13 @@ namespace XPBD
             quaternion Q2 = math.mul(body2.Rotation, math.conjugate(q2));
             REAL3 dq = 2f * math.mul(Q2, math.conjugate(Q1)).value.xyz;
 
-            AngularConstraint angularConstraint = new AngularConstraint(body1, body2);
+            AngularConstraint angularConstraint = new(body1, body2);
+
             angularConstraint.GetDeltaLambda(dt, 0f, 0f, dq);
+            angularConstraints[0] = angularConstraint;
+
+            body1.Rotation = angularConstraints[0].q1;
+            body2.Rotation = angularConstraints[0].q2;
         }
 
         private void SolvePositionConstraint2(REAL dt)
@@ -63,8 +76,6 @@ namespace XPBD
             REAL3 Dx = REAL3.zero;
 
             REAL3 AxisA = Util.rotate(body1.Rotation, axisA);
-            REAL3 AxisB = Util.rotate(body1.Rotation, axisB);
-            REAL3 AxisC = Util.rotate(body1.Rotation, axisC);
 
             if (max < min)
                 max = min;
@@ -75,8 +86,12 @@ namespace XPBD
             if (da > max)
                 Dx += AxisA * (da - max);
 
-            PositionConstraint positionConstraint = new PositionConstraint(body1, body2, r1, r2);
+            PositionConstraint positionConstraint = new(body1, body2, r1, r2);
             positionConstraint.GetDeltaLambda(dt, compliance, 0f, Dx);
+            body1.Position = positionConstraint.x1;
+            body2.Position = positionConstraint.x2;
+            body1.Rotation = positionConstraint.q1;
+            body2.Rotation = positionConstraint.q2;
 
             ////Axis B
             //REAL db = math.dot(Dr, AxisB);
@@ -95,20 +110,20 @@ namespace XPBD
             REAL3 d_bc = Dr - math.dot(Dr, AxisA) * AxisA;
             Dx += d_bc;
 
-            PositionConstraint positionConstraint2 = new PositionConstraint(body1, body2, r1, r2);
+            PositionConstraint positionConstraint2 = new(body1, body2, r1, r2);
             positionConstraint2.GetDeltaLambda(dt, 0f, 0f, Dx);
+
+            body1.Position = positionConstraint2.x1;
+            body2.Position = positionConstraint2.x2;
+            body1.Rotation = positionConstraint2.q1;
+            body2.Rotation = positionConstraint2.q2;
         }
         private void Awake()
         {
             body1 = GetComponent<Rigid>();
         }
-        void Start()
-        {
-            Initialize();
-            Simulation.get.AddConstraints(this);
-        }
 
-        void Initialize()
+        protected override void Initialize()
         {
             r1 = (float3)anchor;
             REAL3 Anchor = body1.Position + Util.rotate(body1.Rotation, r1);

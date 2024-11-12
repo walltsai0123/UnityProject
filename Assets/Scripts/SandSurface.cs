@@ -50,7 +50,7 @@ namespace XPBD
         REAL[] v;
         REAL totalHeight = 0f;
 
-        REAL gravity = -9.81f;
+        readonly REAL gravity = -9.81f;
 
         //Material material;
         RenderTexture height_map;
@@ -119,46 +119,46 @@ namespace XPBD
 
         public override void ApplyVelocity(REAL dt)
         {
-            if(collisions.Count == 0)
-                return;
+            //if(collisions.Count == 0)
+            //    return;
 
-            Contact [] contact = new Contact[collisions.Count];
+            //Contact [] contact = new Contact[collisions.Count];
 
-            Vector3 O = meshVertices[0];
-            REAL maxDist = 0f;
-            for (int i = 0; i < collisions.Count; i++)
-            {
-                var collision = collisions[i];
-                Vector3 localPoint = transform.InverseTransformPoint((float3)collision.q);
-                Vector3 localVel = transform.InverseTransformDirection((float3)collision.body.Vel[collision.index]);
+            //Vector3 O = meshVertices[0];
+            //REAL maxDist = 0f;
+            //for (int i = 0; i < collisions.Count; i++)
+            //{
+            //    var collision = collisions[i];
+            //    Vector3 localPoint = transform.InverseTransformPoint((float3)collision.q);
+            //    Vector3 localVel = transform.InverseTransformDirection((float3)collision.body.Vel[collision.index]);
 
-                REAL offset = spacing / 2f;
-                int X = (int)math.floor((localPoint.x - O.x + offset) / spacing)/* + Mathf.FloorToInt(numX / 2)*/;
-                int Z = (int)math.floor((localPoint.z - O.z + offset) / spacing)/* + Mathf.FloorToInt(numZ / 2)*/;
+            //    REAL offset = spacing / 2f;
+            //    int X = (int)math.floor((localPoint.x - O.x + offset) / spacing)/* + Mathf.FloorToInt(numX / 2)*/;
+            //    int Z = (int)math.floor((localPoint.z - O.z + offset) / spacing)/* + Mathf.FloorToInt(numZ / 2)*/;
 
-                Vector3 V = meshVertices[X * numZ + Z];
-                V.y = 0f;
-                REAL dist = (localPoint - V).magnitude;
-                maxDist = math.max(maxDist, dist);
-                if (dist > spacing)
-                {
-                    Debug.Log("pos: " + V);
-                    Debug.Log("localPoint: " + localPoint);
-                    Debug.Log("dist: " + dist);
-                }
+            //    Vector3 V = meshVertices[X * numZ + Z];
+            //    V.y = 0f;
+            //    REAL dist = (localPoint - V).magnitude;
+            //    maxDist = math.max(maxDist, dist);
+            //    if (dist > spacing)
+            //    {
+            //        Debug.Log("pos: " + V);
+            //        Debug.Log("localPoint: " + localPoint);
+            //        Debug.Log("dist: " + dist);
+            //    }
 
-                REAL pene = math.length(collision.q - collision.body.Pos[collision.index]);
-                contact[i] = new Contact()
-                {
-                    index = X * numZ + Z,
-                    point = (float3)localPoint,
-                    velocity = (float3)localVel,
-                    penetration = pene
-                };
-            }
-            computeShader.SetFloat("dt", (float)dt);
-            contactBuffer.SetData(contact);
-            ComputeHelper.Dispatch(computeShader, collisions.Count, kernelIndex: collisionKernel);
+            //    REAL pene = math.length(collision.q - collision.body.Pos[collision.index]);
+            //    contact[i] = new Contact()
+            //    {
+            //        index = X * numZ + Z,
+            //        point = (float3)localPoint,
+            //        velocity = (float3)localVel,
+            //        penetration = pene
+            //    };
+            //}
+            //computeShader.SetFloat("dt", (float)dt);
+            //contactBuffer.SetData(contact);
+            //ComputeHelper.Dispatch(computeShader, collisions.Count, kernelIndex: collisionKernel);
         }
 
         private void Initialize()
@@ -199,27 +199,27 @@ namespace XPBD
         private void GenerateMesh()
         {
             //Generate the mesh's vertices and uvs
-            Vector3[] positions = new Vector3[this.numCells];
-            Vector2[] uvs = new Vector2[this.numCells];
+            Vector3[] positions = new Vector3[numCells];
+            Vector2[] uvs = new Vector2[numCells];
 
             //Center of the mesh
-            int cx = Mathf.FloorToInt(this.numX / 2f);
-            int cz = Mathf.FloorToInt(this.numZ / 2f);
+            int cx = Mathf.FloorToInt(numX / 2f);
+            int cz = Mathf.FloorToInt(numZ / 2f);
 
-            for (int i = 0; i < this.numX; i++)
+            for (int i = 0; i < numX; i++)
             {
-                for (int j = 0; j < this.numZ; j++)
+                for (int j = 0; j < numZ; j++)
                 {
                     REAL posX = (i - cx) * spacing;
                     REAL posY = 0f;
                     REAL posZ = (j - cz) * spacing;
 
-                    positions[i * this.numZ + j] = (float3)new REAL3(posX, posY, posZ);
+                    positions[i * numZ + j] = (float3)new REAL3(posX, posY, posZ);
 
-                    REAL u = i / (REAL)this.numX;
-                    REAL v = j / (REAL)this.numZ;
+                    REAL u = i / (REAL)numX;
+                    REAL v = j / (REAL)numZ;
 
-                    uvs[i * this.numZ + j] = (float2)new REAL2(u, v);
+                    uvs[i * numZ + j] = (float2)new REAL2(u, v);
                 }
             }
 
@@ -304,13 +304,13 @@ namespace XPBD
             uBuffer.SetData(u);
             vBuffer.SetData(v);
 
-#if USE_FLOAT
-            computeShader.EnableKeyword("USE_FLOAT");
-            computeShader.DisableKeyword("USE_DOUBLE");
-#else
-            computeShader.EnableKeyword("USE_DOUBLE");
-            computeShader.DisableKeyword("USE_FLOAT");
-#endif
+//#if USE_FLOAT
+//            computeShader.EnableKeyword("USE_FLOAT");
+//            computeShader.DisableKeyword("USE_DOUBLE");
+//#else
+//            computeShader.EnableKeyword("USE_DOUBLE");
+//            computeShader.DisableKeyword("USE_FLOAT");
+//#endif
 
             ComputeHelper.SetBuffer(computeShader, heightBuffer, "heights", heightKernel, cacheKernel, velocityKernel, textureKernel, collisionKernel);
             ComputeHelper.SetBuffer(computeShader, heightCacheBuffer, "heights_cache", heightKernel, cacheKernel);
