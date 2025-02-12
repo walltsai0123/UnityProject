@@ -1,10 +1,11 @@
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEditor.AssetImporters;
 using UnityEngine;
-using UnityEngine.Rendering;
+using System.Linq;
 
 
 [ScriptedImporter(1, "tetmesh")]
@@ -49,6 +50,8 @@ public class TetMeshImporter : ScriptedImporter
             tetrahedronMesh.tets = T.ToArray();
             tetrahedronMesh.edges = CalculateMeshEdges(tetrahedronMesh.tets).ToArray();
 
+            //tetrahedronMesh.faces = CalculateSurfaceFaces(tetrahedronMesh.tets).ToArray();
+
             V.Dispose();
             N.Dispose();
             F.Dispose();
@@ -56,7 +59,51 @@ public class TetMeshImporter : ScriptedImporter
         }
         #endregion
     }
+    private List<int> CalculateSurfaceFaces(int[] tets)
+    {
+        Dictionary<Vector3Int, int> faceCount = new();
 
+        for (int i = 0; i < tets.Length; i += 4)
+        {
+            int[] ids = new int[4];
+            ids[0] = tets[i + 0];
+            ids[1] = tets[i + 1];
+            ids[2] = tets[i + 2];
+            ids[3] = tets[i + 3];
+
+            Array.Sort(ids);
+
+            Vector3Int[] faces = new Vector3Int[4];
+            faces[0] = new Vector3Int(ids[0], ids[1], ids[2]);
+            faces[1] = new Vector3Int(ids[0], ids[1], ids[3]);
+            faces[2] = new Vector3Int(ids[0], ids[2], ids[3]);
+            faces[3] = new Vector3Int(ids[1], ids[2], ids[3]);
+
+            for (int j = 0; j < 4; ++j)
+            {
+                if (!faceCount.ContainsKey(faces[j]))
+                    faceCount[faces[j]] = 0;
+                faceCount[faces[j]]++;
+            }
+        }
+
+
+        List<int> result = new();
+        // Traverse facesCounts
+        foreach (KeyValuePair<Vector3Int, int> kvp in faceCount)
+        {
+            // Surface faces will only be counted once
+            if(kvp.Value <= 1)
+            {
+                Vector3Int face = kvp.Key;
+                result.Add(face[0]);
+                result.Add(face[1]);
+                result.Add(face[2]);
+            }
+        }
+
+        return result;
+    }
     private List<int> CalculateMeshEdges(int [] tets)
     {
         HashSet<Vector2Int> Set = new HashSet<Vector2Int>();

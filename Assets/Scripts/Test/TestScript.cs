@@ -6,18 +6,8 @@ public class TestScript : MonoBehaviour
     [SerializeField] SoftBody softBody;
     public float accel;
     public float3 dir;
-    private bool started = false;
-    public Color color = Color.yellow;
-
-    [SerializeField] ComputeShader shader;
-    private void Start()
-    {
-        started = true;
-
-    }
     private void Update()
     {
-        return;
         if (softBody == null)
             return;
 
@@ -43,15 +33,8 @@ public class TestScript : MonoBehaviour
 
         //dir = math.normalizesafe(final, float3.zero);
 
-        softBody.fext = final * accel;
-    }
-
-    private void OnDrawGizmos()
-    {
-        if (!started || softBody == null)
-            return;
-        
-        DrawArrow.ForGizmo((float3)softBody.Pos[0], dir * accel, color);
+        //softBody.fext = final * accel;
+        softBody.SetForce(final * accel);
     }
 
 }

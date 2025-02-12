@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System;
 using UnityEngine.Assertions;
 using System.Linq;
+using static UnityEditor.Searcher.SearcherWindow.Alignment;
+
 
 #if USE_FLOAT
 using REAL = System.Single;
@@ -34,12 +36,17 @@ namespace XPBD
         public REAL3 prevPos;
         public REAL3 vel;
         public REAL invMass;
+        public REAL volume;
 
-        public SoftBodyParticle(REAL3 position, REAL inverseMass)
+        public REAL3 f_ext;
+
+        public SoftBodyParticle(REAL3 position, REAL inverseMass, REAL density)
         {
             pos = prevPos = position;
             vel = 0;
             invMass = inverseMass;
+            volume = 1.0 / (inverseMass * density);
+            f_ext = 0;
         }
     };
     public struct ElementConstraint
@@ -135,6 +142,7 @@ namespace XPBD
 
         public List<SoftBodyParticle> particles;
         public List<ElementConstraint> elementConstraints;
+        public List<int3> surfaceFaces;
 
         private NativeArray<int3> volIdOrder;
         public REAL3 fext { get; set; } = REAL3.zero;
@@ -145,6 +153,8 @@ namespace XPBD
 
         public int VerticesNum { get; private set; }
         public int TetsNum { get; private set; }
+
+        public int FacesNum;
 
         private int EdgesNum;
 
@@ -166,7 +176,21 @@ namespace XPBD
         int[] passSize;
 
         REAL3 startPos;
+        public void SetForce(REAL3 F)
+        {
+            for(int i = 0; i < VerticesNum; i++)
+            {
+                var p = particles[i];
+                p.f_ext = F;
+                particles[i] = p;
+            }
+        }
+        public void ClearForce()
+        {
+            SetForce(0);
+        }
         #region Body
+
         public override void ClearCollision()
         {
             //collisions.Clear();
@@ -252,6 +276,7 @@ namespace XPBD
 
         public override void EndFrame()
         {
+            //ClearForce();
             if (showTet || visualMesh == null)
             {
                 meshFilter.mesh = tetMesh;
@@ -387,15 +412,6 @@ namespace XPBD
             InitializePhysics();
             Simulation.get.AddBody(this);
         }
-        private void Start()
-        {
-            isStarted = true;
-        }
-        private void OnDrawGizmosSelected()
-        {
-            if (!isStarted)
-                return;
-        }
 
         private void OnDisable()
         {
@@ -422,14 +438,6 @@ namespace XPBD
 
             if(meshFilter.sharedMesh != null)
             {
-                //Mesh mesh = meshFilter.mesh;
-                //visualMesh = new Mesh();
-                //visualMesh.name = mesh.name;
-                //visualMesh.SetVertices(mesh.vertices);
-                //visualMesh.SetIndices(mesh.triangles, MeshTopology.Triangles, 0);
-                //visualMesh.RecalculateNormals();
-                //visualMesh.RecalculateTangents();
-                //meshFilter.mesh = visualMesh;
                 visualMesh = meshFilter.mesh;
             }
                 
@@ -440,6 +448,18 @@ namespace XPBD
             tetMesh.SetVertices(tetrahedronMesh.vertices);
             tetMesh.SetIndices(tetrahedronMesh.faces, MeshTopology.Triangles, 0);
             tetMesh.RecalculateNormals();
+
+            Color[] colors = new Color[tetMesh.vertices.Length];
+
+            for (int i = 0; i < colors.Length; i++)
+            {
+                colors[i] = new Color(1, 1, 1, 0.75f);
+            }
+            for (int i = 0; i < tetMesh.triangles.Length; i++)
+            {
+                colors[tetMesh.triangles[i]] = new Color(1, 0, 0, .25f);
+            }
+            tetMesh.SetColors(colors);
 
             // Set materials
             visualMaterial = meshRenderer.material;
@@ -452,6 +472,7 @@ namespace XPBD
 
             VerticesNum = tetrahedronMesh.vertices.Length;
             TetsNum = tetrahedronMesh.tets.Length / 4;
+            FacesNum = tetrahedronMesh.faces.Length / 3;
             EdgesNum = tetrahedronMesh.edges.Length / 2;
 
 
@@ -541,11 +562,14 @@ namespace XPBD
 
             particles = new List<SoftBodyParticle>(VerticesNum);
             elementConstraints = new List<ElementConstraint>(TetsNum);
+            surfaceFaces = new List<int3>(tetrahedronMesh.faces.Length / 3);
 
             for (int i = 0; i < VerticesNum; ++i)
-                particles.Add(new SoftBodyParticle(Pos[i], invMass[i]));
+                particles.Add(new SoftBodyParticle(Pos[i], invMass[i], density));
             for (int i = 0; i < TetsNum; ++i)
                 elementConstraints.Add(new ElementConstraint(tets[i], invDm[i], restVolumes[i], mu, lambda));
+            for (int i = 0; i < tetrahedronMesh.faces.Length; i += 3)
+                surfaceFaces.Add(new int3(tetrahedronMesh.faces[i], tetrahedronMesh.faces[i + 1], tetrahedronMesh.faces[i + 2]));
 
             //Debug.Log("Total volume: " + totalVolume);
             //Debug.Log("Density: " + density);

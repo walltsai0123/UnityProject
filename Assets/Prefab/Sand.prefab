@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 4411121979573563824}
   - component: {fileID: 9036252487656138271}
   - component: {fileID: 7884273105459185521}
-  - component: {fileID: 2851453619502130182}
   m_Layer: 0
   m_Name: Sand
   m_TagString: Untagged
@@ -97,6 +96,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ce408fe80dd0304e808f85ec625ae93, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  height_map: {fileID: 0}
+  normal_map: {fileID: 0}
   sizeX: 20
   sizeZ: 10
   spacing: 0.05
@@ -106,18 +107,4 @@ MonoBehaviour:
   mu: 0.8
   meshMaterial: {fileID: 2100000, guid: 99985650dcc72df449aa2da3810c447c, type: 2}
   computeShader: {fileID: 7200000, guid: 46823cca4d0baec4a974bf69487f38d2, type: 3}
---- !u!114 &2851453619502130182
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6648893207043077076}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f7602153f42a9934ea7b60bc95fbd8f0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  normal: {x: 0, y: 1, z: 0}
-  center: {x: 0, y: 0, z: 0}
-  size: {x: 10, y: 10}
+  updateMesh: 0

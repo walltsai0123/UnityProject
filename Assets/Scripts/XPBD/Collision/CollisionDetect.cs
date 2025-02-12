@@ -95,78 +95,37 @@ namespace XPBD
         {
             Dispose();
         }
+
+        public int collisionindex = 0;
+        private void OnDrawGizmos()
+        {
+            if (collisions != null)
+            {
+                if (collisions.Count > 0)
+                {
+                    collisionindex = math.clamp(collisionindex, 0, collisions.Count - 1);
+
+                    MyCollision C = collisions[collisionindex];
+                    Gizmos.color = Color.red;
+                    Gizmos.DrawSphere((float3)C.q, 0.1f);
+                    Gizmos.DrawLine((float3)C.q, (float3)(C.q + C.N));
+                }
+            }
+        }
         public void Dispose()
         {
             computeBuffer.Release();
         }
 
-        public void CollectCollision(List<Body> bodies, List<Primitive> primitives, REAL dt)
-        {
-            collisions.Clear();
-            if (bodies == null || primitives == null)
-                return;
-
-            if (bodies.Count == 0 || primitives.Count == 0)
-                return;
-
-            foreach (var primitive in primitives)
-                primitive.UpdateCollisionMaterial();
-
-            foreach (var body in bodies)
-            {
-                if (!body.EnableContact)
-                    continue;
-
-                // Clear body collisions
-                body.ClearCollision();
-
-                // Ignore rigid bodies
-                if (body.bodyType == Body.BodyType.Rigid)
-                    continue;
-
-
-                foreach (var primitive in primitives)
-                {
-                    if (body.bodyType == Body.BodyType.Soft)
-                        SoftBodyCollision((SoftBody)body, primitive, dt);
-                }
-            }
-
-
-            if (Simulation.get.UseTextureFriction)
-            {
-                //computeCoefTimer.Tic();
-                //CalculateTextureFriction(cam1.renderTexture);
-                //computeCoefTimer.Toc();
-
-                renderTimer.Tic();
-                RenderContactPatch();
-                renderTimer.Toc();
-
-                computeCoefTimer2.Tic();
-                CalculateTextureFrictionGPU(renderTexture);
-                computeCoefTimer2.Toc();
-
-            }
-
-            if (Simulation.get.collisionVerbose)
-            {
-                Debug.Log("Collision count: " + collisions.Count);
-                Debug.Log("Average render time: " + renderTimer.Duration() * 0.001f / collisions.Count + "ms");
-                renderTimer.Report("Render contact patch", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
-                computeCoefTimer2.Report("Compute Coef2", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
-            }
-        }
-        public void CollectCollision(SoftBodySystem sBS, MyTerrain terrain, REAL dt)
+        public void CollectCollision(SoftBodySystem sBS, TerrainSystem terrainSystem, REAL dt)
         {
             softBodySystem = sBS;
             collisions.Clear();
-            if (softBodySystem.VerticesNum == 0 || terrain == null)
+            if (softBodySystem.VerticesNum == 0 || terrainSystem == null)
+            {
+                Debug.LogWarning("SoftBodySystem has no vertex or terrainSysterm is null");
                 return;
-
-            TerrainData terrainData = terrain.TerrainData;
-            REAL3 terrainPosition = (float3)terrain.transform.position;
-            REAL3 terrainSize = (float3)terrainData.size;
+            }
 
             for (int i = 0; i < softBodySystem.VerticesNum; ++i)
             {
@@ -175,17 +134,22 @@ namespace XPBD
                 REAL3 predPos = particle.pos + particle.vel * dt;
                 //predPos = particle.pos;
 
-                REAL x = (predPos.x - terrainPosition.x) / terrainSize.x;
-                REAL z = (predPos.z - terrainPosition.z) / terrainSize.z;
+                //REAL x = (predPos.x - terrainPosition.x) / terrainSize.x;
+                //REAL z = (predPos.z - terrainPosition.z) / terrainSize.z;
 
-                REAL sampleHeight = terrain.Terrain.SampleHeight((float3)predPos);
+                //REAL sampleHeight = terrain.Terrain.SampleHeight((float3)predPos);
 
+                // skip if not inside terrain
+                if (!terrainSystem.IsInside(particle.pos) && !terrainSystem.IsInside(predPos)) continue;
+
+                REAL sampleHeight = terrainSystem.SampleTerrainHeight(predPos);
                 if (predPos.y <= sampleHeight)
                 {
                     MyCollision newCollision = new(i)
                     {
                         q = new REAL3(predPos.x, sampleHeight, predPos.z),
-                        N = (float3)terrainData.GetInterpolatedNormal((float)x, (float)z)
+                        //N = (float3)terrainData.GetInterpolatedNormal((float)x, (float)z)
+                        N = terrainSystem.SampleTerrainNormal(predPos)
                     };
 
                     // Calculate the Normal, Tangent, Bitangent vector of contact frame
@@ -205,9 +169,8 @@ namespace XPBD
 
                     collisions.Add(newCollision);
                     //soft.collisions.Add(newCollision);
-                    //primitive.collisions.Add(newCollision);
 
-                    terrain.SetupMaterial(newCollision);
+                    //terrain.SetupMaterial(newCollision);
                 }
             }
 
@@ -423,7 +386,7 @@ namespace XPBD
                 collisionCamera.SetViewPort((float)col2 / subTextureRowSize, (float)row2 / subTextureRowSize, WH, WH);
 
                 terrain.SetupMaterial(collision);
-                collisionCamera.DrawToTexture(terrain.mesh2, terrain.CollisionMaterial, terrain.transform.localToWorldMatrix, true);
+                //collisionCamera.DrawToTexture(terrain.mesh2, terrain.CollisionMaterial, terrain.transform.localToWorldMatrix, true);
                 
             }
 

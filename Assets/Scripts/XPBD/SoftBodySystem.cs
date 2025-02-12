@@ -7,12 +7,6 @@ using UnityEngine;
 using Unity.Burst;
 using Unity.Jobs;
 using System.Linq;
-using Unity.VisualScripting;
-using static UnityEditor.Progress;
-using static UnityEngine.ParticleSystem;
-
-
-
 
 #if USE_FLOAT
 using REAL = System.Single;
@@ -43,9 +37,11 @@ namespace XPBD
 
         public int VerticesNum { get; private set; } = 0;
         public int TetsNum { get; private set; } = 0;
+        public int FacesNum { get; private set; } = 0;
 
         public NativeArray<SoftBodyParticle> particles;
         NativeArray<ElementConstraint> elementConstraints;
+        public NativeArray<int3> surfaceFaces;
         NativeArray<int> clusters;
         NativeArray<int> clusterSizes;
         NativeArray<int> clusterStarts;
@@ -56,6 +52,7 @@ namespace XPBD
         {
             particles.Dispose();
             elementConstraints.Dispose();
+            surfaceFaces.Dispose();
             
             clusters.Dispose();
             clusterSizes.Dispose();
@@ -75,6 +72,7 @@ namespace XPBD
 
             VerticesNum += softBody.VerticesNum;
             TetsNum += softBody.TetsNum;
+            FacesNum += softBody.FacesNum;
         }
 
         public SoftBody GetParticleBody(int index)
@@ -104,59 +102,22 @@ namespace XPBD
 
         public void Init()
         {
-            //softBodies = bodies;
-
-            //// Calculate total vertices/tets number and offsets
-            //verticesOffset = new int[bodies.Count];
-            //tetsOffset = new int[bodies.Count];
-            //VerticesNum = 0;
-            //TetsNum = 0;
 
             if (softBodies?.Count == 0)
                 return;
-
-            //for (int i = 0; i < softBodies.Count; i++)
-            //{
-            //    SoftBody b = softBodies[i];
-
-            //    int vNum = b.VerticesNum;
-            //    int tNum = b.TetsNum;
-
-            //    verticesOffset[i] = VerticesNum;
-            //    tetsOffset[i] = TetsNum;
-
-            //    VerticesNum += vNum;
-            //    TetsNum += tNum;
-            //}
-
             
             particles = new NativeArray<SoftBodyParticle>(VerticesNum, Allocator.Persistent);
             elementConstraints = new NativeArray<ElementConstraint>(TetsNum, Allocator.Persistent);
+            surfaceFaces = new NativeArray<int3>(FacesNum, Allocator.Persistent);
 
+            int faceStartIndex = 0;
             for (int i = 0; i < softBodies.Count; i++)
             {
                 SoftBody b = softBodies[i];
                 int startIndex = verticesOffset[i];
-                //for (int j = 0; j < b.VerticesNum; j++)
-                //{
-                //    //positions[startIndex + j] = b.Pos[j];
-                //    //velocities[startIndex + j] = b.Vel[j];
-                //    //invMass[startIndex + j] = b.invMass[j];
-
-                //    particles[startIndex + j] = new SoftBodyParticle(b.Pos[j], b.invMass[j]);
-                //}
                 particles.GetSubArray(startIndex, b.VerticesNum).CopyFrom(b.particles.ToArray());
 
                 startIndex = tetsOffset[i];
-                //for (int j = 0; j < b.TetsNum; j++)
-                //{
-                //    //tets[startIndex + j] = b.tets[j] + verticesOffset[i];
-                //    //restVolumes[startIndex + j] = b.restVolumes[j];
-                //    //invDm[startIndex + j] = b.invDm[j];
-
-                //    elementConstraints[startIndex + j]
-                //        = new ElementConstraint(b.tets[j] + verticesOffset[i], b.invDm[j], b.restVolumes[j], b.mu, b.lambda);
-                //}
 
                 elementConstraints.GetSubArray(startIndex, b.TetsNum)
                     .CopyFrom(b.elementConstraints.Select(x=>
@@ -165,14 +126,30 @@ namespace XPBD
                         return x;
                     }).ToArray());
 
+                surfaceFaces.GetSubArray(faceStartIndex, b.FacesNum)
+                    .CopyFrom(b.surfaceFaces.Select(x=>
+                    {
+                        x += verticesOffset[i];
+                        return x;
+                    }).ToArray());
+                faceStartIndex += b.FacesNum;
             }
-            //for(int i = 0; i < TetsNum; i++)
-            //    Debug.Log(elementConstraints[i].ToString());
             ElementConstraintClustering();
         }
 
+        public void SyncBodies()
+        {
+            // Sync body data
+            for (int i = 0; i < softBodies.Count; i++)
+            {
+                int startIndex = verticesOffset[i];
+                SoftBody b = softBodies[i];
+                particles.GetSubArray(startIndex, b.VerticesNum).CopyFrom(b.particles.ToArray());
+            }
+        }
         public void PreSolve(REAL dt, REAL3 gravity)
         {
+            //Debug.Log($"{particles[0].f_ext}");
             PreSolveJob preSolveJob = new()
             {
                 dt = dt,
@@ -229,6 +206,16 @@ namespace XPBD
             jobHandle.Complete();
         }
 
+        public void ClearForce()
+        {
+            for (int i = 0; i < VerticesNum; i++)
+            {
+                var p = particles[i];
+                p.f_ext = 0;
+                particles[i] = p;
+            }
+        }
+
         public void EndFrame()
         {
             for(int i = 0; i < softBodies.Count; i++)
@@ -237,7 +224,8 @@ namespace XPBD
                 var subParticles = GetBodyParticles(softBodies[i]);
                 for(int j = 0; j < softBodies[i].VerticesNum; j++)
                 {
-                    softBodies[i].Pos[j] = subParticles[j].pos; 
+                    softBodies[i].Pos[j] = subParticles[j].pos;
+                    softBodies[i].particles[j] = subParticles[j];
                 }
 
                 softBodies[i].EndFrame();
@@ -317,7 +305,8 @@ namespace XPBD
 
                 SoftBodyParticle p = particles[index];
 
-                p.vel += dt * gravity;
+                REAL3 accel = gravity + p.f_ext * p.invMass;
+                p.vel += dt * accel;
 
                 p.prevPos = p.pos;
 

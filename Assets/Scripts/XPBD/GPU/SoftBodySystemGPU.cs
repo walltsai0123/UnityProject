@@ -338,7 +338,7 @@ namespace XPBD.GPU
             SoftBodyParticle[] softBodyParticles = new SoftBodyParticle[VerticesNum];
             for (int i = 0; i < VerticesNum; i++)
             {
-                softBodyParticles[i] = new SoftBodyParticle(positions[i], invMass[i]);
+                softBodyParticles[i] = new SoftBodyParticle(positions[i], invMass[i], 0);
             }
             particleBuffer.SetData(softBodyParticles);
 

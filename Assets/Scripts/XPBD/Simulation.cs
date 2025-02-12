@@ -26,7 +26,7 @@ namespace XPBD
     public class Simulation : MonoBehaviour
     {
         public static Simulation get;
-
+        public int frame = 0;
         [Space(10)]
         [Header("Simulation Parameters")]
         [SerializeField] bool fixedTimeStep = true;
@@ -59,6 +59,7 @@ namespace XPBD
         //[SerializeField]Terrain terrain;
 
         public MyTerrain terrain;
+        public TerrainSystem terrainSystem;
 
         [Space(10)]
         [Header("State Control")]
@@ -188,7 +189,7 @@ namespace XPBD
 
             stepTimer.Tic();
             //collisionDetect.CollectCollision(bodies, primitives, dt);
-            collisionDetect.CollectCollision(softBodySystem, terrain, dt);
+            collisionDetect.CollectCollision(softBodySystem, terrainSystem, dt);
             //collisions = collisionDetect.Collisions;
 
             if(collisions.Count > 0)
@@ -207,12 +208,10 @@ namespace XPBD
             primitiveTimer.Pause();
 
             REAL sdt = dt / substeps;
+
+            softBodySystem.SyncBodies();
             for (int step = 0; step < substeps; ++step)
             {
-                primitiveTimer.Resume();
-                foreach(Primitive p in primitives)
-                    p.Simulate(sdt);
-                primitiveTimer.Pause();
 
                 foreach (Rigid body in rigidbodies)
                     body.PreSolve(sdt, gravity);
@@ -224,10 +223,6 @@ namespace XPBD
                     body.Solve(sdt);
                     softBodySystem.Solve(sdt);
                 bodySolveTimer.Pause();
-
-                //foreach (Constraint C in constraints)
-                //    C.ResetLambda();
-                //
                 foreach (Constraint C in constraints)
                     C.SolveConstraint(sdt);
 
@@ -248,13 +243,22 @@ namespace XPBD
                     C.SolveVelocities(sdt);
 
                 collisionDetect.VelocitySolve(sdt);
-                //foreach (Primitive p in primitives)
-                //    p.ApplyVelocity(sdt);
             }
-            foreach (Primitive p in primitives)
-                p.UpdateVisual();
+            softBodySystem.ClearForce();
+            
 
-            foreach (Rigid body in rigidbodies) 
+
+            int substep2 = 3;
+            terrainSystem.FluidToSolid(softBodySystem, dt);
+            terrainSystem.SolidToFluid(softBodySystem, dt);
+
+            primitiveTimer.Resume();
+            for (int step = 0; step < substep2; ++step)
+                terrainSystem.Simulate(dt / substep2, gravity);
+            primitiveTimer.Pause();
+            terrainSystem.EndFrame();
+
+            foreach (Rigid body in rigidbodies)
                 body.EndFrame();
             softBodySystem.EndFrame();
 
@@ -272,6 +276,8 @@ namespace XPBD
 
             //Clear step once flag
             stepOnce = false;
+
+            frame++;
         }
 
         private void OnDestroy()

@@ -47,6 +47,9 @@ public class CameraFollow : MonoBehaviour
         if (softBody == null)
             return;
 
+        if (!softBody.gameObject.activeInHierarchy)
+            return;
+
         transform.position = (float3)softBody.Pos[0];
 
         transform.position += dist * Vector3.back + dist * Vector3.up;
