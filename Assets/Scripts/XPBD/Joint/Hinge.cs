@@ -150,8 +150,8 @@ namespace XPBD
             }
             else
             {
-                R1 = transform.position + transform.rotation * (float3)r1;
-                R2 = body2.transform.position + body2.transform.rotation * (float3)r2;
+                R1 = (float3)body1.Position + math.rotate(body1.Rotation, (float3)r1);
+                R2 = (float3)body2.Position + math.rotate(body2.Rotation, (float3)r2);
                 a1 = transform.TransformDirection(math.rotate(math.conjugate(q1), (float3)axisA1)) * 1f;
                 a2 = body2.transform.TransformDirection(math.rotate(math.conjugate(q2), (float3)axisA1)) * 1f;
                 b1 = transform.TransformDirection(math.rotate(math.conjugate(q1), (float3)axisA2)) * 1f;

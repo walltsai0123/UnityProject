@@ -4,6 +4,8 @@ using Unity.Mathematics;
 using System;
 using UnityEngine.Rendering;
 using UnityEngine.Assertions;
+using System.Drawing;
+
 
 #if USE_FLOAT
 using REAL = System.Single;
@@ -46,11 +48,15 @@ namespace XPBD
         private int rendertextureSize;
         private int subTextureRowSize;
 
+        [SerializeField, Range(0,1)] float defaultFrictionCoefficient;
         [SerializeField] private float nominal_friction = 0.1f;
         [SerializeField] private float kA = 1f;
         [SerializeField] private float kB = 1f;
 
         [SerializeField] Material terrainMat;
+
+        [Range(0f, 1f)] public float raycastDistance = 0.075f;
+        [Range(0f, 1f)] public float offsetRay = 0.04f;
 
         int kernel;
         private ComputeShader computeShader;
@@ -96,107 +102,120 @@ namespace XPBD
             Dispose();
         }
 
-        public int collisionindex = 0;
-        private void OnDrawGizmos()
-        {
-            if (collisions != null)
-            {
-                if (collisions.Count > 0)
-                {
-                    collisionindex = math.clamp(collisionindex, 0, collisions.Count - 1);
-
-                    MyCollision C = collisions[collisionindex];
-                    Gizmos.color = Color.red;
-                    Gizmos.DrawSphere((float3)C.q, 0.1f);
-                    Gizmos.DrawLine((float3)C.q, (float3)(C.q + C.N));
-                }
-            }
-        }
         public void Dispose()
         {
             computeBuffer.Release();
         }
-
         public void CollectCollision(SoftBodySystem sBS, TerrainSystem terrainSystem, REAL dt)
         {
-            softBodySystem = sBS;
-            collisions.Clear();
-            if (softBodySystem.VerticesNum == 0 || terrainSystem == null)
+            if(sBS == null)
             {
-                Debug.LogWarning("SoftBodySystem has no vertex or terrainSysterm is null");
+                Debug.LogWarning("SoftBodySystem is null");
                 return;
             }
+            if(terrainSystem == null)
+            {
+                Debug.LogWarning("TerrainSystem is null");
+                return;
+            }
+
+            softBodySystem = sBS;
+            collisions.Clear();
+            for (int i = 0; i < softBodySystem.softBodies.Count; i++)
+                softBodySystem.softBodies[i].collisions.Clear();
+            for (int i = 0; i < terrainSystem.Terrains.Count; i++)
+                terrainSystem.Terrains[i].collisions.Clear();
 
             for (int i = 0; i < softBodySystem.VerticesNum; ++i)
             {
                 SoftBodyParticle particle = softBodySystem.particles[i];
+                SoftBody softBody = softBodySystem.GetParticleBody(i);
                 // Predicted position of particle
                 REAL3 predPos = particle.pos + particle.vel * dt;
-                //predPos = particle.pos;
 
-                //REAL x = (predPos.x - terrainPosition.x) / terrainSize.x;
-                //REAL z = (predPos.z - terrainPosition.z) / terrainSize.z;
-
-                //REAL sampleHeight = terrain.Terrain.SampleHeight((float3)predPos);
-
-                // skip if not inside terrain
-                if (!terrainSystem.IsInside(particle.pos) && !terrainSystem.IsInside(predPos)) continue;
-
-                REAL sampleHeight = terrainSystem.SampleTerrainHeight(predPos);
-                if (predPos.y <= sampleHeight)
+                MyTerrain myTerrain = terrainSystem.GetTerrain((float3)predPos);
+                if (myTerrain == null)
+                    continue;
+                // Continous handling
+                REAL3 dir = math.normalizesafe(particle.vel, new REAL3(0, -1, 0));
+                Ray ray = new((float3)(particle.pos - dir * offsetRay), (float3)dir);
+                if (myTerrain.RayCast(ray, out RaycastHit hit, (float)math.length(particle.vel * dt) + raycastDistance))
                 {
-                    MyCollision newCollision = new(i)
-                    {
-                        q = new REAL3(predPos.x, sampleHeight, predPos.z),
-                        //N = (float3)terrainData.GetInterpolatedNormal((float)x, (float)z)
-                        N = terrainSystem.SampleTerrainNormal(predPos)
-                    };
+                    AddCollision(i, (float3)hit.point, softBody, myTerrain);
+                    continue;
+                }
 
-                    // Calculate the Normal, Tangent, Bitangent vector of contact frame
-                    REAL3 N = newCollision.N;
-                    REAL3 up = math.cross(newCollision.N, new REAL3(1, 0, 0));
-                    if (math.length(up) < Util.EPSILON)
-                    {
-                        up = -math.cross(newCollision.N, new REAL3(0, 0, -1));
-                    }
-                    math.normalize(up);
-
-                    REAL3 tangent = up;
-                    REAL3 bitangent = math.cross(N, tangent);
-
-                    newCollision.T = up;
-                    newCollision.B = bitangent;
-
-                    collisions.Add(newCollision);
-                    //soft.collisions.Add(newCollision);
-
-                    //terrain.SetupMaterial(newCollision);
+                // Static handling if continous handling didn't detect collision
+                REAL surfaceHeight = myTerrain.SampleHeight((float3)predPos);
+                if (predPos.y < surfaceHeight)
+                {
+                    AddCollision(i, new REAL3(predPos.x, surfaceHeight, predPos.z), softBody, myTerrain);
                 }
             }
-
-
-            if (collisions.Count == 0)
-                return;
-
-            if (Simulation.get.UseTextureFriction)
+        }
+        public void CollectCollision(SoftBodySystem sBS, MyTerrain myTerrain, REAL dt)
+        {
+            softBodySystem = sBS;
+            collisions.Clear();
+            for (int i = 0; i < softBodySystem.softBodies.Count; i++)
+                softBodySystem.softBodies[i].collisions.Clear();
+            for (int i = 0; i < softBodySystem.VerticesNum; ++i)
             {
-                renderTimer.Tic();
-                RenderContactPatch();
-                renderTimer.Toc();
+                SoftBodyParticle particle = softBodySystem.particles[i];
+                SoftBody softBody = softBodySystem.GetParticleBody(i);
 
-                computeCoefTimer2.Tic();
-                CalculateTextureFrictionGPU(renderTexture);
-                computeCoefTimer2.Toc();
-            }
+                // Predicted position of particle
+                REAL3 predPos = particle.pos + particle.vel * dt;
+                // Continous handling
+                REAL3 dir = math.normalizesafe(particle.vel, new REAL3(0, -1, 0));
+                Ray ray = new ((float3)(particle.pos - dir * offsetRay), (float3)dir);
+                if(myTerrain.RayCast(ray, out RaycastHit hit, (float)math.length(particle.vel * dt) + raycastDistance))
+                {
+                    AddCollision(i, (float3)hit.point, softBody, myTerrain);
+                    continue;
+                }
 
-            if (Simulation.get.collisionVerbose)
-            {
-                Debug.Log("Collision count: " + collisions.Count);
-                Debug.Log("Average render time: " + renderTimer.Duration() * 0.001f / collisions.Count + "ms");
-                renderTimer.Report("Render contact patch", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
-                computeCoefTimer2.Report("Compute Coef2", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+                // Static handling if continous handling didn't detect collision
+                REAL surfaceHeight = myTerrain.SampleHeight((float3)predPos);
+                if(predPos.y < surfaceHeight)
+                {
+                    AddCollision(i, new REAL3(predPos.x, surfaceHeight, predPos.z), softBody, myTerrain);
+                }
             }
         }
+        void AddCollision(int index, REAL3 point, SoftBody softBody, MyTerrain inputTerrain)
+        {
+            MyCollision newCollision = new(index)
+            {
+                frictionCoef = defaultFrictionCoefficient,
+                q = (float3)point,
+                N = inputTerrain.SampleNormal((float3)point),
+                //N = new float3(0,1,0),
+                softBody = softBody,
+                terrain = inputTerrain
+            };
+
+            // Calculate the Normal, Tangent, Bitangent vector of contact frame
+            REAL3 N = newCollision.N;
+            REAL3 tangent = math.normalizesafe(softBody.forwardDir - math.dot(N, softBody.forwardDir) * N, 0);
+            if(math.lengthsq(tangent) < Util.EPSILON_SQUARE)
+            {
+                tangent = math.cross(N, new REAL3(0, 0, 1));
+                if (math.lengthsq(tangent) < Util.EPSILON_SQUARE)
+                    tangent = math.cross(N, new REAL3(1,0,0));
+            }
+            tangent = math.normalize(tangent);
+
+            newCollision.T = tangent;
+            newCollision.B = math.cross(N, tangent);
+
+            collisions.Add(newCollision);
+
+            SoftBody collisionBody = softBodySystem.GetParticleBody(index);
+            collisionBody.collisions.Add(newCollision);
+            inputTerrain.collisions.Add(newCollision);
+        }
+
         public void SetFrictionCoef()
         {
             if (coefSet)
@@ -254,94 +273,10 @@ namespace XPBD
                 collision.VelocitySolve(softBodySystem, dt);
             }
         }
-
-        private void SoftBodyCollision(SoftBody soft, Primitive primitive, REAL dt)
-        {
-            //Geometry geometry = primitive.Geometry;
-
-            //for (int i = 0; i < soft.VerticesNum; ++i)
-            //{
-            //    // Ignore grabbed particle
-            //    if (i == soft.grabId)
-            //        continue;
-
-            //    // Predicted position of particle
-            //    REAL3 predPos = soft.Pos[i] + soft.Vel[i] * dt;
-            //    predPos = soft.Pos[i];
-            //    if (geometry.IsInside(predPos))
-            //    {
-            //        MyCollision newCollision = new(soft, primitive, i);
-            //        newCollision.q = geometry.ClosestSurfacePoint(predPos, out REAL3 normal);
-            //        newCollision.N = normal;
-
-            //        // Calculate the Normal, Tangent, Bitangent vector of contact frame
-            //        REAL3 N = newCollision.N;
-            //        REAL3 up = math.cross(newCollision.N, new REAL3(1, 0, 0));
-            //        if (math.length(up) < Util.EPSILON)
-            //        {
-            //            up = -math.cross(newCollision.N, new REAL3(0, 0, -1));
-            //        }
-            //        math.normalize(up);
-
-            //        REAL3 tangent = up;
-            //        REAL3 bitangent = math.cross(N, tangent);
-
-            //        newCollision.T = up;
-            //        newCollision.B = bitangent;
-
-            //        // Render contact patch
-            //        if (Simulation.get.UseTextureFriction)
-            //        {
-                        
-            //            // Set collision camera position
-            //            //cam1.transform.position = soft.Pos[i] - 0.02f * N;
-            //            //cam2.transform.position = newCollision.q + 0.02f * N;
-
-            //            //cam1.transform.LookAt(soft.Pos[i], up);
-            //            //cam2.transform.LookAt(newCollision.q, up);
-
-            //            //Shader.SetGlobalREAL("_Depth", 0.25f);
-            //            //Shader.SetGlobalVector(tangentVector, tangent);
-            //            //Shader.SetGlobalVector(bitangentVector, bitangent);
-
-            //            //// Set collision camera view rect
-            //            //int subtextureNum1 = collisions.Count * 2;
-            //            //int subtextureNum2 = subtextureNum1 + 1;
-
-            //            //// Set cam1 viewport
-            //            //int row1 = subtextureNum1 / subTextureRowSize;
-            //            //int col1 = subtextureNum1 % subTextureRowSize;
-            //            //int x1 = subtextureSize * col1;
-            //            //int y1 = subtextureSize * row1;
-            //            //cam1.SetViewPort(x1, y1, subtextureSize, subtextureSize);
-
-            //            //// Set cam2 viewport
-            //            //int row2 = subtextureNum2 / subTextureRowSize;
-            //            //int col2 = subtextureNum2 % subTextureRowSize;
-            //            //int x2 = subtextureSize * col2;
-            //            //int y2 = subtextureSize * row2;
-            //            //cam2.SetViewPort(x2, y2, subtextureSize, subtextureSize);
-
-            //            //renderTimer.Resume();
-
-            //            //cam1.RenderToTexture();
-            //            //cam2.RenderToTexture();
-
-            //            //renderTimer.Pause();
-            //        }
-
-            //        collisions.Add(newCollision);
-            //        soft.collisions.Add(newCollision);
-            //        primitive.collisions.Add(newCollision);
-            //    }
-            //}
-
-        }
-
         private void RenderContactPatch()
         {
             renderTexture.Release();
-            var terrain = Simulation.get.terrain;
+            var terrain = Simulation.get.myTerrain;
             for (int i = 0; i < collisions.Count; i++)
             {
                 MyCollision collision = collisions[i];
@@ -385,7 +320,7 @@ namespace XPBD
                 int col2 = subtextureNum2 % subTextureRowSize;
                 collisionCamera.SetViewPort((float)col2 / subTextureRowSize, (float)row2 / subTextureRowSize, WH, WH);
 
-                terrain.SetupMaterial(collision);
+                //terrain.SetupMaterial(collision);
                 //collisionCamera.DrawToTexture(terrain.mesh2, terrain.CollisionMaterial, terrain.transform.localToWorldMatrix, true);
                 
             }

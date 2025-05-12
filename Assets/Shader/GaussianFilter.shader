@@ -14,9 +14,11 @@ Shader "Custom/GaussianFilter"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
-            sampler2D _MainTex;
-            float4 _MainTex_TexelSize;
+            //sampler2D _MainTex;
 
+            UNITY_DECLARE_TEX2D(_MainTex);
+            float4 _MainTex_TexelSize;
+            SamplerState vertex_linear_clamp_sampler;
             float3 ApplyGaussianFilter(float2 uv)
             {
                 float3 color = 0.0;
@@ -28,14 +30,22 @@ Shader "Custom/GaussianFilter"
                     { 1, 2, 1 }
                 };
 
+                float kernel2[3][3] = {
+                    { 1, 1, 1 },
+                    { 1, 4, 1 },
+                    { 1, 1, 1 }
+                };
+
+                float blurSize = 0.1;
                 // 遍歷 3×3 區域並加權求和
                 for (int y = -1; y <= 1; y++)
                 {
                     for (int x = -1; x <= 1; x++)
                     {
-                        float2 offset = float2(x, y) * _MainTex_TexelSize.xy;
+                        float2 offset = float2(x, y) * _MainTex_TexelSize.xy * blurSize;
                         float weight = kernel[y + 1][x + 1] / 16.0; // 歸一化
-                        color += tex2D(_MainTex, uv + offset).rgb * weight;
+                        //color += tex2D(_MainTex, uv + offset).rgb * weight;
+                        color += _MainTex.SampleLevel(vertex_linear_clamp_sampler, uv + offset, 0).rgb * weight;
                     }
                 }
                 return color;

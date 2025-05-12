@@ -31,7 +31,7 @@ namespace XPBD
             Soft
         };
         //public int ID;
-        public BodyType bodyType = BodyType.None;
+        [DebugOnly]public BodyType bodyType = BodyType.None;
         public REAL mass = 1f;
         public bool isFixed = false;
         public bool UseGravity = true;
@@ -45,7 +45,7 @@ namespace XPBD
         {
             get 
             {
-                if (mass == 0f)
+                if (mass == 0f || isFixed)
                     return 0f;
                 return 1f / mass; 
             }

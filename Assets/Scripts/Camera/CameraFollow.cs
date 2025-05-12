@@ -50,10 +50,10 @@ public class CameraFollow : MonoBehaviour
         if (!softBody.gameObject.activeInHierarchy)
             return;
 
-        transform.position = (float3)softBody.Pos[0];
+        transform.position = (float3)softBody.X_COM;
 
         transform.position += dist * Vector3.back + dist * Vector3.up;
 
-        transform.LookAt((float3)softBody.Pos[0]);
+        transform.LookAt((float3)softBody.X_COM);
     }
 }

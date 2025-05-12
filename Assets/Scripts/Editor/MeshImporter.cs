@@ -32,7 +32,7 @@ public class MeshImporter : ScriptedImporter
         //var tetMesh = gameObject.AddComponent<TetMesh>();
         //tetMesh.tetFileName = ctx.assetPath;
 
-        var physicMesh = gameObject.AddComponent<XPBD.PhysicMesh>();
+        //var physicMesh = gameObject.AddComponent<XPBD.PhysicMesh>();
         
         #endregion
 
@@ -67,9 +67,9 @@ public class MeshImporter : ScriptedImporter
             mesh.MarkDynamic(); 
             mesh.MarkModified();
             mesh.RecalculateBounds();
-
-            physicMesh.tets = new int[TSize * 4];
-            physicMesh.tets = T.ToArray();
+            //
+            //physicMesh.tets = new int[TSize * 4];
+            //physicMesh.tets = T.ToArray();
 
             var tetrahedronMesh = ScriptableObject.CreateInstance<TetrahedronMesh>();
             tetrahedronMesh.vertices = new Vector3 [VSize];

@@ -30,7 +30,7 @@ namespace XPBD
         public float MotorTorque { get; set; } = 0f;
 
         private float brakeTorque = 0f;
-        public float BrakeTorque 
+        public float BrakeTorque
         {
             get => brakeTorque;
             set => brakeTorque = Mathf.Max(0f, value);
@@ -39,11 +39,10 @@ namespace XPBD
 
         public float3 RotateAxis { get; set; } = float3.zero;
 
+        readonly float3 axis = Vector3.right;
         private void Update()
         {
-            //float3 rotateAxis = math.rotate(Transform.rotation, axis);
-
-            rim.Tau += MotorTorque * RotateAxis;
+            rim.Tau += MotorTorque * math.rotate(rim.Rotation, axis);
 
             // Apply brake torque
             //if (math.length(rim.omega) > Util.EPSILON)

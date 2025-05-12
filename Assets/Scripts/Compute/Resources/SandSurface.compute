@@ -38,6 +38,7 @@ const float spacing;
 const uint numX;
 const uint numZ;
 const float maxHeight;
+const float h_bar;
 
 REAL terrainHeight(int index)
 {

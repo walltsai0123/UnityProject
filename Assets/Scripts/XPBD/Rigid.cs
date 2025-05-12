@@ -28,7 +28,19 @@ namespace XPBD
         public Collider m_Collider { get; private set; }
         //public bool Fixed = false;
         public REAL3 Position { get; set; }
+
+
+        // Since there could be intial rotation for some object
+        // We seperate the world rotation into PhysicsRotation * InitialRotation
+        // So that we get the PhysicsRotation always has a initial value of quaternion.identity, better for initializing joint constraints
+
+        // Physics rotation
         public quaternion Rotation { get; set; }
+        // Initial rotation
+        private quaternion q0;
+
+        // World rotation in unity world space
+        private quaternion TotalRotation => math.mul(Rotation, q0);
 
         // Linear velocity
         public REAL3 vel { get; set; }
@@ -37,7 +49,7 @@ namespace XPBD
         public REAL3 omega { get; set; }
         
         // Linear force
-        public REAL3 fext { get; set; }
+        public REAL3 Fext { get; set; }
 
         // Angular force (torque)
         public REAL3 Tau { get; set; }
@@ -49,12 +61,14 @@ namespace XPBD
         {
             get
             {
+                if (isFixed)
+                    return 0;
                 return math.mul(new float3x3(Rotation), math.mul(InertiaBodyInv, new float3x3(math.conjugate(Rotation))));
             }
         }
         // Previous position and rotation
-        public REAL3 prevPos { get; private set; }
-        public quaternion prevRot { get; private set; }
+        REAL3 prevPos;
+        quaternion prevRot;
 
         // Initial velocity
         [SerializeField] 
@@ -84,7 +98,7 @@ namespace XPBD
             REAL3 g = (UseGravity) ? gravity : REAL3.zero;
 
             prevPos = Position;
-            vel += dt * InvMass * fext;
+            vel += dt * InvMass * Fext;
             vel += dt * g;
             Position += dt * vel;
 
@@ -124,7 +138,7 @@ namespace XPBD
         {
             ClearForce();
             //rigidCollisions.Clear();
-            transform.SetPositionAndRotation((float3)Position, Rotation);
+            transform.SetPositionAndRotation((float3)Position, TotalRotation);
         }
         #endregion
 
@@ -161,10 +175,11 @@ namespace XPBD
             m_Collider = GetComponent<Collider>();
 
             Position = prevPos = (float3)transform.position;
-            Rotation = prevRot = transform.rotation;
+            q0 = transform.rotation;
+            Rotation = prevRot = Quaternion.identity;
             vel = v0;
             omega = omega0;
-            fext = REAL3.zero;
+            Fext = REAL3.zero;
             Tau = REAL3.zero;
 
             REAL3 inertiaVec = (float3)m_rigidbody.inertiaTensor;
@@ -172,6 +187,7 @@ namespace XPBD
                 inertiaVec.x, 0, 0,
                 0, inertiaVec.y, 0,
                 0, 0, inertiaVec.z);
+            InertiaBody = math.mul(math.mul(new float3x3(q0), InertiaBody), new float3x3(math.conjugate(q0)));
             InertiaBodyInv = math.inverse(InertiaBody);
             
             if(mass == 0f)
@@ -185,7 +201,7 @@ namespace XPBD
 
         private void ClearForce()
         {
-            fext = REAL3.zero;
+            Fext = REAL3.zero;
             Tau = REAL3.zero;
         }
 

@@ -35,6 +35,12 @@ namespace XPBD
         private REAL min = 0f;
         [SerializeField, Min(0f)]
         private REAL max = 0f;
+
+        [SerializeField, Tooltip("Drive the joint to a particular position")]
+        bool hasTarget = false;
+        [SerializeField, Range(0,1), Tooltip("The target position the joint attempts to reach.")]
+        private REAL target = 0.5;
+
         [SerializeField, Min(0f)]
         private REAL compliance = 0f;
 
@@ -42,21 +48,16 @@ namespace XPBD
         private REAL3 axisA, axisB, axisC;
         private REAL3 r1, r2;
         private quaternion q1, q2;
-
-        Timer timer = new();
-        int times = 0;
-        float duration = 0;
-
         public override void SolveConstraint(REAL dt)
         {
-            SolveAngularConstraint2(dt);
-            SolvePositionConstraint2(dt);
+            SolveAngularConstraint(dt);
+            SolvePositionConstraint(dt);
         }
 
-        private void SolveAngularConstraint2(REAL dt)
+        private void SolveAngularConstraint(REAL dt)
         {
-            quaternion Q1 = math.mul(body1.Rotation, math.conjugate(q1));
-            quaternion Q2 = math.mul(body2.Rotation, math.conjugate(q2));
+            quaternion Q1 = body1.Rotation;
+            quaternion Q2 = body2.Rotation;
             REAL3 dq = 2f * math.mul(Q2, math.conjugate(Q1)).value.xyz;
 
             AngularConstraint angularConstraint = new(body1, body2);
@@ -68,7 +69,7 @@ namespace XPBD
             body2.Rotation = angularConstraints[0].q2;
         }
 
-        private void SolvePositionConstraint2(REAL dt)
+        private void SolvePositionConstraint(REAL dt)
         {
             REAL3 R1 = body1.Position + Util.rotate(body1.Rotation, r1);
             REAL3 R2 = body2.Position + Util.rotate(body2.Rotation, r2);
@@ -79,6 +80,8 @@ namespace XPBD
 
             if (max < min)
                 max = min;
+
+            max = math.max(max, min);
             // Axis A
             REAL da = math.dot(Dr, AxisA);
             if (da < min)
@@ -86,13 +89,17 @@ namespace XPBD
             if (da > max)
                 Dx += AxisA * (da - max);
 
+            if(hasTarget)
+            {
+                Dx = AxisA * (da - target * (max - min));
+            }
+
             PositionConstraint positionConstraint = new(body1, body2, r1, r2);
-            positionConstraint.GetDeltaLambda(dt, compliance, 0f, Dx);
+            REAL lambda = positionConstraint.GetDeltaLambda(dt, compliance, 0f, Dx);
             body1.Position = positionConstraint.x1;
             body2.Position = positionConstraint.x2;
             body1.Rotation = positionConstraint.q1;
             body2.Rotation = positionConstraint.q2;
-
             ////Axis B
             //REAL db = math.dot(Dr, AxisB);
             //Dx += AxisB * db;
@@ -111,7 +118,7 @@ namespace XPBD
             Dx += d_bc;
 
             PositionConstraint positionConstraint2 = new(body1, body2, r1, r2);
-            positionConstraint2.GetDeltaLambda(dt, 0f, 0f, Dx);
+            lambda = positionConstraint2.GetDeltaLambda(dt, 0f, 0f, Dx);
 
             body1.Position = positionConstraint2.x1;
             body2.Position = positionConstraint2.x2;

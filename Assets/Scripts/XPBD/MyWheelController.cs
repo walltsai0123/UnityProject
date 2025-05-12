@@ -7,6 +7,13 @@ namespace XPBD
 {
     public class MyWheelController : MonoBehaviour
     {
+        enum DriveTrain
+        {
+            FWD,
+            RWD,
+            AWD
+        }
+        [SerializeField] DriveTrain drive;
         [SerializeField] Wheel frontLeft;
         [SerializeField] Wheel frontRight;
         [SerializeField] Wheel rearLeft;
@@ -16,7 +23,7 @@ namespace XPBD
         [SerializeField] Hinge fLArm;
         [SerializeField] Hinge fRArm;
 
-        private Rigid carBody;
+        [SerializeField] Rigid carBody;
         public float accelration = 500f;
         public float brakingForce = 300f;
         public float maxTurnAngle = 15f;
@@ -57,8 +64,25 @@ namespace XPBD
 
             //frontLeft.MotorTorque = currentAccel;
             //frontRight.MotorTorque = currentAccel;
-            rearLeft.MotorTorque = currentAccel;
-            rearRight.MotorTorque = currentAccel;
+            //rearLeft.MotorTorque = currentAccel;
+            //rearRight.MotorTorque = currentAccel;
+            switch(drive)
+            {
+                case DriveTrain.FWD:
+                    frontLeft.MotorTorque = currentAccel;
+                    frontRight.MotorTorque = currentAccel;
+                    break;
+                case DriveTrain.RWD:
+                    rearLeft.MotorTorque = currentAccel;
+                    rearRight.MotorTorque = currentAccel;
+                    break;
+                case DriveTrain.AWD:
+                    frontLeft.MotorTorque = currentAccel;
+                    frontRight.MotorTorque = currentAccel;
+                    rearLeft.MotorTorque = currentAccel;
+                    rearRight.MotorTorque = currentAccel;
+                    break;
+            }
 
             frontLeft.BrakeTorque = currentBrakeForce;
             frontRight.BrakeTorque = currentBrakeForce;
@@ -73,6 +97,14 @@ namespace XPBD
             fRArm.targetOn = true;
             fLArm.targetAngle = currentTurnAngle;
             fRArm.targetAngle = currentTurnAngle;
+        }
+        private void OnDrawGizmos()
+        {
+            //if(!Application.isPlaying)
+            //    return;
+            //Gizmos.color = Color.black;
+            //
+            //Gizmos.DrawRay((float3)carBody.Position, (float3)carBody.vel);
         }
     }
 
