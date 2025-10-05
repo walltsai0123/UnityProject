@@ -4,6 +4,8 @@ using UnityEngine;
 using Unity.Mathematics;
 using System;
 using Unity.VisualScripting;
+using UnityEditor.ShaderGraph.Internal;
+
 
 
 
@@ -46,11 +48,15 @@ namespace XPBD
         private REAL tangentCoef = 0f;
         private REAL bitangentCoef = 0f;
 
-        public REAL lambda = 0f;
+        public REAL lambda_n = 0f;
+        public REAL lambda_t = 0f;
+        public REAL lambda_b = 0f;
+
         public REAL F_lambda = 0f;
         public REAL3 F = 0f;
 
         public REAL shearDisplacement = 0;
+
         public MyCollision(int i = -1)
         {
             index = i;
@@ -60,6 +66,18 @@ namespace XPBD
             fn = ft = fb = REAL3.zero;
         }
 
+        public REAL3 ConstraintForce(REAL dt)
+        {
+            return (N * lambda_n + T * lambda_t + B * lambda_b) / dt / dt;
+        }
+        public REAL3 ConstraintNormalForce(REAL dt)
+        {
+            return N * lambda_n / dt / dt;
+        }
+        public REAL3 ConstraintFrictionForce(REAL dt)
+        {
+            return (T * lambda_t + B * lambda_b) / dt / dt;
+        }
         public void SolveCollision(SoftBodySystem sbs, REAL dt)
         {
             SoftBodyParticle particle = sbs.particles[index];
@@ -75,12 +93,25 @@ namespace XPBD
             REAL w1 = particle.invMass;
             REAL w2 = 0.0f;
             REAL dlambda = -C / (w1 + w2 + alpha);
-            REAL3 p = dlambda * N;
+
+            REAL pressure_dlambda = PressureSinkageConstraintSolve(particle, dt, out float pressure_lambda);
+
+            REAL final_dlambda = (terrain.GroundMaterial.n >= 1) ? math.max(dlambda, pressure_dlambda) : math.min(dlambda, pressure_dlambda);
+            final_dlambda = dlambda;
+
+            REAL3 p = final_dlambda * N;
             fn = p / h2;
+            //fn = pressure_lambda / h2 * N;
+            lambda_n += final_dlambda;
             particle.pos += p * w1;
 
-            REAL3 dp = particle.pos - particle.prevPos;
-            frictionCoef = math.tan(terrain.GroundMaterial.frictionAngleInRadian);
+            REAL3 dp = particle.pos - q;
+
+            REAL pressure = math.length(fn) / terrain.CellArea;
+            REAL maxShearForce = terrain.GetMaxShear((float)pressure);
+            frictionCoef = maxShearForce / pressure;
+
+
             // tangent friction
             REAL dp_t = math.dot(dp, T);
             REAL C_T = math.abs(dp_t);
@@ -93,6 +124,7 @@ namespace XPBD
                 REAL3 p_t = dlambda_t * T;
                 particle.pos += p_t * w1;
                 ft = p_t / h2;
+                lambda_t += dlambda_t;
             }
 
             // bitangent friction
@@ -107,15 +139,16 @@ namespace XPBD
                 REAL3 p_b = dlambda_b * B;
                 particle.pos += p_b * w1;
                 fb = p_b / h2;
+                lambda_b += dlambda_b;
             }
-            F += fn + ft + fb;
+            F += (fn + ft + fb);
 
-            dp = particle.pos - particle.prevPos;
+            dp = particle.pos - q;
             shearDisplacement += math.length(dp) - (float)math.dot(dp, N);
             sbs.particles[index] = particle;
         }
 
-        public void SolveCollision2(SoftBodySystem sbs, REAL dt)
+        public void SolveCollision1(SoftBodySystem sbs, REAL dt)
         {
             SoftBodyParticle particle = sbs.particles[index];
 
@@ -127,7 +160,8 @@ namespace XPBD
 
             REAL C = -math.pow(math.abs(penetration), (terrain.GroundMaterial.n + 1) / 2);
             REAL gradC = math.pow(math.abs(penetration), (terrain.GroundMaterial.n - 1) / 2) * (terrain.GroundMaterial.n + 1) / 2;
-            
+
+            REAL cos_theta = math.abs(math.dot(new(0, 1, 0), N));
             REAL contactSurface = terrain.CellArea;
             REAL stiffness = 2 * contactSurface * terrain.Stiffness / (terrain.GroundMaterial.n + 1);
             REAL compliance = (stiffness == 0) ? 0 : 1 / stiffness;
@@ -140,56 +174,67 @@ namespace XPBD
             fn = p / h2;
             particle.pos += p * particle.invMass;
 
-            lambda += dlambda;
+            lambda_n += dlambda;
             F_lambda += dlambda / h2;
 
             REAL3 dp = particle.pos - q;
             REAL pressure = math.length(fn) / contactSurface;
-            REAL maxShearForce = terrain.GetMaxShear((float)pressure) * contactSurface;
+            REAL maxShearForce = terrain.GetMaxShear((float)pressure) * contactSurface * h2;
+
             //friction
             REAL3 displacement = dp - math.dot(dp, N) * N;
             REAL j = math.length(displacement);
-            REAL K = terrain.GroundMaterial.K;
-            REAL C_T = math.sqrt(j + K * math.exp(-j / K) - K);
-            C_T = j;
+            REAL C_T = j;
             ft = REAL3.zero;
             if (j > Util.EPSILON)
             {
                 REAL3 dir = math.normalize(displacement);
-                REAL gradC_T = (1 - math.exp(-j / K)) / (2 * math.sqrt(j + K * math.exp(-j / K) - K));
-                gradC_T = 1;
 
-                REAL w_T = particle.invMass * gradC_T * gradC_T;
-                w_T = particle.invMass;
-
-                REAL stiffness_T = 2 * maxShearForce;
-                REAL compliance_T = 1 / stiffness_T;
-                compliance_T = 0;
+                REAL w_T = particle.invMass;
+                REAL compliance_T = 0;
 
                 REAL alpha_T = compliance_T / h2;
                 REAL dlambda_t = -C_T / (w_T + alpha_T);
 
-                REAL shearForceLimit = maxShearForce * (1 - math.exp(-j / K)) * h2;
+                REAL shearForceLimit = maxShearForce;
                 dlambda_t = math.clamp(dlambda_t, -shearForceLimit, shearForceLimit);
-                REAL3 p_t = dlambda_t * gradC_T * dir;
+                REAL3 p_t = dlambda_t * dir;
 
 
                 particle.pos += p_t * particle.invMass;
 
                 ft = p_t / h2;
-
-                //shearDisplacement += j + dlambda_t;
-
                 tangentCoef = bitangentCoef = math.abs(math.length(ft) / math.length(fn));
-                
             }
-
+            F = 0;
             F += fn + ft + fb;
-            dp = particle.pos - particle.prevPos;
-            shearDisplacement += math.length(dp) - (float)math.dot(dp, new float3(0,1,0));
+            dp = particle.pos - q;
+            shearDisplacement += math.length(dp - (float)math.dot(dp, N) * N);
             sbs.particles[index] = particle;
         }
 
+        REAL PressureSinkageConstraintSolve(SoftBodyParticle particle, REAL dt, out float lambda)
+        {
+            lambda = 0;
+            REAL penetration = math.dot(particle.pos - q, N);
+            if (penetration > Util.EPSILON)
+                return 0;
+
+            REAL C = -math.pow(math.abs(penetration), (terrain.GroundMaterial.n + 1) / 2);
+            REAL gradC = math.pow(math.abs(penetration), (terrain.GroundMaterial.n - 1) / 2) * (terrain.GroundMaterial.n + 1) / 2;
+
+            REAL contactSurface = terrain.CellArea;
+            REAL stiffness = 2 * contactSurface * terrain.Stiffness / (terrain.GroundMaterial.n + 1);
+            REAL compliance = (stiffness == 0) ? 0 : 1 / stiffness;
+
+            REAL h2 = dt * dt;
+            REAL alpha = compliance / h2;
+            REAL w1 = particle.invMass * gradC * gradC;
+            REAL dlambda = -C / (w1 + alpha);
+            REAL p = dlambda * gradC;
+            lambda = (float)dlambda;
+            return p;
+        }
         public void VelocitySolve(SoftBodySystem sbs, REAL dt) 
         {
             SoftBodyParticle particle = sbs.particles[index];

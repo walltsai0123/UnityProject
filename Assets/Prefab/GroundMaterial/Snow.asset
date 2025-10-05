@@ -13,14 +13,11 @@ MonoBehaviour:
   m_Name: Snow
   m_EditorClassIdentifier: 
   YoungModulus: 300000
-  k_c: 100550
-  k_phi: 66080
-  n: 1.44
   PoissonRatio: 0
-  cohesion: 6000
-  frictionAngle: 21
+  n: 1.6
+  k_c: 0
+  k_phi: 200000
+  cohesion: 1000
+  frictionAngle: 20
   K: 0.01
-  Nc: 18.92
-  Nq: 8.26
-  Nr: 4.31
-  unitWeight: 500
+  unitWeight: 5000

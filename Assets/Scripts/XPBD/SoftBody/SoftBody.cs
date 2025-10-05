@@ -204,24 +204,10 @@ namespace XPBD
         REAL3 startPos;
 
         [SerializeField,DebugOnly] float f_N = 0;
+        [SerializeField, DebugOnly] float Energy = 0;
+        [SerializeField, DebugOnly] float Energy_H = 0;
+        [SerializeField, DebugOnly] float Energy_D = 0;
 
-        private void OnDrawGizmos()
-        {
-
-            //Gizmos.color = Color.blue;
-            //Gizmos.DrawRay((float3)X_COM, (float3)V_COM - new float3(0, (float)V_COM.y, 0));
-            //if (collisions.Count > 0)
-            //{
-            //    float3 fN = 0.0f;
-            //    foreach (var C in collisions)
-            //        fN += (float3)C.fn;
-
-            //    Gizmos.color = Color.yellow;
-            //    Gizmos.DrawRay((float3)X_COM, fN);
-
-            //    f_N = math.length(fN) / 9.81f;
-            //}
-        }
         public void SetForce(REAL3 F)
         {
             for(int i = 0; i < VerticesNum; i++)
@@ -229,7 +215,6 @@ namespace XPBD
                 var p = particles[i];
                 p.f_ext = F;
                 particles[i] = p;
-                break;
             }
         }
         public void ClearForce()
@@ -240,6 +225,7 @@ namespace XPBD
 
         public override void EndFrame()
         {
+            Energy = (float)GetEnergy();
             X_COM = 0;
             V_COM = 0;
             foreach(var p in particles)
@@ -249,6 +235,15 @@ namespace XPBD
             }
             X_COM *= this.InvMass;
             V_COM *= this.InvMass;
+
+            if (collisions.Count > 0)
+            {
+                float3 fN = 0.0f;
+                foreach (var C in collisions)
+                    fN += (float3)C.F * new float3(0, 1, 0);
+
+                f_N = math.length(fN / Simulation.get.substeps);
+            }
 
             REAL3 lastDir = forwardDir;
             forwardDir = math.normalizesafe(V_COM, lastDir);
@@ -372,6 +367,7 @@ namespace XPBD
         private void OnEnable()
         {
             InitializePhysics();
+            EndFrame();
             Simulation.get.AddBody(this);
         }
 
@@ -686,8 +682,8 @@ namespace XPBD
             {
                 REAL3x3 F = GetDeformationGradient(i);
                 REAL J = math.determinant(F);
-                REAL energyD = 0.5f * mu / (math.lengthsq(F.c0) + math.lengthsq(F.c1) + math.lengthsq(F.c2) - 3f);
-                REAL energyV = 0.5f * lambda / math.pow(J - 1f - gamma, 2f);
+                REAL energyD = 0.5f * mu * (math.lengthsq(F.c0) + math.lengthsq(F.c1) + math.lengthsq(F.c2) - 3f);
+                REAL energyV = 0.5f * lambda * math.pow(J - 1f, 2f);
                 energy_D += energyD * restVolumes[i];
                 energy_V += energyV * restVolumes[i];
                 energy += (energyD + energyV) * restVolumes[i];
@@ -695,11 +691,6 @@ namespace XPBD
                 REAL3x3 PJPF = new REAL3x3(math.cross(F.c1, F.c2), math.cross(F.c2, F.c0), math.cross(F.c0, F.c1));
                 PK1 += mu * F + PJPF * (lambda * (J - 1f) - mu);
             }
-
-            Debug.Log("PK1: " + PK1);
-            Debug.Log("energyD: " + energy_D);
-            Debug.Log("energyV: " + energy_V);
-            Debug.Log("energy: " + energy);
 
             return energy;
 

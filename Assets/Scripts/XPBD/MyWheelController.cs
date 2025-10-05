@@ -18,7 +18,6 @@ namespace XPBD
         [SerializeField] Wheel frontRight;
         [SerializeField] Wheel rearLeft;
         [SerializeField] Wheel rearRight;
-        //[SerializeField] Rigid rack;
 
         [SerializeField] Hinge fLArm;
         [SerializeField] Hinge fRArm;
@@ -35,21 +34,52 @@ namespace XPBD
 
         private Vector3 axis = Vector3.right;
 
+        public float simulatedVertical = 0f;
+        public int startFrame = 600;
+        public int durationFrames = 600;
+        public int turnStartFrame = 600;
+        public int turnDurationFrame = 600;
+        public int currentFrame = 0;
+        public bool isAutoMode = false;
         private void Awake()
         {
             carBody = GetComponent<Rigid>();
-
-            //Hinge[] hinges;
-            //hinges = rack.GetComponents<Hinge>();
-            //Debug.Assert(hinges.Length == 2);
-            //fLHinge = hinges[0];
-            //fRHinge = hinges[1];
         }
-        // Update is called once per frame
         void Update()
         {
-            currentAccel = accelration * Input.GetAxis("Vertical");
-            currentTurnAngle = maxTurnAngle * Input.GetAxis("Horizontal");
+            float simulatedHorizontal = 0;
+            // ¼ÒÀÀ Vertical Input ¬° 1¡A«ùÄò 600 frame
+            if (currentFrame > startFrame && currentFrame <= startFrame + durationFrames)
+            {
+                simulatedVertical = 1f;
+                
+            }
+            else
+            {
+                simulatedVertical = 0f;
+            }
+            if(currentFrame > turnStartFrame && currentFrame <= turnStartFrame + turnDurationFrame && transform.position.z > 135)
+            {
+                simulatedHorizontal = -1;
+                simulatedVertical *= 0.75f;
+            }
+            currentFrame++;
+
+            float vertical = 0;
+            float horizontal = 0;
+            if (isAutoMode)
+            {
+                vertical = simulatedVertical;
+                horizontal = simulatedHorizontal;
+            }
+            else
+            {
+                vertical = Input.GetAxis("Vertical");
+                horizontal = Input.GetAxis("Horizontal");
+            }
+            //float vertical = isAutoMode ? simulatedVertical : Input.GetAxis("Vertical");
+            currentAccel = accelration * vertical;
+            currentTurnAngle = maxTurnAngle * horizontal;
 
             if (Input.GetKey(KeyCode.Space))
                 currentBrakeForce = brakingForce;
@@ -62,25 +92,22 @@ namespace XPBD
             rearLeft.RotateAxis = Axis;
             rearRight.RotateAxis = Axis;
 
-            //frontLeft.MotorTorque = currentAccel;
-            //frontRight.MotorTorque = currentAccel;
-            //rearLeft.MotorTorque = currentAccel;
-            //rearRight.MotorTorque = currentAccel;
             switch(drive)
             {
                 case DriveTrain.FWD:
-                    frontLeft.MotorTorque = currentAccel;
-                    frontRight.MotorTorque = currentAccel;
+                    frontLeft.MotorTorque = currentAccel / 2;
+                    frontRight.MotorTorque = currentAccel / 2;
                     break;
                 case DriveTrain.RWD:
-                    rearLeft.MotorTorque = currentAccel;
-                    rearRight.MotorTorque = currentAccel;
+                    rearLeft.MotorTorque = currentAccel / 2;
+                    rearRight.MotorTorque = currentAccel / 2;
                     break;
                 case DriveTrain.AWD:
-                    frontLeft.MotorTorque = currentAccel;
-                    frontRight.MotorTorque = currentAccel;
-                    rearLeft.MotorTorque = currentAccel;
-                    rearRight.MotorTorque = currentAccel;
+                    var accel = currentAccel / 4;
+                    frontLeft.MotorTorque = accel;
+                    frontRight.MotorTorque = accel;
+                    rearLeft.MotorTorque = accel;
+                    rearRight.MotorTorque = accel;
                     break;
             }
 

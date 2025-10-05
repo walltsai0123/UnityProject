@@ -13,14 +13,11 @@ MonoBehaviour:
   m_Name: Sand
   m_EditorClassIdentifier: 
   YoungModulus: 1
-  k_c: 900
-  k_phi: 1528430
-  n: 1.1
   PoissonRatio: 0.5
+  n: 1.1
+  k_c: 0
+  k_phi: 1200000
   cohesion: 0
   frictionAngle: 28
   K: 0.01
-  Nc: 31.61
-  Nq: 17.81
-  Nr: 13.7
   unitWeight: 16000

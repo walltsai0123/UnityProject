@@ -43,30 +43,36 @@ namespace XPBD
         private void Update()
         {
             rim.Tau += MotorTorque * math.rotate(rim.Rotation, axis);
-
             // Apply brake torque
-            //if (math.length(rim.omega) > Util.EPSILON)
-            //{
-            //    // Check angular velocity direction
-            //    float dir = (math.dot(rim.omega, RotateAxis)) < 0 ? 1f : -1f;
-
-            //    rim.Tau += dir * brakeTorque * RotateAxis;
-            //}
-
-            // Apply brake to veloctiy
             if (math.length(rim.omega) > Util.EPSILON)
             {
-                // Get angular velocity and rotate axis
+                if (math.length(rim.omega) < 0.1f)
+                {
+                    rim.omega = 0;
+                    return;
+                }
+                //Get angular velocity and rotate axis
                 REAL vel = math.length(rim.omega);
                 REAL3 axis = math.normalize(rim.omega);
 
-                // Get final angular veloctity
-                REAL final_vel = vel - brakeTorque;
-                if (final_vel < Util.EPSILON)
-                    final_vel = 0f;
-
-                rim.omega = final_vel * axis;
+                REAL brakeForce = math.clamp(brakeTorque * vel, 0, brakeTorque);
+                rim.Tau += -brakeForce * axis;
             }
+
+            // Apply brake to veloctiy
+            //if (math.length(rim.omega) > Util.EPSILON)
+            //{
+            //    // Get angular velocity and rotate axis
+            //    REAL vel = math.length(rim.omega);
+            //    REAL3 axis = math.normalize(rim.omega);
+            //
+            //    // Get final angular veloctity
+            //    REAL final_vel = vel - brakeTorque;
+            //    if (final_vel < Util.EPSILON)
+            //        final_vel = 0f;
+            //
+            //    rim.omega = final_vel * axis;
+            //}
 
         }
     }

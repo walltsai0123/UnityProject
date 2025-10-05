@@ -107,7 +107,7 @@ MonoBehaviour:
   visualMesh: {fileID: 0}
   tetMesh: {fileID: 0}
   wireframeMaterial: {fileID: 2100000, guid: 6833a623d1b4df54abdfe933a1483a27, type: 2}
-  mu: 67114.1
+  mu: 33557.05
   lambda: 1644295
   showTet: 0
   swapZ: 0
@@ -132,6 +132,10 @@ MonoBehaviour:
     x: 0
     y: 0
     z: 1
+  f_N: 0
+  Energy: 0
+  Energy_H: 0
+  Energy_D: 0
 --- !u!114 &8196280174840191114
 MonoBehaviour:
   m_ObjectHideFlags: 0

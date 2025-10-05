@@ -216,6 +216,7 @@ namespace XPBD
             }
             else
             {
+                //return;
                 SolveElementJob2 solveElementJob = new()
                 {
                     dt = dt,
@@ -383,7 +384,13 @@ namespace XPBD
                 {
                     int id = cluster[clusterStart[clusterID] + i];
                     if (elementConstraints[id].active)
+                    {
                         SolveCoupled(id);
+
+                        //SolveDeviatoric(id);
+                        //SolveVolumetric(id);
+                    }
+                        
                 }
             }
 
@@ -615,7 +622,7 @@ namespace XPBD
             private REAL mu;
             private REAL lambda;
 
-            [NativeDisableParallelForRestriction]
+            //[NativeDisableParallelForRestriction]
             public NativeArray<SoftBodyParticle> particles;
 
             [ReadOnly]
@@ -630,7 +637,12 @@ namespace XPBD
                 for (int index = 0; index < elementConstraints.Length; ++index)
                 {
                     if (elementConstraints[index].active)
-                        SolveCoupled(index);
+                    {
+                        //SolveCoupled(id);
+
+                        SolveDeviatoric(index);
+                        SolveVolumetric(index);
+                    }
                 }
             }
 

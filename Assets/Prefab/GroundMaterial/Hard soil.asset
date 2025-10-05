@@ -13,14 +13,11 @@ MonoBehaviour:
   m_Name: Hard soil
   m_EditorClassIdentifier: 
   YoungModulus: 3e+38
+  PoissonRatio: 0
+  n: 1
   k_c: Infinity
   k_phi: Infinity
-  n: 1
-  PoissonRatio: 0
   cohesion: 0
   frictionAngle: 45
   K: 0
-  Nc: 172
-  Nq: 173
-  Nr: 325.34
   unitWeight: 30000

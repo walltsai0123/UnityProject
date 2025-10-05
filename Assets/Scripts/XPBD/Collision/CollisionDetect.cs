@@ -70,6 +70,23 @@ namespace XPBD
         readonly Timer computeCoefTimer2 = new();
         readonly Timer readbackTimer = new();
 
+        private void Update()
+        {
+            return;
+            if (collisions.Count > 0)
+            {
+                float3 fN = 0.0f;
+                foreach (var C in collisions)
+                    fN += (float3)C.F * new float3(0, 1, 0);
+
+                float3 fCN = 0.0f;
+                foreach (var C in collisions)
+                    fCN += (float3)C.ConstraintForce(1 / 600f) * new float3(0, 1, 0);
+
+                Debug.Log($"f_N {fN}");
+                Debug.Log($"fCN {fCN}");
+            }
+        }
         private void Awake()
         {
             if (collisionCamera == null)

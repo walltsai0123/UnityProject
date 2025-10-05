@@ -3,8 +3,6 @@ using UnityEngine;
 using System;
 using Unity.Mathematics;
 
-
-
 #if USE_FLOAT
 using REAL = System.Single;
 using REAL2 = Unity.Mathematics.float2;
@@ -85,7 +83,19 @@ namespace XPBD
         readonly Timer bodySolveTimer = new();
         readonly Timer collisionTimer = new();
         readonly Timer constraintTimer = new();
-        readonly Timer primitiveTimer = new();  
+        readonly Timer primitiveTimer = new();
+
+        //UPyPlot
+        public float totalForce = 0;
+        public float totalArea = 0;
+        [UPyPlot.UPyPlotController.UPyProbe]
+        public float totalPressure = 0;
+        [UPyPlot.UPyPlotController.UPyProbe]
+        public float totalSinkage = 0;
+        [UPyPlot.UPyPlotController.UPyProbe]
+        public float totalSlipSinkage = 0;
+        [UPyPlot.UPyPlotController.UPyProbe]
+        public float totalShearDisplace = 0;
         public void AddBody(Body b)
         {
             bodies.Add(b);
@@ -121,7 +131,7 @@ namespace XPBD
         {
             if (pause && !stepOnce)
                 return;
-
+            ClearPlotVariable();
             stepTimer.Tic();
             //collisionDetect.CollectCollision(bodies, primitives, dt);
             //collisionDetect.CollectCollision(softBodySystem, myTerrain, dt);
@@ -166,6 +176,8 @@ namespace XPBD
                 collisionDetect.SolveCollision(sdt);
                 constraintTimer.Pause();
 
+
+
                 foreach (Rigid body in rigidbodies)
                     body.PostSolve(sdt);
 
@@ -175,6 +187,8 @@ namespace XPBD
                     C.SolveVelocities(sdt);
 
                 collisionDetect.VelocitySolve(sdt);
+
+                //terrainSystem.TerrainDeformation(softBodySystem, (float)sdt);
             }
             softBodySystem.ClearForce();
             foreach (Rigid body in rigidbodies)
@@ -217,7 +231,15 @@ namespace XPBD
 
             frame++;
         }
-
+        private void ClearPlotVariable()
+        {
+            totalPressure = 0;
+            totalSinkage = 0;
+            totalSlipSinkage = 0;
+            totalShearDisplace = 0;
+            totalForce = 0;
+            totalArea = 0;
+        }
         private void Awake()
         {
             if (get)
@@ -263,6 +285,7 @@ namespace XPBD
         }
         private void Update()
         {
+            QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = (frameLimit) ? targetFPS : -1;
 
             grabber.MoveGrab();

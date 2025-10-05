@@ -8,6 +8,7 @@ using System.Collections;
 using UnityEngine.Rendering;
 using UnityEditor;
 using System.Runtime.ConstrainedExecution;
+using System.IO;
 //using UnityEditor;
 
 namespace XPBD
@@ -27,25 +28,29 @@ namespace XPBD
         public float CellWidth => terrainWidth / (heightmapWidth - 1);
         public float CellArea => CellWidth * CellWidth;
 
-        [DebugOnly,SerializeField, Min(0)]private float m_BrushOpacity = 0.1f;
-        [DebugOnly, SerializeField] private float m_BrushSize = 0.01f;
-        float2 m_brushUV;
-        public Texture2D brushTexture;
-
         [SerializeField] private RenderTexture originalHeightmap;
         [SerializeField] float maxContactTime = 10f;
         [SerializeField] float minContactTime = 0.05f;
         [SerializeField] float contactK = 0.1f;
-        [SerializeField] float L_0 = 0.3f;
+        //[SerializeField] float L_0 = 0.3f;
         [SerializeField] int neighbourSearch = 2;
         [SerializeField] int bumpOffset = 5;
 
         [Header("Footprint Settings")]
+        [SerializeField] bool printConvexHull = false;
+        [SerializeField] bool convexHull = true;
         [SerializeField] bool useSinkage = true;
         [SerializeField] bool useSlipSinkage = true;
         [SerializeField] bool printFootPrint = true;
         [SerializeField] bool printLaterelBumps = true;
+        [SerializeField] bool directionBump = true;
         [SerializeField] Material footprintMat;
+        [DebugOnly, SerializeField, Min(0)] private float m_BrushOpacity = 0.1f;
+        [DebugOnly, SerializeField] private float m_BrushSize = 0.01f;
+        float2 m_brushUV;
+        [DebugOnly] public Texture2D brushTexture;
+
+        Dictionary<int2, float> gridDisplacements = new();
 
         public GroundMaterial GroundMaterial => groundMaterial;
         [SerializeField] GroundMaterial groundMaterial;
@@ -55,37 +60,38 @@ namespace XPBD
         bool filter = true;
         [SerializeField] Material gaussianMaterial;
 
+        [Header("Verbose")]
+        [SerializeField] float bumpTime = 0;
+        [SerializeField] float bumpTimeAvg = 0;
+        int bumpFrames = 0;
+
         public List<MyCollision> collisions = new List<MyCollision>();
 
-        [DebugOnly] public float maxOpacity = 0;
-
-        [DebugOnly] public float averageOpacity = 0;
         int times = 0;
         #region Terrain Paint
         private IEnumerator PaintFootPrint()
         {
+            if (gridDisplacements.Count <= 0)
+            {
+                yield return null;
+            }
+            GridDisplacements2BrushTexture();
             // Get the current BrushTransform under the mouse position relative to the Terrain
             BrushTransform brushXform = TerrainPaintUtility.CalculateBrushTransform(Terrain, m_brushUV, m_BrushSize, 0);
 
-            // Get the PaintContext for the current BrushTransform. This has a sourceRenderTexture from which to read existing Terrain texture data
-            // and a destinationRenderTexture into which to write new Terrain texture data
+            // Get the PaintContext for the current BrushTransform. This has a sourceRenderTexture from which to read existing Terrain brushTexture data
+            // and a destinationRenderTexture into which to write new Terrain brushTexture data
             PaintContext paintContext = TerrainPaintUtility.BeginPaintHeightmap(Terrain, brushXform.GetBrushXYBounds());
-            //PaintContext controlContext = GatherAlphaMap(brushXform);
+
             // Get the built-in painting Material reference
-            Material mat;// = TerrainPaintUtility.GetBuiltinPaintMaterial();
-            mat = footprintMat;
-            // Bind the current brush texture
+            Material mat = footprintMat;
+            // Bind the current brush brushTexture
             mat.SetTexture("_BrushTex", brushTexture);
-            //mat.SetTexture("_Control", controlContext.sourceRenderTexture);
-            // Bind the tool-specific shader properties
-            //mat.SetVector("groundMaterial0", groundMaterialData0.xyxx);
 
             var opacity = m_BrushOpacity;
-            //opacity /= (terrainData.heightmapScale.y);
-            //opacity *= PaintContext.kNormalizedHeightScale;
             mat.SetVector("_BrushParams", new Vector4(opacity, 0.0f, 0.0f, 0.0f));
             mat.SetFloat("terrainHeight", terrainHeight);
-            // Setup the material for reading from/writing into the PaintContext texture data. This is a necessary step to setup the correct shader properties for appropriately transforming UVs and sampling textures within the shader
+            // Setup the material for reading from/writing into the PaintContext brushTexture data. This is a necessary step to setup the correct shader properties for appropriately transforming UVs and sampling textures within the shader
             TerrainPaintUtility.SetupTerrainToolMaterialProperties(paintContext, brushXform, mat);
             // Render into the PaintContext's destinationRenderTexture using the built-in painting Material - the id for the Raise/Lower pass is 0.
             Graphics.Blit(paintContext.sourceRenderTexture, paintContext.destinationRenderTexture
@@ -103,44 +109,79 @@ namespace XPBD
             }
 
             PaintContext.ApplyDelayedActions();
-            //TerrainPaintUtility.ReleaseContextResources(controlContext);
 
             yield return null;
 
-            PaintContext GatherAlphaMap(BrushTransform brushTransform)
+            void GridDisplacements2BrushTexture()
             {
-                Material copyTerrainLayerMaterial = footprintMat;
 
-                int alphaMapResolution = terrainData.alphamapResolution;
-                PaintContext ctx = PaintContext.CreateFromBounds(Terrain, brushTransform.GetBrushXYBounds(), alphaMapResolution, alphaMapResolution);
-                ctx.CreateRenderTargets(RenderTextureFormat.ARGB32);
+                // Create brush texture, Red: Lower, Green: Raise
+                brushTexture = brushTexture != null ? brushTexture : new Texture2D(1, 1, TextureFormat.RG16, -1, false);
+                var gridHeights = gridDisplacements;
+                if (gridHeights.Count == 0)
+                {
+                    m_brushUV = 0f;
+                    m_BrushSize = 0f;
+                    m_BrushOpacity = 0f;
+                    return;
+                }
+                (int2 localMin, int2 localMax) = gridHeights.Aggregate(
+                    (localMin: gridHeights.First().Key, localMax: gridHeights.First().Key),
+                    (acc, next) => (math.min(acc.localMin, next.Key), math.max(acc.localMax, next.Key))
+                );
+                int2 centerGrid = (localMin + localMax) / 2;
+                int brushResolution = math.cmax(localMax - localMin);
+                brushResolution += (brushResolution % 2) == 1 ? 4 : 3;
+                brushResolution = math.max(65, brushResolution);
 
-                ctx.Gather(
-                    t => terrainData.alphamapTextures[0],
-                    new Color(0, 0, 0, 0),
-                    copyTerrainLayerMaterial, 1);
-                return ctx;
+                brushTexture.Reinitialize(brushResolution, brushResolution);
+
+                Color32[] colors = new Color32[brushResolution * brushResolution];
+                float maxDisplacement = gridHeights.Values.Max();
+                maxDisplacement = gridHeights.Values.Aggregate(
+                    (max, next) =>
+                    (math.abs(max) < math.abs(next) ? math.abs(next) : math.abs(max))
+                );
+                foreach (var height in gridHeights)
+                {
+                    int2 grid0 = centerGrid - brushResolution / 2;
+                    int2 uv = height.Key - grid0;
+
+                    Color32 maxColor = (height.Value < 0) ? Color.red : Color.green;
+                    Color32 black = Color.black;
+                    colors[uv.x + uv.y * brushResolution] = Color32.Lerp(black, maxColor, math.abs(height.Value) / maxDisplacement);
+                }
+                brushTexture.SetPixels32(colors);
+                brushTexture.Apply();
+
+                m_brushUV = ((float2)(localMin + localMax) / 2f / new float2((heightmapWidth - 1), (heightmapHeight - 1)));
+                m_BrushSize = Grid2WorldGrid(brushResolution).x;
+                m_BrushOpacity = maxDisplacement;
+
+                gridDisplacements.Clear();
+                return;
             }
         }
         public void PaintFootPrints(SoftBodySystem sbs, float dt)
         {
             if (!printFootPrint)
                 return;
-            // Create brush texture, Red: Lower, Green: Raise
-            brushTexture = brushTexture != null ? brushTexture : new Texture2D(1,1, TextureFormat.RG16, -1, false);
+
+            float plotTotalForce = 0;
+            float plotTotalArea = 0;
+            float plotTotalSinkage = 0;
+            float plotTotalSlipSinkage = 0;
+            float plotTotalShearDisplace = 0;
+
+            HashSet<int2> gridPoints = new HashSet<int2>();
+            HashSet<int2> convexGridPoints = new HashSet<int2>();
+
             int bodyCount = sbs.softBodies.Count;
-            if( bodyCount == 0 )
+            if (bodyCount == 0)
             {
                 Debug.Log("No soft bodies");
                 return;
             }
-
-            // The min and max grid index
-            int2 minGrid = new(heightmapWidth, heightmapHeight);
-            int2 maxGrid = new(-1, -1);
-
-            Dictionary<int2, float> gridDisplacements = new();
-            Dictionary<int2, float> gridBumpDisplacements = new();
             // grid cell area
             float lenghtCellX = CellWidth;
             float lenghtCellZ = CellWidth;
@@ -150,83 +191,62 @@ namespace XPBD
             {
                 SoftBody softBody = sbs.softBodies[i];
 
+                float totalMass = 0;
                 float totalForce = 0;
                 float totalFriction = 0;
                 float totalVelocity = 0;
                 float totalShearDisplacement = 0;
+                float3 centerVel = 0;
                 HashSet<int2> grids = new();
                 HashSet<int2> neighborGrids = new();
-
                 var bodyCollisions = softBody.collisions;
                 if (bodyCollisions.Count == 0)
                     continue;
 
-                foreach(var collision in bodyCollisions)
+                foreach (var collision in bodyCollisions)
                 {
-                    if(!(collision.terrain == this)) continue;
+                    if (!(collision.terrain == this)) continue;
                     sbs.GetParticleBodyAndIndex(collision.index, out _, out int localIndex);
 
                     // bool hasCollided = collision.lambda > 0;
                     float3 gridPoint = WorldPos2Grid((float3)collision.q);
                     int2 grid = new((int)gridPoint.x, (int)gridPoint.z);
 
-                    float3 normalForce = math.dot(new float3(0, 1, 0), (float3)collision.F) * new float3(0, 1, 0);
-                    float3 frictionForce = (float3)collision.F - normalForce;
-                    float3 effectiveVel = (float3)softBody.particles[localIndex].vel;
+                    float3 contactForce = (float3)collision.F / Simulation.get.substeps;
+                    float3 normalForce = math.dot(new float3(0, 1, 0), (float3)contactForce) * new float3(0, 1, 0);
+                    float3 frictionForce = (float3)contactForce - normalForce;
+                    float3 effectiveVel = (float3)(softBody.particles[localIndex].vel * softBody.particles[localIndex].Mass);
 
                     grids.Add(grid);
-                    totalForce += math.max(0,math.dot(new float3(0, 1, 0), (float3)collision.F));
+
+                    centerVel += effectiveVel;
+                    totalMass += (float)softBody.particles[localIndex].Mass;
+                    totalForce += math.max(0, math.length(contactForce));
                     totalFriction += math.length(frictionForce);
                     totalVelocity += math.length((float3)(softBody.particles[localIndex].vel));
-                    totalShearDisplacement += (float)collision.shearDisplacement;
-                    //float F_weight = Simulation.get.gravity.y
+                    //totalShearDisplacement += (float)collision.shearDisplacement;
 
-                    minGrid = math.min(minGrid, grid);
-                    maxGrid = math.max(maxGrid, grid);
+                    float3 contactDisplace = (float3)(softBody.particles[localIndex].pos - collision.q);
+                    float3 contactDisplaceN = math.dot(contactDisplace, (float3)collision.N) * (float3)collision.N;
+                    float3 contactDisplaceT = contactDisplace - contactDisplaceN;
+
+                    totalShearDisplacement += math.length(contactDisplaceT) * (float)softBody.particles[localIndex].Mass;
                 }
 
-                if(grids.Count == 0)
+                if (grids.Count == 0)
                     continue;
 
+                //gridPoints.UnionWith(grids);
+
+                centerVel /= totalMass;
                 totalVelocity /= bodyCollisions.Count;
-                FillConvexHull(ComputeConvexHull(grids), grids);
-                // Calculate bump
+                totalShearDisplacement /= totalMass;
 
-                // Get local search area
-                (int2 localMin, int2 localMax) = grids.Aggregate(
-                    (localMin: maxGrid, localMax: minGrid),
-                    (acc, next) => (math.min(acc.localMin, next), math.max(acc.localMax, next))
-                );
-                // Search neighbour bump grid
-                for (int zi = localMin.y - bumpOffset; zi <= localMax.y + bumpOffset; ++zi)
-                {
-                    for(int xi = localMin.x - bumpOffset; xi <= localMax.x + bumpOffset; ++xi)
-                    {
-                        int2 bumpGrid = new (xi, zi);
+                if (convexHull)
+                    FillConvexHull(ComputeConvexHull(grids), grids);
 
-                        // If grid has no displacement, it is a potential bump grid
-                        if(!grids.Contains(bumpGrid))
-                        {
-                            // B. Only checking adjacent cells - increasing this would allow increasing the area of the bump
-                            for (int zi_sub = -neighbourSearch; zi_sub <= neighbourSearch; zi_sub++)
-                            {
-                                for (int xi_sub = -neighbourSearch; xi_sub <= neighbourSearch; xi_sub++)
-                                {
-                                    int2 subGrid = bumpGrid + new int2(xi_sub, zi_sub);
-                                    bool sameGrid = xi_sub + zi_sub == 0;
-                                    // C. If there is a contact point around the cell
-                                    if (grids.Contains(subGrid) && !sameGrid)
-                                    {
-                                        neighborGrids.Add(bumpGrid);
-                                        break;
-                                    }
-                                }
-                                if (neighborGrids.Contains(bumpGrid))
-                                    break;
-                            }
-                        }
-                    }
-                }
+                
+                //convexGridPoints.UnionWith(grids);
 
                 // Set respond time according to velocity;
                 float bodyContactTime = maxContactTime / (1 + contactK * totalVelocity);
@@ -234,62 +254,213 @@ namespace XPBD
                 float deformRate = dt / bodyContactTime;
 
                 // Calculate terrain deformation per cell per frame
-                // dL = gridPressure * L0 / youngModulus
-                float youngModulus = Mathf.Max(groundMaterial.YoungModulus, 1e-3f);
                 float A_contact = areaCell * grids.Count;
-                float gridPressure = totalForce / (areaCell * grids.Count);
-                float gridShear = totalFriction / (areaCell * grids.Count);
-                float sinkage = gridPressure * L_0 / youngModulus;
+                float gridPressure = totalForce / A_contact;
+                float sinkage = (gridPressure) / Stiffness;
+                if (sinkage > 1)
+                    sinkage = math.pow(sinkage, 1 / groundMaterial.n);
 
-                sinkage = math.pow((gridPressure) / Stiffness, 1 / groundMaterial.n);
                 float shearDisplace = (float)totalShearDisplacement;
-                float slipSinkage = GetSlipSinkage(sinkage, gridPressure, shearDisplace);
+                float slipSinkage = GetSlipSinkage(sinkage, gridPressure, shearDisplace, A_contact);
                 float sinkagePerFrame = 0;
-                sinkagePerFrame += (useSinkage) ? sinkage : 0;
-                if (useSlipSinkage)
-                    sinkagePerFrame += slipSinkage;
-
-                // Calculate terrain vertical accumulation per cell per frame
-                // V1 - V1c = A_contact * dL * (2 * poissonR)
-                float poissonR = groundMaterial.PoissonRatio;
-                float lateralBump = (2 * poissonR) * sinkagePerFrame * A_contact  / (areaCell * neighborGrids.Count);
-                float lateralBumpPerCellPerFrame = lateralBump * deformRate;
+                sinkagePerFrame += useSinkage ? sinkage : 0;
+                sinkagePerFrame += useSlipSinkage ? slipSinkage : 0;
+                sinkagePerFrame *= deformRate;
                 foreach (var grid in grids)
                 {
                     if (!gridDisplacements.ContainsKey(grid))
                         gridDisplacements.Add(grid, 0);
-                    gridDisplacements[grid] -= sinkagePerFrame * deformRate;
-                }
-                foreach (var neighbourGrid in neighborGrids)
-                {
-                    if (!printLaterelBumps)
-                        break;
-                    if (!gridDisplacements.ContainsKey(neighbourGrid))
-                        gridDisplacements.Add(neighbourGrid, 0);
-                    gridDisplacements[neighbourGrid] += lateralBumpPerCellPerFrame;
+                    gridDisplacements[grid] -= sinkagePerFrame;
                 }
 
+
+                // Calculate terrain vertical accumulation per cell per frame
+                // V1 - V1c = A_contact * dL * (2 * poissonR)
+                float poissonR = groundMaterial.PoissonRatio;
+                float lateralBump = (2 * poissonR) * sinkagePerFrame * A_contact / (areaCell * neighborGrids.Count);
+                float lateralBumpPerCellPerFrame = lateralBump;
+                float lateralBumpTotalHeights = (2 * poissonR) * sinkagePerFrame * A_contact / areaCell;
+
+                Timer bumpTimer = new();
+                bumpTimer.Tic();
+                GetBumpDisplacement(grids, centerVel, lateralBumpTotalHeights);
+                bumpTimer.Toc();
+
+                bumpFrames++;
+                bumpTime += bumpTimer.Duration() * 0.001f;
+                bumpTimeAvg = bumpTime / bumpFrames;
+
+                plotTotalForce += totalForce;
+                plotTotalArea += A_contact;
+                plotTotalSinkage += sinkage * A_contact;
+                plotTotalSlipSinkage += slipSinkage * A_contact;
+                plotTotalShearDisplace += shearDisplace;
+
             }
+
 
             if (gridDisplacements.Count <= 0)
             {
                 return;
             }
-            GridDisplacements2BrushTexture(gridDisplacements, brushTexture, out m_brushUV, out m_BrushSize, out m_BrushOpacity);
-            maxOpacity = math.max(maxOpacity, m_BrushOpacity);
+            if (printConvexHull)
+            {
+                printConvexHull = false;
 
-            float totalOpacity = averageOpacity * times + m_BrushOpacity;
-            averageOpacity = totalOpacity / ++times;
-            StartCoroutine(PaintFootPrint());
+                GridsToTexture(gridPoints, "1");
+                GridsToTexture(convexGridPoints, "2");
+            }
 
-            float GetSlipSinkage(float sinkage, float pressure, float shearDisplace)
+            Simulation.get.totalForce += plotTotalForce;
+            Simulation.get.totalArea += plotTotalArea;
+            if (plotTotalArea == 0)
+                Simulation.get.totalPressure += 0;
+            else
+                Simulation.get.totalPressure += plotTotalForce / plotTotalArea;
+
+            Simulation.get.totalSinkage += plotTotalSinkage;
+            Simulation.get.totalSlipSinkage += plotTotalSlipSinkage;
+            Simulation.get.totalShearDisplace += plotTotalShearDisplace;
+
+            void GetBumpDisplacement(HashSet<int2> grids, float3 centerVel, float bumpVolume)
+            {
+                if (!printLaterelBumps)
+                    return;
+
+                float totalWeight = 0;
+                Dictionary<int2, float> neighborGridWeights = new();
+
+                // Get local search area
+                (int2 localMin, int2 localMax) = grids.Aggregate(
+                    (localMin: grids.First(), localMax: grids.First()),
+                    (acc, next) => (math.min(acc.localMin, next), math.max(acc.localMax, next))
+                );
+                int2 centerGrid = grids.Aggregate(int2.zero, (acc, next) => acc + next) / grids.Count;
+
+                float3 velDir = math.normalize(centerVel);
+                bumpOffset = neighbourSearch;
+                // Search neighbour bump grid
+                for (int zi = localMin.y - bumpOffset; zi <= localMax.y + bumpOffset; ++zi)
+                {
+                    for (int xi = localMin.x - bumpOffset; xi <= localMax.x + bumpOffset; ++xi)
+                    {
+                        int2 bumpGrid = new(xi, zi);
+                        float3 gridDir = (bumpGrid - centerGrid).xxy;
+                        gridDir.y = 0;
+                        float distance = math.length(gridDir);
+                        gridDir = math.normalizesafe(gridDir, 0);
+                        // If grid has no displacement, it is a potential bump grid
+                        if (!grids.Contains(bumpGrid))
+                        {
+                            // B. Only checking adjacent cells - increasing this would allow increasing the area of the bump
+                            for (int zi_sub = -neighbourSearch; zi_sub <= neighbourSearch; zi_sub++)
+                            {
+                                for (int xi_sub = -neighbourSearch; xi_sub <= neighbourSearch; xi_sub++)
+                                {
+                                    int2 subGrid = bumpGrid + new int2(xi_sub, zi_sub);
+
+                                    // Skip if same grid
+                                    if (xi_sub + zi_sub == 0)
+                                        continue;
+
+                                    // C. If there is a contact point around the cell
+                                    if (grids.Contains(subGrid))
+                                    {
+                                        float weight = 1;
+                                        if (directionBump)
+                                        {
+                                            //float distance = Mathf.Sqrt(xi_sub * xi_sub + zi_sub * zi_sub);
+                                            float offset = 2;
+                                            float dist_offset = math.max(0, distance - offset);
+                                            dist_offset = Mathf.Sqrt(xi_sub * xi_sub + zi_sub * zi_sub);
+                                            float sigma = (neighbourSearch + 1) / 2.447f;
+                                            float distanceWeight = Mathf.Exp(-dist_offset * dist_offset / (2 * sigma * sigma));
+                                            //distanceWeight = 1;
+                                            //gridDir = math.normalizesafe(new float3(-xi_sub, 0, zi_sub), 0);
+                                            float alignWeight = math.dot(velDir, gridDir);
+                                            alignWeight = math.max(alignWeight, 0);
+                                            weight = distanceWeight * alignWeight;
+                                            //totalWeight += weight;
+                                        }
+
+                                        if (neighborGridWeights.ContainsKey(bumpGrid))
+                                        {
+                                            if(weight < neighborGridWeights[bumpGrid])
+                                                neighborGridWeights[bumpGrid] = weight;
+                                        }
+                                        else
+                                        {
+                                            neighborGridWeights.Add(bumpGrid, weight);
+                                        }
+                                        //break;
+                                    }
+                                }
+                                //if (neighborGridWeights.ContainsKey(bumpGrid))
+                                //    break;
+                            }
+                        }
+                    }
+                }
+                totalWeight = neighborGridWeights.Values.Sum(x => x);
+                foreach (var neighbourGrid in neighborGridWeights)
+                {
+                    if (!gridDisplacements.ContainsKey(neighbourGrid.Key))
+                        gridDisplacements.Add(neighbourGrid.Key, 0);
+
+                    float lateralBumpPerCellPerFrame = bumpVolume * neighbourGrid.Value / totalWeight;
+                    gridDisplacements[neighbourGrid.Key] += lateralBumpPerCellPerFrame;
+                }
+            }
+            void GetBumpDisplacement2(HashSet<int2> grids, float3 centerVel, float bumpVolume)
+            {
+                HashSet<int2> neighborGrids = new HashSet<int2>();
+                Dictionary<int2, float> distanceMap = new Dictionary<int2, float>();
+                Queue<(int2 cell, float dist)> queue = new Queue<(int2, float)>();
+
+                foreach (var grid in grids)
+                {
+                    queue.Enqueue((grid, 0f));
+                    distanceMap[grid] = 0f;
+                }
+
+                int2[] directions = new int2[]
+                {
+                    new int2(1,0), new int2(-1,0), new int2(0,1), new int2(0,-1),
+                    new int2(1,1), new int2(-1,-1), new int2(1,-1), new int2(-1,1)
+                };
+                
+                while (queue.Count > 0)
+                {
+                    var (current, dist) = queue.Dequeue();
+
+                    foreach (var dir in directions)
+                    {
+                        int2 neighbor = current + dir;
+                        float newDist = math.distance((float2)neighbor, (float2)current); // or accumulate
+
+                        if (grids.Contains(neighbor)) continue; // skip original collision
+                        if (newDist > neighbourSearch) continue;
+
+                        if (!distanceMap.ContainsKey(neighbor) || newDist < distanceMap[neighbor])
+                        {
+                            distanceMap[neighbor] = newDist;
+                            neighborGrids.Add(neighbor);
+                            queue.Enqueue((neighbor, newDist));
+                        }
+                    }
+                }
+            }
+            float GetSlipSinkage(float sinkage, float pressure, float shearDisplace, float contactArea)
             {
                 float zj = 0;
 
-                float cohesion = 1.3f * groundMaterial.cohesion * groundMaterial.Nc;
+                float cohesion = groundMaterial.cohesion * groundMaterial.Nc;
                 float surcharge = groundMaterial.Nq * sinkage;
-                float weight = 0.4f * groundMaterial.Nr * lenghtCellX;
+                float weight = 0.5f * groundMaterial.Nr * Mathf.Sqrt(contactArea);
                 float maxShear = GetMaxShear(pressure);
+
+                float capacity = cohesion + (surcharge + weight) * groundMaterial.unitWeight;
+                //Debug.Log($"{cohesion} {surcharge} {weight} {capacity}");
 
                 zj = shearDisplace * (pressure - cohesion - (surcharge + weight) * groundMaterial.unitWeight)
                     / (maxShear + groundMaterial.unitWeight * groundMaterial.Nq * shearDisplace);
@@ -336,7 +507,7 @@ namespace XPBD
             }
             void FillConvexHull(List<int2> convexHull, HashSet<int2> filledPoints)
             {
-                if(convexHull.Count == 0) return;
+                if (convexHull.Count == 0) return;
                 // 找到 Y 軸的最小與最大範圍
                 int minY = convexHull.Min(p => p.y);
                 int maxY = convexHull.Max(p => p.y);
@@ -372,252 +543,62 @@ namespace XPBD
                     }
                 }
             }
-            void GridDisplacements2BrushTexture(
-                Dictionary<int2, float> gridHeights, Texture2D texture, out float2 brushUV, out float brushSize, out float brushOpacity)
+
+            void GridsToTexture(HashSet<int2> gridPoints, string name = "")
             {
-                if(gridHeights.Count == 0)
-                {
-                    brushUV = 0f;
-                    brushSize = 0f;
-                    brushOpacity = 0f;
-                    return;
-                }
-                (int2 localMin, int2 localMax) = gridHeights.Aggregate(
-                    (localMin: maxGrid, localMax: minGrid),
-                    (acc, next) => (math.min(acc.localMin, next.Key), math.max(acc.localMax, next.Key))
-                );
-                int2 centerGrid = (localMin + localMax) / 2;
-                int brushResolution = math.cmax(localMax - localMin);
-                brushResolution += (brushResolution % 2) == 1 ? 4 : 3;
-                brushResolution = math.max(65, brushResolution);
 
-                texture.Reinitialize(brushResolution, brushResolution);
-                
-                Color32[] colors = new Color32[brushResolution * brushResolution];
-                float maxDisplacement = gridHeights.Values.Max();
-                maxDisplacement = gridHeights.Values.Aggregate(
-                    (max, next) =>
-                    (math.abs(max) < math.abs(next) ? math.abs(next) : math.abs(max))
-                );
-                foreach (var height in gridHeights)
-                {
-                    int2 grid0 = centerGrid - brushResolution / 2;
-                    int2 uv = height.Key - grid0;
-
-                    Color32 maxColor = (height.Value < 0) ? Color.red : Color.green;
-                    Color32 black = Color.black;
-                    colors[uv.x + uv.y * brushResolution] = Color32.Lerp(black, maxColor, math.abs(height.Value) / maxDisplacement);
-                }
-                texture.SetPixels32(colors);
-                texture.Apply();
-
-                brushUV = ((float2)(localMin + localMax) / 2f / new float2((heightmapWidth - 1), (heightmapHeight - 1)));
-                brushSize = Grid2WorldGrid(brushResolution).x;
-                brushOpacity = maxDisplacement;
-
-                return;
-            }
-        }
-        public void PaintFootPrints2(SoftBodySystem sbs, float dt)
-        {
-            if (!printFootPrint)
-                return;
-            // Create brush texture, Red: Lower, Green: Raise
-            brushTexture = brushTexture != null ? brushTexture : new Texture2D(1, 1, TextureFormat.RG16, -1, false);
-            int bodyCount = sbs.softBodies.Count;
-            if (bodyCount == 0)
-            {
-                Debug.Log("No soft bodies");
-                return;
-            }
-            Dictionary<int2, float> gridDisplacements = new();
-            // grid cell area
-            float lengthCellX = terrainWidth / (heightmapWidth - 1);
-            float lengthCellZ = terrainLength / (heightmapHeight - 1);
-            float areaCell = lengthCellX * lengthCellZ;
-
-            foreach (var collision in collisions)
-            {
-                sbs.GetParticleBodyAndIndex(collision.index, out SoftBody body, out int localIndex);
-
-                float3 gridPoint = WorldPos2Grid((float3)collision.q);
-                int2 grid = new((int)gridPoint.x, (int)gridPoint.z);
-
-                float3 N = new float3(0, 1, 0);
-                float3 normalForce = math.dot(new float3(0, 1, 0), (float3)collision.F) * new float3(0, 1, 0);
-                float3 frictionForce = (float3)collision.F - normalForce;
-
-                float totalVelocity = math.max(0, math.length((float3)(body.particles[localIndex].vel)));
-                // Set respond time according to velocity;
-                float bodyContactTime = minContactTime + (maxContactTime - minContactTime) * math.exp(-totalVelocity / contactK);
-                bodyContactTime = math.lerp(minContactTime, maxContactTime, math.exp(-totalVelocity / contactK));
-                float deformRate = dt / bodyContactTime;
-                // Calculate terrain deformation per cell per frame
-                // dL = gridPressure * L0 / youngModulus
-                float youngModulus = Mathf.Max(groundMaterial.YoungModulus, 1e-3f);
-                float A_contact = areaCell;
-                float gridPressure = math.length(normalForce) / A_contact;
-                float gridShear = math.length(frictionForce) / A_contact;
-                float sinkage = gridPressure * L_0 / youngModulus;
-                sinkage = math.pow((gridPressure) / Stiffness, 1 / groundMaterial.n);
-
-                float shearDisplace = (float)collision.shearDisplacement;
-                float slipSinkage = GetSlipSinkage(sinkage, gridPressure, shearDisplace);
-                //slipSinkage = 0;
-                float sinkagePerFrame = 0;
-                sinkagePerFrame += (useSinkage) ? sinkage : 0; 
-                if (useSlipSinkage)
-                    sinkagePerFrame += slipSinkage;
-                if (!gridDisplacements.ContainsKey(grid))
-                    gridDisplacements.Add(grid,0);
-                gridDisplacements[grid] -= sinkagePerFrame * deformRate;
-
-                if(collision.index==0)
-                {
-                    Debug.Log($"shearDisplace {shearDisplace}");
-                    Debug.Log($"slipSinkage {slipSinkage}");
-                    Debug.Log($"sinkage {sinkage}");
-                }
-            }
-
-            if (gridDisplacements.Count <= 0)
-            {
-                return;
-            }
-
-            GetBumbDisplacement();
-
-            GridDisplacements2BrushTexture(gridDisplacements, brushTexture, out m_brushUV, out m_BrushSize, out m_BrushOpacity);
-            
-            StartCoroutine(PaintFootPrint());
-
-            float GetSlipSinkage(float sinkage, float pressure, float shearDisplace)
-            {
-                float zj = 0;
-
-                float cohesion = 1.3f * groundMaterial.cohesion * groundMaterial.Nc;
-                float surcharge = groundMaterial.Nq * sinkage;
-                float weight = 0.4f * groundMaterial.Nr * lengthCellX * groundMaterial.unitWeight;
-                float maxShear = GetMaxShear(pressure);
-
-                zj = shearDisplace * (pressure - cohesion - (surcharge + weight))
-                    / (maxShear + shearDisplace * groundMaterial.Nq);
-                zj = math.max(0, zj);
-                return zj;
-            }
-
-            void GetBumbDisplacement()
-            {
-                if(!printLaterelBumps)
-                    return;
-                foreach (var grid in gridDisplacements.Keys.ToList())
-                {
-                    var value = gridDisplacements[grid];
-
-                    int subGridSize = 2 * neighbourSearch + 1;
-                    float[,] gridWeights = new float[subGridSize, subGridSize];
-                    float totalWeight = 0f;
-                    for (int xi = 0; xi < subGridSize; xi++)
-                        for (int zi = 0; zi < subGridSize; zi++)
-                        {
-                            int2 dxdy = new int2(xi - neighbourSearch, zi - neighbourSearch);
-                            float dist = math.length(dxdy);
-                            gridWeights[xi, zi] = dist;
-                            totalWeight += dist;
-                        }
-
-                    float[,] subGridDisplacements = new float[subGridSize, subGridSize];
-                    for (int xi = -neighbourSearch; xi <= neighbourSearch; xi++)
-                    {
-                        for (int zi = -neighbourSearch; zi <= neighbourSearch; zi++)
-                        {
-                            int2 currentGrid = grid + new int2(xi, zi);
-
-                            // Out of range exception
-                            if (currentGrid.x < 0 || currentGrid.x >= heightmapWidth || currentGrid.y < 0 || currentGrid.y >= heightmapHeight)
-                                continue;
-
-                            int2 subGrid = new int2(xi, zi) + neighbourSearch;
-
-                            gridDisplacements.TryGetValue(currentGrid, out float tryValue);
-                            if (tryValue >= 0)
-                                subGridDisplacements[subGrid.x, subGrid.y] = -value * gridWeights[subGrid.x, subGrid.y];
-                            else
-                                totalWeight -= gridWeights[subGrid.x, subGrid.y];
-                        }
-                    }
-                    for (int xi = -neighbourSearch; xi <= neighbourSearch; xi++)
-                    {
-                        for (int zi = -neighbourSearch; zi <= neighbourSearch; zi++)
-                        {
-                            int2 currentGrid = grid + new int2(xi, zi);
-
-                            // Out of range exception
-                            if (currentGrid.x < 0 || currentGrid.x >= heightmapWidth || currentGrid.y < 0 || currentGrid.y >= heightmapHeight)
-                                continue;
-
-                            int2 subGrid = new int2(xi, zi) + neighbourSearch;
-
-                            if (subGridDisplacements[subGrid.x, subGrid.y] > 0)
-                            {
-                                if (!gridDisplacements.ContainsKey(currentGrid))
-                                    gridDisplacements.Add(currentGrid, 0);
-                                gridDisplacements[currentGrid] += subGridDisplacements[subGrid.x, subGrid.y] / totalWeight;
-                            }
-                        }
-                    }
-                }
-            }
-
-            void GridDisplacements2BrushTexture(
-                Dictionary<int2, float> gridHeights, Texture2D texture, out float2 brushUV, out float brushSize, out float brushOpacity)
-            {
+                var gridHeights = gridPoints;
                 if (gridHeights.Count == 0)
                 {
-                    brushUV = 0f;
-                    brushSize = 0f;
-                    brushOpacity = 0f;
+                    m_brushUV = 0f;
+                    m_BrushSize = 0f;
+                    m_BrushOpacity = 0f;
                     return;
                 }
                 (int2 localMin, int2 localMax) = gridHeights.Aggregate(
-                    (localMin: gridHeights.First().Key, localMax: gridHeights.First().Key),
-                    (acc, next) => (math.min(acc.localMin, next.Key), math.max(acc.localMax, next.Key))
+                    (localMin: gridHeights.First(), localMax: gridHeights.First()),
+                    (acc, next) => (math.min(acc.localMin, next), math.max(acc.localMax, next))
                 );
                 int2 centerGrid = (localMin + localMax) / 2;
                 int brushResolution = math.cmax(localMax - localMin);
                 brushResolution += (brushResolution % 2) == 1 ? 4 : 3;
                 brushResolution = math.max(65, brushResolution);
 
-                texture.Reinitialize(brushResolution, brushResolution);
+                //brushTexture.Reinitialize(brushResolution, brushResolution);
+                Texture2D template = new Texture2D(brushResolution, brushResolution, TextureFormat.RGB24, -1, false);
 
                 Color32[] colors = new Color32[brushResolution * brushResolution];
-                float maxDisplacement = gridHeights.Values.Max();
-                maxDisplacement = gridHeights.Values.Aggregate(
-                    (max, next) =>
-                    (math.abs(max) < math.abs(next) ? math.abs(next) : math.abs(max))
-                );
+                //float maxDisplacement = gridHeights.Max();
+                //maxDisplacement = gridHeights.Aggregate(
+                //    (max, next) =>
+                //    (math.abs(max) < math.abs(next) ? math.abs(next) : math.abs(max))
+                //);
                 foreach (var height in gridHeights)
                 {
                     int2 grid0 = centerGrid - brushResolution / 2;
-                    int2 uv = height.Key - grid0;
+                    int2 uv = height - grid0;
 
-                    Color32 maxColor = (height.Value < 0) ? Color.red : Color.green;
+                    Color32 maxColor = Color.red;
                     Color32 black = Color.black;
-                    colors[uv.x + uv.y * brushResolution] = Color32.Lerp(black, maxColor, math.abs(height.Value) / maxDisplacement);
+                    colors[uv.x + uv.y * brushResolution] = Color.red;
                 }
-                texture.SetPixels32(colors);
-                texture.Apply();
+                template.SetPixels32(colors);
+                template.Apply();
 
-                brushUV = ((float2)(localMin + localMax) / 2f / new float2((heightmapWidth - 1), (heightmapHeight - 1)));
-                brushSize = Grid2WorldGrid(brushResolution).x;
-                brushOpacity = maxDisplacement;
+                byte[] mapBytes = ImageConversion.EncodeToPNG(template);
 
+                string fileName = System.DateTime.Now.ToString("MMddyyyy_hh_mm_ss");
+                File.WriteAllBytes(Application.dataPath + "/./Textures/ConvexHull/" + fileName + name + ".png", mapBytes);
+
+                UnityEngine.Object.Destroy(template);
+#if UNITY_EDITOR
+                UnityEditor.AssetDatabase.Refresh();
+#endif
                 return;
             }
         }
 
         #endregion
-
         #region Terrain Data Getters
         public bool RayCast(Ray ray, out RaycastHit hit, float maxDist)
         {
@@ -635,7 +616,7 @@ namespace XPBD
         {
             World2UV(pos, out float x, out float y);
 
-            if(x < 0 || x > 1 || y < 0 || y > 1)
+            if (x < 0 || x > 1 || y < 0 || y > 1)
                 return float.NegativeInfinity;
             return terrainData.GetInterpolatedHeight(x, y);
         }
@@ -722,10 +703,14 @@ namespace XPBD
             //Simulation.get.AddTerrain(this, (int2)math.floor(key));
             Simulation.get.terrainSystem.AddTerrain(this);
             // Save initial height for undo after simulation
-            originalHeightmap =new RenderTexture(terrainData.heightmapTexture);
+            originalHeightmap = new RenderTexture(terrainData.heightmapTexture);
             Graphics.Blit(terrainData.heightmapTexture, originalHeightmap);
 
             footprintMat = new Material(Shader.Find("Custom/FootPrint"));
+        }
+        private void Update()
+        {
+            StartCoroutine(PaintFootPrint());
         }
         private void OnDisable()
         {
@@ -735,20 +720,6 @@ namespace XPBD
                 Vector2Int.zero,
                 TerrainHeightmapSyncControl.HeightAndLod);
             RenderTexture.active = null;
-        }
-
-        private void OnDrawGizmos()
-        {
-            //if (terrainData == null)
-            //    return;
-            //float3 center = m_brushUV.xxy * terrainData.size + (float3)transform.position;
-            //
-            //center.y = 5f;
-            //
-            //float3 size = m_BrushSize;
-            //size.y = 0.1f;
-            //Gizmos.color = Color.red;
-            //Gizmos.DrawCube(center, size);
         }
         #endregion
     }
