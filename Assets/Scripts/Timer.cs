@@ -37,6 +37,13 @@ public class Timer
         pause_end = Time.realtimeSinceStartup;
         pause_time += pause_end - pause_start;
     }
+    public void TicAndPause()
+    {
+        this.Tic();
+        this.Pause();
+
+        //Debug.Log(start);
+    }
     // Duration in microseconds
     public float Duration()
     {
@@ -44,6 +51,7 @@ public class Timer
         elapse *= 1000000f;
         return elapse;
     }
+    
 
     // Duration in seconds
     public float DurationInSeconds()

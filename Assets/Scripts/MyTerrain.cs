@@ -9,6 +9,7 @@ using UnityEngine.Rendering;
 using UnityEditor;
 using System.Runtime.ConstrainedExecution;
 using System.IO;
+using static TMPro.SpriteAssetUtilities.TexturePacker_JsonArray;
 //using UnityEditor;
 
 namespace XPBD
@@ -67,12 +68,21 @@ namespace XPBD
 
         public List<MyCollision> collisions = new List<MyCollision>();
 
+        Timer coroutineTimer = new();
+
         int times = 0;
         #region Terrain Paint
+        public void TimerReport(int frame)
+        {
+            coroutineTimer.Toc();
+            Debug.Log(name + " terrainPaint Time: " + coroutineTimer.DurationInSeconds() * 1000 / frame);
+        }
         private IEnumerator PaintFootPrint()
         {
+            coroutineTimer.Resume();
             if (gridDisplacements.Count <= 0)
             {
+                coroutineTimer.Pause();
                 yield return null;
             }
             GridDisplacements2BrushTexture();
@@ -110,6 +120,7 @@ namespace XPBD
 
             PaintContext.ApplyDelayedActions();
 
+            coroutineTimer.Pause();
             yield return null;
 
             void GridDisplacements2BrushTexture()
@@ -707,6 +718,8 @@ namespace XPBD
             Graphics.Blit(terrainData.heightmapTexture, originalHeightmap);
 
             footprintMat = new Material(Shader.Find("Custom/FootPrint"));
+
+            coroutineTimer.TicAndPause();
         }
         private void Update()
         {

@@ -51,4 +51,11 @@ public class TerrainSystem
         }
         return null;
     }
+    public void TimerReport(int frames)
+    {
+        foreach(MyTerrain terrain in myTerrains)
+        {
+            terrain.TimerReport(frames);
+        }
+    }
 }

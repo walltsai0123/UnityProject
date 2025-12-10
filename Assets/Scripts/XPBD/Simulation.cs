@@ -81,9 +81,11 @@ namespace XPBD
         // Timer
         readonly Timer stepTimer = new();
         readonly Timer bodySolveTimer = new();
-        readonly Timer collisionTimer = new();
+        readonly Timer collisionDetectTimer = new();
         readonly Timer constraintTimer = new();
-        readonly Timer primitiveTimer = new();
+        readonly Timer terrainDeformTimer = new();
+        readonly Timer substepTimer = new();
+        readonly Timer collisionSolveTimer = new();
 
         //UPyPlot
         public float totalForce = 0;
@@ -126,16 +128,54 @@ namespace XPBD
             firstFrame = false;
 
             softBodySystem.Init();
+            TimersInit();
+        }
+        private void TimersInit()
+        {
+            stepTimer.TicAndPause();    
+            collisionDetectTimer.TicAndPause();
+            substepTimer.TicAndPause();
+            bodySolveTimer.TicAndPause();
+            constraintTimer.TicAndPause();
+            collisionSolveTimer.TicAndPause();
+            terrainDeformTimer.TicAndPause();
+        }
+        private void TimersStop()
+        {
+            stepTimer.Toc();
+            collisionDetectTimer.Toc();
+            substepTimer.Toc();
+            bodySolveTimer.Toc();
+            constraintTimer.Toc();
+            collisionSolveTimer.Toc();
+            terrainDeformTimer.Toc();
+
+            Debug.Log(frame);
+            Debug.Log("Collision Detect Time: " + collisionDetectTimer.DurationInSeconds() * 1000 / frame);
+            Debug.Log("substep Time: " + substepTimer.DurationInSeconds() * 1000 / frame);
+            Debug.Log("bodySolve Time: " + bodySolveTimer.DurationInSeconds() * 1000 / frame);
+            Debug.Log("constraint Time: " + constraintTimer.DurationInSeconds() * 1000 / frame);
+            Debug.Log("collisionSolve Time: " + collisionSolveTimer.DurationInSeconds() * 1000 / frame);
+            Debug.Log("terrainDeform Time: " + terrainDeformTimer.DurationInSeconds() * 1000 / frame);
+
+            terrainSystem.TimerReport(frame);
+
+            Debug.Log("step time: "+ stepTimer.DurationInSeconds() * 1000 / frame);
         }
         private void SimulationUpdate(REAL dt, int substeps)
         {
             if (pause && !stepOnce)
                 return;
             ClearPlotVariable();
-            stepTimer.Tic();
+            //
+            //stepTimer.Tic();
             //collisionDetect.CollectCollision(bodies, primitives, dt);
             //collisionDetect.CollectCollision(softBodySystem, myTerrain, dt);
+            collisionDetectTimer.Resume();
+
             collisionDetect.CollectCollision(softBodySystem, terrainSystem, dt);
+
+            collisionDetectTimer.Pause();
             //collisions = collisionDetect.Collisions;
 
             if (collisions.Count > 0)
@@ -144,19 +184,20 @@ namespace XPBD
                 totalSimLoops++;
             }
 
-            bodySolveTimer.Tic();
-            bodySolveTimer.Pause();
+            //bodySolveTimer.Tic();
+            //bodySolveTimer.Pause();
 
-            constraintTimer.Tic();
-            constraintTimer.Pause();
+            //constraintTimer.Tic();
+            //constraintTimer.Pause();
 
-            primitiveTimer.Tic();
-            primitiveTimer.Pause();
+            //terrainDeformTimer.Tic();
+            //terrainDeformTimer.Pause();
 
             REAL sdt = dt / substeps;
 
             softBodySystem.SyncBodies();
             // PBD sim loop
+            substepTimer.Resume();
             for (int step = 0; step < substeps; ++step)
             {
                 foreach (Rigid body in rigidbodies)
@@ -169,12 +210,15 @@ namespace XPBD
                     body.Solve(sdt);
                 softBodySystem.Solve(sdt);
                 bodySolveTimer.Pause();
-                foreach (Constraint C in constraints)
-                    C.SolveConstraint(sdt);
 
                 constraintTimer.Resume();
-                collisionDetect.SolveCollision(sdt);
+                foreach (Constraint C in constraints)
+                    C.SolveConstraint(sdt);
                 constraintTimer.Pause();
+
+                collisionSolveTimer.Resume();
+                collisionDetect.SolveCollision(sdt);
+                collisionSolveTimer.Pause();
 
 
 
@@ -190,13 +234,16 @@ namespace XPBD
 
                 //terrainSystem.TerrainDeformation(softBodySystem, (float)sdt);
             }
+            substepTimer.Pause();
             softBodySystem.ClearForce();
             foreach (Rigid body in rigidbodies)
                 body.EndFrame();
             softBodySystem.EndFrame();
 
             //myTerrain.PaintFootPrints(softBodySystem, collisionDetect.Collisions, (float)dt);
+            terrainDeformTimer.Resume();
             terrainSystem.TerrainDeformation(softBodySystem, (float)dt);
+            terrainDeformTimer.Pause();
 
             //if (terrainSystem != null)
             //{
@@ -214,16 +261,16 @@ namespace XPBD
 
 
 
-            stepTimer.Toc();
-            bodySolveTimer.Toc();
-            constraintTimer.Toc();
-            primitiveTimer.Toc();
+            //stepTimer.Toc();
+            //bodySolveTimer.Toc();
+            //constraintTimer.Toc();
+            //terrainDeformTimer.Toc();
             if (verbose)
             {
                 stepTimer.Report("One simulation step", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
                 bodySolveTimer.Report("Body solve time: ", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
                 constraintTimer.Report("Constraint solve time", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
-                primitiveTimer.Report("Primitive solve time", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
+                terrainDeformTimer.Report("Primitive solve time", Timer.TimerOutputUnit.TIMER_OUTPUT_MILLISECONDS);
             }
 
             //Clear step once flag
@@ -303,14 +350,21 @@ namespace XPBD
             //FirstFrameSetting();
             REAL dt = 1f / targetFPS;
 
+            stepTimer.Pause();
+            stepTimer.Resume();
             SimulationUpdate(dt, substeps);
         }
-
+        private void OnApplicationQuit()
+        {
+            TimersStop();
+        }
         private void OnDestroy()
         {
             if (totalSimLoops > 0 && collisionVerbose)
                 Debug.Log("Average contacts: " + totalContacts / totalSimLoops);
             softBodySystem?.Dispose();
+
+            
         }
 
         private void OnDrawGizmos()
